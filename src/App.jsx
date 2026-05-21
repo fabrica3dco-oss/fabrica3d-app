@@ -7,6 +7,7 @@ import Leads from './pages/Leads'
 import Cotizaciones from './pages/Cotizaciones'
 import Cobros from './pages/Cobros'
 import Produccion from './pages/Produccion'
+import Pedidos from './pages/Pedidos'
 import Inventario from './pages/Inventario'
 import Finanzas from './pages/Finanzas'
 import EmailMarketing from './pages/EmailMarketing'
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="cotizaciones" element={<Cotizaciones />} />
           <Route path="cobros" element={<Cobros />} />
           <Route path="produccion" element={<Produccion />} />
+          <Route path="pedidos" element={<Pedidos />} />
           <Route path="inventario" element={<Inventario />} />
           <Route path="finanzas" element={<Finanzas />} />
           <Route path="email-marketing" element={<EmailMarketing />} />
