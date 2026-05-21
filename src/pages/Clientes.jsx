@@ -7,10 +7,10 @@ import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { useClientes } from '../hooks/useClientes'
 
-const TIPO_OPTS = ['cliente', 'proveedor', 'ambos']
-const TIPO_BADGE = { cliente: 'blue', proveedor: 'green', ambos: 'amber' }
+const ESTADO_OPTS = ['activo', 'inactivo', 'prospecto']
+const ESTADO_BADGE = { activo: 'green', inactivo: 'gray', prospecto: 'blue' }
 
-const EMPTY = { nombre: '', email: '', telefono: '', ciudad: '', tipo: 'cliente', notas: '' }
+const EMPTY = { empresa: '', contacto: '', cargo: '', whatsapp: '', email: '', sector: '', estado: 'activo', notas: '' }
 
 function Skeleton() {
   return (
@@ -25,15 +25,16 @@ function Skeleton() {
 export default function Clientes() {
   const { clientes, loading, crearCliente, actualizarCliente, eliminarCliente } = useClientes()
   const [busqueda, setBusqueda] = useState('')
-  const [modal, setModal] = useState(null) // null | { mode: 'crear' | 'editar', data }
+  const [modal, setModal] = useState(null)
   const [confirmId, setConfirmId] = useState(null)
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
 
   const filtrados = clientes.filter(c =>
-    c.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    c.empresa?.toLowerCase().includes(busqueda.toLowerCase()) ||
+    c.contacto?.toLowerCase().includes(busqueda.toLowerCase()) ||
     c.email?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    c.ciudad?.toLowerCase().includes(busqueda.toLowerCase())
+    c.sector?.toLowerCase().includes(busqueda.toLowerCase())
   )
 
   function abrirCrear() {
@@ -42,12 +43,21 @@ export default function Clientes() {
   }
 
   function abrirEditar(c) {
-    setForm({ nombre: c.nombre || '', email: c.email || '', telefono: c.telefono || '', ciudad: c.ciudad || '', tipo: c.tipo || 'cliente', notas: c.notas || '' })
+    setForm({
+      empresa: c.empresa || '',
+      contacto: c.contacto || '',
+      cargo: c.cargo || '',
+      whatsapp: c.whatsapp || '',
+      email: c.email || '',
+      sector: c.sector || '',
+      estado: c.estado || 'activo',
+      notas: c.notas || '',
+    })
     setModal({ mode: 'editar', id: c.id })
   }
 
   async function guardar() {
-    if (!form.nombre.trim()) return
+    if (!form.empresa.trim()) return
     setSaving(true)
     let ok
     if (modal.mode === 'crear') ok = await crearCliente(form)
@@ -76,13 +86,12 @@ export default function Clientes() {
         <Button onClick={abrirCrear}><Plus size={16} /> Nuevo cliente</Button>
       </div>
 
-      {/* Buscador */}
       <div className="relative mb-4">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9ab0]" />
         <input
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre, email o ciudad..."
+          placeholder="Buscar por empresa, contacto, email o sector..."
           className="w-full pl-9 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg bg-white text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent"
         />
       </div>
@@ -107,26 +116,30 @@ export default function Clientes() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
-                    <th className="text-left px-4 py-3 font-semibold text-[#8a9ab0] text-xs uppercase tracking-wide">Nombre</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8a9ab0] text-xs uppercase tracking-wide">Empresa</th>
                     <th className="text-left px-4 py-3 font-semibold text-[#8a9ab0] text-xs uppercase tracking-wide">Contacto</th>
-                    <th className="text-left px-4 py-3 font-semibold text-[#8a9ab0] text-xs uppercase tracking-wide">Ciudad</th>
-                    <th className="text-left px-4 py-3 font-semibold text-[#8a9ab0] text-xs uppercase tracking-wide">Tipo</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8a9ab0] text-xs uppercase tracking-wide">Sector</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8a9ab0] text-xs uppercase tracking-wide">Estado</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f2f5]">
                   {filtrados.map(c => (
                     <tr key={c.id} className="hover:bg-[#f8f9fb] transition-colors">
-                      <td className="px-4 py-3 font-medium text-navy-600">{c.nombre}</td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-navy-600">{c.empresa}</p>
+                        {c.cargo && <p className="text-xs text-[#8a9ab0]">{c.cargo}</p>}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-0.5">
+                          {c.contacto && <span className="text-navy-600">{c.contacto}</span>}
                           {c.email && <span className="flex items-center gap-1.5 text-[#8a9ab0]"><Mail size={12} />{c.email}</span>}
-                          {c.telefono && <span className="flex items-center gap-1.5 text-[#8a9ab0]"><Phone size={12} />{c.telefono}</span>}
+                          {c.whatsapp && <span className="flex items-center gap-1.5 text-[#8a9ab0]"><Phone size={12} />{c.whatsapp}</span>}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-[#8a9ab0]">{c.ciudad || '—'}</td>
+                      <td className="px-4 py-3 text-[#8a9ab0]">{c.sector || '—'}</td>
                       <td className="px-4 py-3">
-                        <Badge variant={TIPO_BADGE[c.tipo] || 'gray'}>{c.tipo || 'cliente'}</Badge>
+                        <Badge variant={ESTADO_BADGE[c.estado] || 'gray'}>{c.estado || 'activo'}</Badge>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
@@ -149,11 +162,12 @@ export default function Clientes() {
               {filtrados.map(c => (
                 <div key={c.id} className="p-4 flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-medium text-navy-600 truncate">{c.nombre}</p>
-                    {c.email && <p className="text-xs text-[#8a9ab0] truncate mt-0.5">{c.email}</p>}
-                    {c.telefono && <p className="text-xs text-[#8a9ab0]">{c.telefono}</p>}
+                    <p className="font-medium text-navy-600 truncate">{c.empresa}</p>
+                    {c.contacto && <p className="text-xs text-navy-600 truncate mt-0.5">{c.contacto}</p>}
+                    {c.email && <p className="text-xs text-[#8a9ab0] truncate">{c.email}</p>}
+                    {c.whatsapp && <p className="text-xs text-[#8a9ab0]">{c.whatsapp}</p>}
                     <div className="mt-1.5">
-                      <Badge variant={TIPO_BADGE[c.tipo] || 'gray'}>{c.tipo || 'cliente'}</Badge>
+                      <Badge variant={ESTADO_BADGE[c.estado] || 'gray'}>{c.estado || 'activo'}</Badge>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -179,11 +193,25 @@ export default function Clientes() {
       >
         <div className="flex flex-col gap-4">
           <Input
-            label="Nombre *"
-            value={form.nombre}
-            onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-            placeholder="Nombre completo o empresa"
+            label="Empresa *"
+            value={form.empresa}
+            onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))}
+            placeholder="Nombre de la empresa o persona"
           />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Contacto"
+              value={form.contacto}
+              onChange={e => setForm(f => ({ ...f, contacto: e.target.value }))}
+              placeholder="Nombre del contacto"
+            />
+            <Input
+              label="Cargo"
+              value={form.cargo}
+              onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))}
+              placeholder="Gerente, Compras..."
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Email"
@@ -193,27 +221,27 @@ export default function Clientes() {
               placeholder="correo@ejemplo.com"
             />
             <Input
-              label="Teléfono"
-              value={form.telefono}
-              onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))}
+              label="WhatsApp"
+              value={form.whatsapp}
+              onChange={e => setForm(f => ({ ...f, whatsapp: e.target.value }))}
               placeholder="+57 300 000 0000"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Ciudad"
-              value={form.ciudad}
-              onChange={e => setForm(f => ({ ...f, ciudad: e.target.value }))}
-              placeholder="Barranquilla"
+              label="Sector"
+              value={form.sector}
+              onChange={e => setForm(f => ({ ...f, sector: e.target.value }))}
+              placeholder="Construcción, Salud..."
             />
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-navy-600">Tipo</label>
+              <label className="text-sm font-medium text-navy-600">Estado</label>
               <select
-                value={form.tipo}
-                onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
+                value={form.estado}
+                onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
                 className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                {TIPO_OPTS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                {ESTADO_OPTS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
               </select>
             </div>
           </div>
@@ -229,7 +257,7 @@ export default function Clientes() {
           </div>
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
-            <Button onClick={guardar} disabled={!form.nombre.trim() || saving}>
+            <Button onClick={guardar} disabled={!form.empresa.trim() || saving}>
               {saving ? 'Guardando...' : modal?.mode === 'crear' ? 'Crear cliente' : 'Guardar cambios'}
             </Button>
           </div>
