@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Search, UserPlus } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -39,6 +39,81 @@ const EMPTY = {
 function diasRestantes(fecha) {
   if (!fecha) return null
   return Math.ceil((new Date(fecha + 'T00:00:00') - new Date()) / 86400000)
+}
+
+function ClienteAutocomplete({ clientes, value, clienteId, onChange }) {
+  const [open, setOpen]   = useState(false)
+  const [query, setQuery] = useState(value || '')
+  const ref               = useRef(null)
+
+  useEffect(() => { setQuery(value || '') }, [value])
+
+  useEffect(() => {
+    function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const filtrados = query.trim()
+    ? clientes.filter(c => c.empresa.toLowerCase().includes(query.toLowerCase()))
+    : clientes.slice(0, 8)
+
+  const hayExacto = clientes.some(c => c.empresa.toLowerCase() === query.trim().toLowerCase())
+
+  function seleccionar(c) {
+    onChange({ id: c.id, nombre: c.empresa })
+    setQuery(c.empresa)
+    setOpen(false)
+  }
+
+  function usarNuevo() {
+    onChange({ id: null, nombre: query.trim() })
+    setOpen(false)
+  }
+
+  return (
+    <div ref={ref} className="relative flex flex-col gap-1">
+      <label className="text-sm font-medium text-navy-600">Cliente</label>
+      <div className="relative">
+        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9ab0]" />
+        <input
+          value={query}
+          onChange={e => { setQuery(e.target.value); onChange({ id: null, nombre: e.target.value }); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder="Buscar o escribir cliente..."
+          className="w-full pl-8 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg bg-white text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent"
+        />
+      </div>
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e2e6ea] rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+          {filtrados.length === 0 && !query.trim() && (
+            <p className="text-xs text-[#8a9ab0] px-3 py-2">Sin clientes guardados aún</p>
+          )}
+          {filtrados.map(c => (
+            <button
+              key={c.id}
+              type="button"
+              onMouseDown={() => seleccionar(c)}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-[#f8f9fb] flex items-center gap-2 ${clienteId === c.id ? 'bg-blue-50 text-accent font-medium' : 'text-navy-600'}`}
+            >
+              <User size={12} className="text-[#8a9ab0] shrink-0" />
+              {c.empresa}
+            </button>
+          ))}
+          {query.trim() && !hayExacto && (
+            <button
+              type="button"
+              onMouseDown={usarNuevo}
+              className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-blue-50 flex items-center gap-2 border-t border-[#f0f2f5]"
+            >
+              <UserPlus size={12} className="shrink-0" />
+              Usar "<span className="font-medium">{query.trim()}</span>"
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function BadgeFecha({ fecha }) {
@@ -84,12 +159,6 @@ export default function Produccion() {
       fecha_entrega:  p.fecha_entrega || '',
     })
     setModal({ mode: 'editar', id: p.id })
-  }
-
-  function onClienteChange(e) {
-    const id = e.target.value
-    const cliente = clientes.find(c => c.id === id)
-    setForm(f => ({ ...f, cliente_id: id, cliente_nombre: cliente?.empresa || '' }))
   }
 
   async function guardar() {
@@ -228,17 +297,12 @@ export default function Produccion() {
             placeholder="Ej: Prótesis dental, soporte para drone, pieza personalizada..."
           />
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-navy-600">Cliente</label>
-              <select
-                value={form.cliente_id}
-                onChange={onClienteChange}
-                className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <option value="">— Sin asignar —</option>
-                {clientes.map(c => <option key={c.id} value={c.id}>{c.empresa}</option>)}
-              </select>
-            </div>
+            <ClienteAutocomplete
+              clientes={clientes}
+              value={form.cliente_nombre}
+              clienteId={form.cliente_id}
+              onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))}
+            />
             <Input
               label="Cantidad"
               type="number"
