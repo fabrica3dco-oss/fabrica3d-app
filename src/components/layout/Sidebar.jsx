@@ -12,7 +12,7 @@ const groups = [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/clientes', icon: Users, label: 'Clientes' },
       { to: '/leads', icon: TrendingUp, label: 'Leads' },
-      { to: '/produccion', icon: Package, label: 'Producción' },
+      { to: '/produccion', icon: Package, label: 'Pedidos' },
     ],
   },
   {

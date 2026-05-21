@@ -199,7 +199,7 @@ export default function Produccion() {
     <div className="p-4 lg:p-6 flex flex-col h-full">
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-navy-600">Producción</h1>
+          <h1 className="text-2xl font-bold text-navy-600">Pedidos</h1>
           <p className="text-sm text-[#8a9ab0] mt-0.5">
             {loading ? '...' : `${activos} pedido${activos !== 1 ? 's' : ''} activo${activos !== 1 ? 's' : ''}`}
           </p>
