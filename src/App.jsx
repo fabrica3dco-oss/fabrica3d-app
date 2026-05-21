@@ -8,6 +8,7 @@ import Cotizaciones from './pages/Cotizaciones'
 import Cobros from './pages/Cobros'
 import Produccion from './pages/Produccion'
 import Pedidos from './pages/Pedidos'
+import CotizacionPublica from './pages/CotizacionPublica'
 import Inventario from './pages/Inventario'
 import Finanzas from './pages/Finanzas'
 import EmailMarketing from './pages/EmailMarketing'
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="redes" element={<Redes />} />
           <Route path="equipo" element={<Equipo />} />
         </Route>
+        <Route path="cotizacion/:id" element={<CotizacionPublica />} />
       </Routes>
     </BrowserRouter>
   )

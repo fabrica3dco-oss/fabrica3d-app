@@ -1,13 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, User, UserPlus, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, User, UserPlus, X, Eye, Link, MessageCircle } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
+import CotizacionVista from '../components/CotizacionVista'
 import { useCotizaciones } from '../hooks/useCotizaciones'
 import { generarPdfCotizacion } from '../utils/pdfCotizacion'
 import { supabase } from '../services/supabase'
+import toast from 'react-hot-toast'
+
+const BASE_URL = window.location.origin
 
 const ESTADO_COLOR = { borrador: 'gray', enviada: 'blue', aprobada: 'green', rechazada: 'red' }
 const ESTADO_LABEL = { borrador: 'Borrador', enviada: 'Enviada', aprobada: 'Aprobada', rechazada: 'Rechazada' }
@@ -78,13 +82,27 @@ function Skeleton() {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function Cotizaciones() {
   const { cotizaciones, loading, crearCotizacion, actualizarCotizacion, eliminarCotizacion } = useCotizaciones()
-  const [clientes,    setClientes]    = useState([])
-  const [busqueda,    setBusqueda]    = useState('')
-  const [filtroEstado, setFiltroEstado] = useState('')
-  const [modal,       setModal]       = useState(null)
-  const [confirmId,   setConfirmId]   = useState(null)
-  const [form,        setForm]        = useState(FORM_EMPTY)
-  const [saving,      setSaving]      = useState(false)
+  const [clientes,      setClientes]      = useState([])
+  const [busqueda,      setBusqueda]      = useState('')
+  const [filtroEstado,  setFiltroEstado]  = useState('')
+  const [modal,         setModal]         = useState(null)
+  const [confirmId,     setConfirmId]     = useState(null)
+  const [previewing,    setPreviewing]    = useState(null)
+  const [form,          setForm]          = useState(FORM_EMPTY)
+  const [saving,        setSaving]        = useState(false)
+
+  function copiarLink(c) {
+    const url = `${BASE_URL}/cotizacion/${c.id}`
+    navigator.clipboard.writeText(url)
+    toast.success('Link copiado al portapapeles')
+  }
+
+  function compartirWhatsApp(c) {
+    const url = `${BASE_URL}/cotizacion/${c.id}`
+    const num  = String(c.numero).padStart(4, '0')
+    const msg  = encodeURIComponent(`Hola, te comparto la cotización #${num} de Fabrica3D:\n${url}`)
+    window.open(`https://wa.me/?text=${msg}`, '_blank')
+  }
 
   useEffect(() => {
     supabase.from('clientes').select('id, empresa').order('empresa').then(({ data }) => setClientes(data || []))
@@ -226,6 +244,18 @@ export default function Cotizaciones() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
+                          <button onClick={() => setPreviewing(c)} title="Vista previa"
+                            className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors">
+                            <Eye size={14} />
+                          </button>
+                          <button onClick={() => copiarLink(c)} title="Copiar link"
+                            className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors">
+                            <Link size={14} />
+                          </button>
+                          <button onClick={() => compartirWhatsApp(c)} title="Enviar por WhatsApp"
+                            className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600 transition-colors">
+                            <MessageCircle size={14} />
+                          </button>
                           <button onClick={() => generarPdfCotizacion(c)} title="Descargar PDF"
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
                             <Download size={14} />
@@ -259,6 +289,8 @@ export default function Cotizaciones() {
                     <p className="text-sm font-semibold text-navy-600 mt-0.5">{cop(c.total)}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => setPreviewing(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Eye size={14} /></button>
+                    <button onClick={() => compartirWhatsApp(c)} className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><MessageCircle size={14} /></button>
                     <button onClick={() => generarPdfCotizacion(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
                     <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Pencil size={14} /></button>
                     <button onClick={() => setConfirmId(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-600"><Trash2 size={14} /></button>
@@ -380,6 +412,31 @@ export default function Cotizaciones() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Vista previa */}
+      <Modal open={!!previewing} onClose={() => setPreviewing(null)} title={`Vista previa — Cotización #${String(previewing?.numero || 0).padStart(4,'0')}`} size="xl">
+        {previewing && (
+          <div>
+            <div className="flex gap-2 mb-4 flex-wrap">
+              <button onClick={() => copiarLink(previewing)}
+                className="flex items-center gap-2 border border-[#e2e6ea] rounded-lg px-3 py-1.5 text-sm text-navy-600 hover:bg-[#f8f9fb] transition-colors">
+                <Link size={13} /> Copiar link
+              </button>
+              <button onClick={() => compartirWhatsApp(previewing)}
+                className="flex items-center gap-2 border border-green-200 rounded-lg px-3 py-1.5 text-sm text-green-700 hover:bg-green-50 transition-colors">
+                <MessageCircle size={13} /> Enviar por WhatsApp
+              </button>
+              <button onClick={() => generarPdfCotizacion(previewing)}
+                className="flex items-center gap-2 border border-blue-200 rounded-lg px-3 py-1.5 text-sm text-accent hover:bg-blue-50 transition-colors">
+                <Download size={13} /> Descargar PDF
+              </button>
+            </div>
+            <div className="border border-[#e2e6ea] rounded-xl overflow-hidden">
+              <CotizacionVista cotizacion={previewing} />
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Confirmar eliminar */}
