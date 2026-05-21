@@ -7,14 +7,21 @@ import Input from '../components/ui/Input'
 import { useLeads } from '../hooks/useLeads'
 
 const ETAPAS = [
-  { id: 'prospecto',          label: 'Prospecto',          color: 'blue',   bg: 'bg-blue-500' },
-  { id: 'contactado',         label: 'Contactado',         color: 'amber',  bg: 'bg-amber-500' },
-  { id: 'cotizacion_enviada', label: 'Cotización enviada', color: 'gray',   bg: 'bg-purple-500' },
-  { id: 'cerrado_ganado',     label: 'Ganado',             color: 'green',  bg: 'bg-green-500' },
-  { id: 'cerrado_perdido',    label: 'Perdido',            color: 'red',    bg: 'bg-red-400' },
+  { id: 'prospecto',      label: 'Prospecto',          color: 'blue',  bg: 'bg-blue-500' },
+  { id: 'contactado',     label: 'Contactado',         color: 'amber', bg: 'bg-amber-500' },
+  { id: 'cotizando',      label: 'Cotización enviada', color: 'gray',  bg: 'bg-purple-500' },
+  { id: 'cerrado_ganado', label: 'Ganado',             color: 'green', bg: 'bg-green-500' },
+  { id: 'cerrado_perdido',label: 'Perdido',            color: 'red',   bg: 'bg-red-400' },
 ]
 
-const FUENTES = ['Instagram', 'WhatsApp', 'Referido', 'Web', 'Llamada', 'Otro']
+const FUENTES = [
+  { id: 'instagram',  label: 'Instagram' },
+  { id: 'whatsapp',   label: 'WhatsApp' },
+  { id: 'linkedin',   label: 'LinkedIn' },
+  { id: 'email_frio', label: 'Email frío' },
+  { id: 'referido',   label: 'Referido' },
+  { id: 'otro',       label: 'Otro' },
+]
 
 const EMPTY = { empresa: '', contacto: '', whatsapp: '', email: '', valor_estimado: '', fuente: '', etapa: 'prospecto', notas: '' }
 
@@ -197,7 +204,7 @@ export default function Leads() {
                           </span>
                         ) : <span />}
                         {lead.fuente && (
-                          <Badge variant="gray" className="text-[10px]">{lead.fuente}</Badge>
+                          <Badge variant="gray" className="text-[10px]">{FUENTES.find(f => f.id === lead.fuente)?.label ?? lead.fuente}</Badge>
                         )}
                       </div>
                     </div>
@@ -271,7 +278,7 @@ export default function Leads() {
                 className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
               >
                 <option value="">— Selecciona —</option>
-                {FUENTES.map(f => <option key={f} value={f}>{f}</option>)}
+                {FUENTES.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
               </select>
             </div>
           </div>
