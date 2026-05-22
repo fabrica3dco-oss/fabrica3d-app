@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, User, UserPlus, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, User, UserPlus, X, ChevronDown } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
@@ -246,16 +246,19 @@ export default function Cotizaciones() {
                       <td className="px-4 py-3 font-medium text-navy-600">{c.cliente_nombre || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-navy-600">{cop(c.total)}</td>
                       <td className="px-4 py-3">
-                        <select
-                          value={c.estado}
-                          onClick={e => e.stopPropagation()}
-                          onChange={async e => {
-                            e.stopPropagation()
-                            await actualizarCotizacion(c.id, { estado: e.target.value })
-                          }}
-                          className={`text-xs font-semibold px-2.5 py-1 rounded-full cursor-pointer border-0 focus:outline-none focus:ring-2 focus:ring-accent transition-colors appearance-none ${ESTADO_SELECT[c.estado]}`}>
-                          {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
-                        </select>
+                        <div className="relative inline-flex items-center">
+                          <select
+                            value={c.estado}
+                            onClick={e => e.stopPropagation()}
+                            onChange={async e => {
+                              e.stopPropagation()
+                              await actualizarCotizacion(c.id, { estado: e.target.value })
+                            }}
+                            className={`text-xs font-semibold pl-2.5 pr-6 py-1 rounded-full cursor-pointer border-0 focus:outline-none focus:ring-2 focus:ring-accent transition-colors appearance-none ${ESTADO_SELECT[c.estado]}`}>
+                            {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+                          </select>
+                          <ChevronDown size={10} className="absolute right-1.5 pointer-events-none opacity-60" />
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-xs text-[#8a9ab0]">
                         {c.valida_hasta ? new Date(c.valida_hasta+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
@@ -296,13 +299,16 @@ export default function Cotizaciones() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-xs font-semibold text-[#8a9ab0]">COT-{String(c.numero).padStart(3,'0')}</span>
-                      <select
-                        value={c.estado}
-                        onClick={e => e.stopPropagation()}
-                        onChange={async e => { e.stopPropagation(); await actualizarCotizacion(c.id, { estado: e.target.value }) }}
-                        className={`text-xs font-semibold px-2 py-0.5 rounded-full cursor-pointer border-0 focus:outline-none appearance-none ${ESTADO_SELECT[c.estado]}`}>
-                        {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
-                      </select>
+                      <div className="relative inline-flex items-center">
+                        <select
+                          value={c.estado}
+                          onClick={e => e.stopPropagation()}
+                          onChange={async e => { e.stopPropagation(); await actualizarCotizacion(c.id, { estado: e.target.value }) }}
+                          className={`text-xs font-semibold pl-2 pr-5 py-0.5 rounded-full cursor-pointer border-0 focus:outline-none appearance-none ${ESTADO_SELECT[c.estado]}`}>
+                          {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+                        </select>
+                        <ChevronDown size={10} className="absolute right-1 pointer-events-none opacity-60" />
+                      </div>
                     </div>
                     <p className="font-medium text-navy-600 truncate">{c.cliente_nombre || '—'}</p>
                     <p className="text-sm font-semibold text-navy-600 mt-0.5">{cop(c.total)}</p>
