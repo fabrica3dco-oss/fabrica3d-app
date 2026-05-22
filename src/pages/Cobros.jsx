@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, CheckCircle, AlertCircle, Clock, User, UserPlus, Eye, Share2, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, CheckCircle, AlertCircle, Clock, User, UserPlus, Eye, Share2, X, RotateCcw } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -164,6 +164,10 @@ export default function Cobros() {
     setMetodoPago('')
   }
 
+  async function revertirAPendiente(c) {
+    await actualizarCobro(c.id, { estado: 'pendiente', metodo_pago: null })
+  }
+
   // ── PDF ────────────────────────────────────────────────────────────────────
   async function descargarPdf(c)  { await generarPdfCobro(c) }
   async function verPdf(c)        { const url = await previewUrlCobro(c); setPreviewUrl(url) }
@@ -191,10 +195,10 @@ export default function Cobros() {
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-navy-600">Cobros</h1>
-          <p className="text-sm text-[#8a9ab0] mt-0.5">{loading ? '...' : `${cobros.length} cobros`}</p>
+          <h1 className="text-2xl font-bold text-navy-600">Cuentas de cobro</h1>
+          <p className="text-sm text-[#8a9ab0] mt-0.5">{loading ? '...' : `${cobros.length} cuentas de cobro`}</p>
         </div>
-        <Button onClick={abrirCrear}><Plus size={16} /> Nuevo cobro</Button>
+        <Button onClick={abrirCrear}><Plus size={16} /> Nueva cuenta de cobro</Button>
       </div>
 
       {/* Métricas */}
@@ -235,8 +239,8 @@ export default function Cobros() {
         ) : filtrados.length === 0 ? (
           <div className="flex flex-col items-center py-12 text-center gap-3">
             <span className="text-5xl">💳</span>
-            <p className="text-sm font-medium text-navy-600">{busqueda || filtroEstado ? 'Sin resultados' : 'Sin cobros aún'}</p>
-            <p className="text-xs text-[#8a9ab0]">{busqueda || filtroEstado ? 'Prueba con otros filtros.' : 'Crea tu primer cobro.'}</p>
+            <p className="text-sm font-medium text-navy-600">{busqueda || filtroEstado ? 'Sin resultados' : 'Sin cuentas de cobro aún'}</p>
+            <p className="text-xs text-[#8a9ab0]">{busqueda || filtroEstado ? 'Prueba con otros filtros.' : 'Crea tu primera cuenta de cobro.'}</p>
           </div>
         ) : (
           <>
@@ -281,10 +285,15 @@ export default function Cobros() {
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
                             <Download size={14} />
                           </button>
-                          {c.estado !== 'pagado' && (
-                            <button onClick={() => { setPagoModal(c); setMetodoPago('') }} title="Marcar como pagado"
-                              className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600 transition-colors">
-                              <CheckCircle size={14} />
+                          {c.estado !== 'pagado' ? (
+                            <button onClick={() => { setPagoModal(c); setMetodoPago('') }}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-semibold text-xs transition-colors border border-green-200">
+                              <CheckCircle size={12} /> Pagar
+                            </button>
+                          ) : (
+                            <button onClick={() => revertirAPendiente(c)} title="Revertir a pendiente"
+                              className="p-1.5 rounded-lg hover:bg-amber-50 text-[#8a9ab0] hover:text-amber-500 transition-colors">
+                              <RotateCcw size={14} />
                             </button>
                           )}
                           <button onClick={() => abrirEditar(c)}
@@ -320,8 +329,16 @@ export default function Cobros() {
                     <button onClick={() => compartirWhatsApp(c)} className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><Share2 size={14} /></button>
                     <button onClick={() => verPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Eye size={14} /></button>
                     <button onClick={() => descargarPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
-                    {c.estado !== 'pagado' && (
-                      <button onClick={() => { setPagoModal(c); setMetodoPago('') }} className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><CheckCircle size={14} /></button>
+                    {c.estado !== 'pagado' ? (
+                      <button onClick={() => { setPagoModal(c); setMetodoPago('') }}
+                        className="p-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 border border-green-200">
+                        <CheckCircle size={14} />
+                      </button>
+                    ) : (
+                      <button onClick={() => revertirAPendiente(c)} title="Revertir a pendiente"
+                        className="p-1.5 rounded-lg hover:bg-amber-50 text-[#8a9ab0] hover:text-amber-500">
+                        <RotateCcw size={14} />
+                      </button>
                     )}
                     <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Pencil size={14} /></button>
                     <button onClick={() => setConfirmId(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-600"><Trash2 size={14} /></button>
@@ -334,7 +351,7 @@ export default function Cobros() {
       </Card>
 
       {/* ── Modal crear/editar ──────────────────────────────────────────────── */}
-      <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'crear' ? 'Nuevo cobro' : 'Editar cobro'}>
+      <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'crear' ? 'Nueva cuenta de cobro' : 'Editar cuenta de cobro'}>
         <div className="flex flex-col gap-4">
           <ClienteAutocomplete clientes={clientes} value={form.cliente_nombre} clienteId={form.cliente_id}
             onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))} />
@@ -377,7 +394,7 @@ export default function Cobros() {
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
             <Button onClick={guardar} disabled={!form.concepto.trim() || !form.monto || saving}>
-              {saving ? 'Guardando...' : modal?.mode === 'crear' ? 'Crear cobro' : 'Guardar cambios'}
+              {saving ? 'Guardando...' : modal?.mode === 'crear' ? 'Crear cuenta de cobro' : 'Guardar cambios'}
             </Button>
           </div>
         </div>
@@ -422,8 +439,8 @@ export default function Cobros() {
       </Modal>
 
       {/* ── Confirmar eliminar ──────────────────────────────────────────────── */}
-      <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar cobro" size="sm">
-        <p className="text-sm text-navy-600 mb-5">¿Seguro que quieres eliminar este cobro?</p>
+      <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar cuenta de cobro" size="sm">
+        <p className="text-sm text-navy-600 mb-5">¿Seguro que quieres eliminar esta cuenta de cobro?</p>
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setConfirmId(null)}>Cancelar</Button>
           <Button variant="danger" disabled={saving}

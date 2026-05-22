@@ -13,7 +13,7 @@ const tabs = [
 
 const fabActions = [
   { icon: FileEdit, label: 'Nueva cotización', to: '/cotizaciones?new=1' },
-  { icon: CreditCard, label: 'Nuevo cobro', to: '/cobros?new=1' },
+  { icon: CreditCard, label: 'Nueva cuenta de cobro', to: '/cobros?new=1' },
   { icon: TrendingUp, label: 'Nuevo lead', to: '/leads?new=1' },
   { icon: Receipt, label: 'Registrar gasto', to: '/finanzas?gasto=1' },
 ]

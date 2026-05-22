@@ -20,7 +20,7 @@ const groups = [
     label: 'Documentos',
     items: [
       { to: '/cotizaciones', icon: FileText, label: 'Cotizaciones' },
-      { to: '/cobros', icon: CreditCard, label: 'Cobros' },
+      { to: '/cobros', icon: CreditCard, label: 'Cuentas de cobro' },
     ],
   },
   {

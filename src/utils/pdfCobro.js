@@ -122,9 +122,9 @@ async function buildDoc(cobro) {
   doc.line(ML + LOGO_W_MM + 12, 10, ML + LOGO_W_MM + 12, 40)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
+  doc.setFontSize(7)
   doc.setTextColor(...TGRAY)
-  doc.text('COBRO', RE, 17, { align: 'right' })
+  doc.text('CUENTA DE COBRO', RE, 17, { align: 'right' })
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(19)
@@ -243,36 +243,37 @@ async function buildDoc(cobro) {
     doc.setFillColor(...LNAV)
     doc.setDrawColor(...MNAV)
     doc.setLineWidth(0.5)
-    doc.roundedRect(ML, y, CW, 20, 2, 2, 'FD')
+    doc.roundedRect(ML, y, CW, 28, 2, 2, 'FD')
     doc.setFillColor(...NAVY)
-    doc.rect(ML, y, 3, 20, 'F')
+    doc.rect(ML, y, 3, 28, 'F')
 
+    // Izquierda: datos de transferencia
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(...MID)
-    doc.text('Envía el pago a:', ML + 7, y + 7)
+    doc.text('Datos para el pago:', ML + 7, y + 8.5)
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
+    doc.setFontSize(11)
     doc.setTextColor(...DARK)
-    doc.text('Llave Bre-B  ·  3215735651', ML + 7, y + 13.5)
+    doc.text('Llave Bre-B  ·  3215735651', ML + 7, y + 16.5)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8.5)
     doc.setTextColor(...MID)
-    doc.text('Titular: Dimas Domenech', ML + 7, y + 19)
+    doc.text('Titular: Dimas Domenech', ML + 7, y + 23.5)
 
-    // Total derecha
+    // Derecha: total a pagar
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
+    doc.setFontSize(7.5)
     doc.setTextColor(...MID)
-    doc.text('Total a pagar:', RE - 2, y + 9, { align: 'right' })
+    doc.text('Total a pagar:', RE - 2, y + 11, { align: 'right' })
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(13)
+    doc.setFontSize(14)
     doc.setTextColor(...NAVY)
-    doc.text(cop(cobro.monto), RE - 2, y + 17, { align: 'right' })
+    doc.text(cop(cobro.monto), RE - 2, y + 22, { align: 'right' })
 
-    y += 20 + 9
+    y += 28 + 9
   }
 
   // ── MÉTODO DE PAGO (si pagado) ────────────────────────────────────────────────
@@ -303,7 +304,9 @@ async function buildDoc(cobro) {
     y += 5
 
     const notasLines = doc.splitTextToSize(cobro.notas, CW - 10)
-    const notasH     = 7 + notasLines.length * 5.5
+    const notasH     = Math.max(14, 7 + notasLines.length * 5.5)
+    // Centrado vertical: primera línea centrada en la caja
+    const notasTextY = y + (notasH - (notasLines.length - 1) * 5.5) / 2 + 1.5
 
     doc.setFillColor(...LIGHT)
     doc.setDrawColor(...BORDER)
@@ -315,7 +318,7 @@ async function buildDoc(cobro) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(...MID)
-    doc.text(notasLines, ML + 7, y + 6)
+    doc.text(notasLines, ML + 7, notasTextY)
   }
 
   // ── FOOTER (idéntico a pdfCotizacion) ────────────────────────────────────────
@@ -358,7 +361,7 @@ async function buildDoc(cobro) {
 // ── Exports ───────────────────────────────────────────────────────────────────
 export async function generarPdfCobro(cobro) {
   const doc = await buildDoc(cobro)
-  doc.save(`Cobro-${String(cobro.numero).padStart(4, '0')}-${cobro.cliente_nombre || 'cliente'}.pdf`)
+  doc.save(`CuentaCobro-${String(cobro.numero).padStart(4, '0')}-${cobro.cliente_nombre || 'cliente'}.pdf`)
 }
 
 export async function previewUrlCobro(cobro) {
