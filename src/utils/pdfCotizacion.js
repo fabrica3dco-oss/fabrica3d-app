@@ -1,153 +1,330 @@
 import jsPDF from 'jspdf'
 
-const cop = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(v) || 0)
-const fecha = (d) => new Date(d).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })
+// ── helpers ───────────────────────────────────────────────────────────────────
+const cop  = (v) => `$${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number(v) || 0)}`
+const copFull = (v) => `$${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number(v) || 0)} COP`
+const fechaMedia = (d) => {
+  if (!d) return '—'
+  try {
+    const s = d.includes('T') ? d : d + 'T00:00:00'
+    return new Date(s).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
+      .replace(/^\w/, c => c.toUpperCase())
+  } catch { return d }
+}
 
-export function generarPdfCotizacion(cotizacion) {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const W = 210
-  const margin = 18
-  let y = 0
+// ── colores ───────────────────────────────────────────────────────────────────
+const NAVY   = [20,  34,  54]
+const BLUE   = [37, 99, 235]
+const LGRAY  = [245, 247, 250]
+const MGRAY  = [224, 230, 234]
+const LBLUE  = [239, 246, 255]
+const AMBER  = [255, 251, 235]
+const AMBER2 = [253, 230, 138]
+const WHITE  = [255, 255, 255]
+const TGRAY  = [138, 154, 176]
+const TNAV   = [20,  34,  54]
 
-  // ── Header band ─────────────────────────────────────────────────────────────
-  doc.setFillColor(20, 34, 54)         // navy-600
-  doc.rect(0, 0, W, 32, 'F')
+const DEFAULT_CONDITIONS = [
+  'Anticipo del 50% para iniciar producción.',
+  'Saldo al momento de la entrega.',
+  'El cliente debe enviar el logo en formato vectorial (AI, SVG, PDF) o PNG de alta resolución.',
+  'Cotización válida por 7 días calendario.',
+  'Precios sujetos a ajuste según diseño final.',
+]
 
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(20)
+export function generarPdfCotizacion(cotizacion, cliente = null) {
+  const doc   = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W     = 210
+  const ML    = 15   // margin left
+  const MR    = 15   // margin right
+  const CW    = W - ML - MR  // content width = 180mm
+  let y       = 0
+
+  const lineas    = cotizacion.lineas || []
+  const subtotal  = lineas.reduce((s, l) => s + Number(l.cantidad||0)*Number(l.precio_unitario||0), 0)
+  const descuento = Number(cotizacion.descuento || 0)
+  const total     = subtotal - descuento
+  const num       = String(cotizacion.numero).padStart(3, '0')
+  const año       = new Date(cotizacion.created_at).getFullYear()
+
+  // ── HEADER ──────────────────────────────────────────────────────────────────
+  doc.setFillColor(...NAVY)
+  doc.rect(0, 0, W, 44, 'F')
+
+  // Square logo
+  doc.setFillColor(...BLUE)
+  doc.roundedRect(ML, 12, 17, 17, 2, 2, 'F')
+  doc.setTextColor(...WHITE)
   doc.setFont('helvetica', 'bold')
-  doc.text('Fabrica', margin, 14)
-
-  doc.setTextColor(59, 130, 246)       // accent blue
-  doc.text('3D', margin + 28.5, 14)
-
-  doc.setTextColor(200, 210, 220)
   doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Impresión 3D · Barranquilla, Colombia', margin, 21)
-  doc.text('fabrica3d.co', margin, 26)
+  doc.text('F3D', ML + 8.5, 22.5, { align: 'center' })
 
-  // Quote number top-right
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(11)
+  // Brand name
+  doc.setFontSize(17)
   doc.setFont('helvetica', 'bold')
-  doc.text(`COTIZACIÓN #${String(cotizacion.numero).padStart(4, '0')}`, W - margin, 14, { align: 'right' })
-
+  doc.text('Fabrica3D', ML + 21, 22)
+  doc.setFontSize(6.5)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(200, 210, 220)
-  doc.text(`Fecha: ${fecha(cotizacion.created_at)}`, W - margin, 21, { align: 'right' })
-  if (cotizacion.valida_hasta) {
-    doc.text(`Válida hasta: ${fecha(cotizacion.valida_hasta + 'T00:00:00')}`, W - margin, 26, { align: 'right' })
-  }
+  doc.setTextColor(...TGRAY)
+  doc.text('IMPRESIÓN 3D FUNCIONAL', ML + 21, 27.5)
+
+  // Badge COTIZACIÓN
+  const badgeW = 30
+  const badgeX = W - MR - badgeW
+  doc.setFillColor(...BLUE)
+  doc.roundedRect(badgeX, 11, badgeW, 8, 1.5, 1.5, 'F')
+  doc.setTextColor(...WHITE)
+  doc.setFontSize(6.5)
+  doc.setFont('helvetica', 'bold')
+  doc.text('COTIZACIÓN', badgeX + badgeW / 2, 16.2, { align: 'center' })
+
+  // Número
+  doc.setFontSize(7.5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...TGRAY)
+  doc.text(`#COT-${num}  ·  ${año}`, W - MR, 24, { align: 'right' })
 
   y = 44
 
-  // ── Client block ─────────────────────────────────────────────────────────────
-  doc.setTextColor(20, 34, 54)
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'bold')
-  doc.text('PARA:', margin, y)
-  y += 5
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  doc.text(cotizacion.cliente_nombre || 'Cliente', margin, y)
-  y += 12
+  // ── INFO BAR ─────────────────────────────────────────────────────────────────
+  doc.setFillColor(...LGRAY)
+  doc.rect(0, y, W, 16, 'F')
 
-  // ── Items table ───────────────────────────────────────────────────────────────
-  const colX  = { desc: margin, cant: 112, precio: 138, subtotal: 172 }
-  const rowH  = 8
-  const tableW = W - margin * 2
-
-  // Table header
-  doc.setFillColor(20, 34, 54)
-  doc.rect(margin, y, tableW, rowH, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'bold')
-  doc.text('DESCRIPCIÓN',    colX.desc    + 2, y + 5.5)
-  doc.text('CANT.',          colX.cant,        y + 5.5, { align: 'center' })
-  doc.text('PRECIO UNIT.',   colX.precio  + 10, y + 5.5, { align: 'right' })
-  doc.text('SUBTOTAL',       W - margin   - 2,  y + 5.5, { align: 'right' })
-  y += rowH
-
-  // Rows
-  const lineas = cotizacion.lineas || []
-  lineas.forEach((linea, i) => {
-    const subtotal = Number(linea.cantidad || 0) * Number(linea.precio_unitario || 0)
-    if (i % 2 === 0) {
-      doc.setFillColor(248, 249, 251)
-      doc.rect(margin, y, tableW, rowH, 'F')
-    }
-    doc.setTextColor(20, 34, 54)
+  const cols = [
+    { label: 'FECHA',            value: fechaMedia(cotizacion.fecha_emision || cotizacion.created_at) },
+    { label: 'VÁLIDA HASTA',     value: cotizacion.valida_hasta ? fechaMedia(cotizacion.valida_hasta) : '—' },
+    { label: 'TIEMPO DE ENTREGA',value: cotizacion.tiempo_entrega || '—' },
+  ]
+  cols.forEach((col, i) => {
+    const x = ML + i * 60
+    doc.setFontSize(6)
     doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...TGRAY)
+    doc.text(col.label, x, y + 5)
     doc.setFontSize(8.5)
-
-    const desc = doc.splitTextToSize(linea.descripcion || '', 85)
-    doc.text(desc[0], colX.desc + 2, y + 5.5)
-    doc.text(String(linea.cantidad || 1), colX.cant, y + 5.5, { align: 'center' })
-    doc.text(cop(linea.precio_unitario), colX.precio + 10, y + 5.5, { align: 'right' })
-    doc.text(cop(subtotal), W - margin - 2, y + 5.5, { align: 'right' })
-
-    doc.setDrawColor(224, 230, 234)
-    doc.line(margin, y + rowH, W - margin, y + rowH)
-    y += rowH
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...TNAV)
+    doc.text(col.value, x, y + 12)
   })
+
+  y += 22
+
+  // ── CLIENTE ───────────────────────────────────────────────────────────────────
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...TGRAY)
+  doc.text('CLIENTE', ML, y)
+  doc.setDrawColor(...MGRAY)
+  doc.setLineWidth(0.3)
+  doc.line(ML + 16, y - 1.5, W - MR, y - 1.5)
 
   y += 4
 
-  // ── Totals block ─────────────────────────────────────────────────────────────
-  const totalsX = 130
-  const subtotal = lineas.reduce((s, l) => s + Number(l.cantidad || 0) * Number(l.precio_unitario || 0), 0)
-  const descuento = Number(cotizacion.descuento || 0)
-  const total = subtotal - descuento
+  // Client box
+  const boxH = cliente ? 18 : 12
+  doc.setFillColor(...LBLUE)
+  doc.rect(ML, y, CW, boxH, 'F')
+  doc.setFillColor(...BLUE)
+  doc.rect(ML, y, 3, boxH, 'F')
+
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...TNAV)
+  doc.text(cotizacion.cliente_nombre || 'Cliente', ML + 6, y + 7)
+
+  if (cliente) {
+    const parts = []
+    if (cliente.contacto) parts.push(`Contacto: ${cliente.contacto}`)
+    if (cliente.email)    parts.push(cliente.email)
+    if (cliente.whatsapp) parts.push(cliente.whatsapp)
+    if (parts.length) {
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(70, 100, 140)
+      doc.text(parts.join('  ·  '), ML + 6, y + 13)
+    }
+  }
+
+  y += boxH + 10
+
+  // ── DETALLE DEL PEDIDO ────────────────────────────────────────────────────────
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...TGRAY)
+  doc.text('DETALLE DEL PEDIDO', ML, y)
+  doc.setDrawColor(...MGRAY)
+  doc.setLineWidth(0.3)
+  doc.line(ML + 36, y - 1.5, W - MR, y - 1.5)
+
+  y += 4
+
+  // Table columns
+  const COL = { prod: ML, cant: ML + 95, precio: ML + 118, total: ML + 152 }
+  const ROW_H = 8
+
+  // Table header
+  doc.setFillColor(...NAVY)
+  doc.rect(ML, y, CW, ROW_H, 'F')
+  doc.setTextColor(...WHITE)
+  doc.setFontSize(6.5)
+  doc.setFont('helvetica', 'bold')
+  doc.text('PRODUCTO',  COL.prod  + 2,  y + 5.2)
+  doc.text('CANT.',     COL.cant  + 10, y + 5.2, { align: 'center' })
+  doc.text('P. UNIT.',  COL.precio + 15,y + 5.2, { align: 'right' })
+  doc.text('TOTAL',     W - MR - 2,     y + 5.2, { align: 'right' })
+
+  y += ROW_H
+
+  // Item rows
+  lineas.forEach((l, i) => {
+    const subT  = Number(l.cantidad||0) * Number(l.precio_unitario||0)
+    const hasDetalle = l.detalle && l.detalle.trim()
+    const thisH = hasDetalle ? ROW_H + 5 : ROW_H
+
+    // Check page break
+    if (y + thisH > 240) {
+      doc.addPage()
+      y = 20
+    }
+
+    if (i % 2 === 0) {
+      doc.setFillColor(...LGRAY)
+      doc.rect(ML, y, CW, thisH, 'F')
+    }
+    doc.setDrawColor(...MGRAY)
+    doc.setLineWidth(0.2)
+    doc.line(ML, y + thisH, W - MR, y + thisH)
+
+    doc.setFontSize(8.5)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...TNAV)
+    doc.text(l.descripcion || '—', COL.prod + 2, y + 5.5)
+
+    if (hasDetalle) {
+      doc.setFontSize(7)
+      doc.setTextColor(...TGRAY)
+      doc.text(l.detalle, COL.prod + 2, y + 10)
+    }
+
+    doc.setFontSize(8.5)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(80, 100, 130)
+    doc.text(String(l.cantidad || 1), COL.cant + 10, y + 5.5, { align: 'center' })
+
+    doc.setTextColor(80, 100, 130)
+    doc.text(cop(l.precio_unitario), COL.precio + 15, y + 5.5, { align: 'right' })
+
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...TNAV)
+    doc.text(cop(subT), W - MR - 2, y + 5.5, { align: 'right' })
+
+    y += thisH
+  })
+
+  y += 6
+
+  // ── TOTALS ────────────────────────────────────────────────────────────────────
+  const totX = ML + 100
+  const totW = CW - 100
 
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(100, 120, 140)
 
-  doc.text('Subtotal:', totalsX, y); doc.setTextColor(20, 34, 54); doc.text(cop(subtotal), W - margin - 2, y, { align: 'right' }); y += 6
+  // Subtotal
+  doc.setTextColor(...TGRAY)
+  doc.text('Subtotal', totX, y)
+  doc.setTextColor(...TNAV)
+  doc.setFont('helvetica', 'bold')
+  doc.text(cop(subtotal), W - MR - 2, y, { align: 'right' })
+  y += 6
 
+  // Descuento
   if (descuento > 0) {
-    doc.setTextColor(100, 120, 140)
-    doc.text('Descuento:', totalsX, y)
-    doc.setTextColor(220, 50, 50)
-    doc.text(`-${cop(descuento)}`, W - margin - 2, y, { align: 'right' })
+    doc.setTextColor(...TGRAY)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Descuento', totX, y)
+    doc.setTextColor([200, 60, 60])
+    doc.setFont('helvetica', 'bold')
+    doc.text(`-${cop(descuento)}`, W - MR - 2, y, { align: 'right' })
+    y += 6
+  } else {
+    doc.setTextColor(...TGRAY)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Descuento', totX, y)
+    doc.setTextColor(...TGRAY)
+    doc.text('—', W - MR - 2, y, { align: 'right' })
     y += 6
   }
 
-  // Total row
-  doc.setFillColor(20, 34, 54)
-  doc.rect(totalsX - 4, y - 4, W - margin - totalsX + 4, 10, 'F')
-  doc.setTextColor(255, 255, 255)
+  y += 1
+  // Total box
+  doc.setFillColor(...NAVY)
+  doc.rect(totX - 2, y - 2, totW + 4, 10, 'F')
+  doc.setTextColor(...WHITE)
+  doc.setFontSize(9)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  doc.text('TOTAL:', totalsX, y + 2.5)
-  doc.text(cop(total), W - margin - 2, y + 2.5, { align: 'right' })
+  doc.text('TOTAL', totX + 1, y + 5)
+  doc.text(copFull(total), W - MR - 3, y + 5, { align: 'right' })
+
   y += 16
 
-  // ── Notes ────────────────────────────────────────────────────────────────────
-  if (cotizacion.notas) {
-    doc.setTextColor(20, 34, 54)
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.text('NOTAS:', margin, y)
-    y += 5
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(80, 100, 120)
-    const notasLines = doc.splitTextToSize(cotizacion.notas, tableW)
-    doc.text(notasLines, margin, y)
-    y += notasLines.length * 5 + 6
-  }
+  // ── CONDITIONS ────────────────────────────────────────────────────────────────
+  const conditions = cotizacion.notas
+    ? cotizacion.notas.split('\n').map(l => l.trim()).filter(Boolean)
+    : DEFAULT_CONDITIONS
 
-  // ── Footer ───────────────────────────────────────────────────────────────────
-  doc.setDrawColor(20, 34, 54)
-  doc.setLineWidth(0.4)
-  doc.line(margin, 277, W - margin, 277)
+  const condLineH = 5.5
+  const condH     = 8 + conditions.length * condLineH
+
+  if (y + condH > 257) { doc.addPage(); y = 20 }
+
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...TGRAY)
+  doc.text('CONDICIONES', ML, y)
+  doc.setDrawColor(...MGRAY)
+  doc.setLineWidth(0.3)
+  doc.line(ML + 24, y - 1.5, W - MR, y - 1.5)
+
+  y += 4
+
+  doc.setFillColor(...AMBER)
+  doc.setDrawColor(...AMBER2)
+  doc.setLineWidth(0.5)
+  doc.rect(ML, y, CW, condH, 'FD')
+
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(130, 154, 176)
-  doc.text('Gracias por confiar en Fabrica3D · fabrica3d.co · Barranquilla, Colombia', W / 2, 281, { align: 'center' })
+  doc.setTextColor([146, 64, 14])
+  conditions.forEach((line, i) => {
+    const text = line.startsWith('•') || line.startsWith('-') ? line : `• ${line}`
+    doc.text(text, ML + 4, y + 6 + i * condLineH)
+  })
 
-  doc.save(`Cotizacion-${String(cotizacion.numero).padStart(4, '0')}-${cotizacion.cliente_nombre || 'cliente'}.pdf`)
+  y += condH + 4
+
+  // ── FOOTER ────────────────────────────────────────────────────────────────────
+  const footY = 275
+  doc.setFillColor(...NAVY)
+  doc.rect(0, footY, W, 22, 'F')
+
+  doc.setFontSize(7.5)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...WHITE)
+  doc.text('WhatsApp:', ML, footY + 6)
+  doc.text('Email:', ML, footY + 11)
+  doc.text('Instagram:', ML, footY + 16)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...TGRAY)
+  doc.text('+57 310 6531257', ML + 17, footY + 6)
+  doc.text('fabrica3d.co@gmail.com', ML + 13, footY + 11)
+  doc.text('@fabrica3d.co', ML + 18, footY + 16)
+
+  doc.setTextColor(...TGRAY)
+  doc.text('Barranquilla, Colombia', W - MR, footY + 11, { align: 'right' })
+  doc.setTextColor(...BLUE)
+  doc.text('fabrica3d.co', W - MR, footY + 16, { align: 'right' })
+
+  doc.save(`Cotizacion-COT-${num}-${cotizacion.cliente_nombre || 'cliente'}.pdf`)
 }

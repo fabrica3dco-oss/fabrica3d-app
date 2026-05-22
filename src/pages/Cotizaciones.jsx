@@ -1,69 +1,64 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, User, UserPlus, X, Eye, Link, MessageCircle } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, User, UserPlus, X } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
-import CotizacionVista from '../components/CotizacionVista'
 import { useCotizaciones } from '../hooks/useCotizaciones'
 import { generarPdfCotizacion } from '../utils/pdfCotizacion'
 import { supabase } from '../services/supabase'
-import toast from 'react-hot-toast'
-
-const BASE_URL = window.location.origin
 
 const ESTADO_COLOR = { borrador: 'gray', enviada: 'blue', aprobada: 'green', rechazada: 'red' }
 const ESTADO_LABEL = { borrador: 'Borrador', enviada: 'Enviada', aprobada: 'Aprobada', rechazada: 'Rechazada' }
-const ESTADOS = ['borrador', 'enviada', 'aprobada', 'rechazada']
+const ESTADOS      = ['borrador', 'enviada', 'aprobada', 'rechazada']
 
 const cop = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(v) || 0)
 
-const LINEA_EMPTY = { descripcion: '', cantidad: 1, precio_unitario: '' }
-const FORM_EMPTY  = { cliente_id: '', cliente_nombre: '', lineas: [{ ...LINEA_EMPTY }], descuento: '', estado: 'borrador', valida_hasta: '', notas: '' }
+const LINEA_EMPTY = { descripcion: '', detalle: '', cantidad: 1, precio_unitario: '' }
+const FORM_EMPTY  = {
+  cliente_id: '', cliente_nombre: '',
+  lineas: [{ ...LINEA_EMPTY }],
+  descuento: '', estado: 'borrador',
+  valida_hasta: '', tiempo_entrega: '', notas: '',
+}
 
 // ── Cliente autocomplete ──────────────────────────────────────────────────────
 function ClienteAutocomplete({ clientes, value, clienteId, onChange }) {
   const [open, setOpen]   = useState(false)
   const [query, setQuery] = useState(value || '')
   const ref = useRef(null)
-
   useEffect(() => { setQuery(value || '') }, [value])
   useEffect(() => {
     const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
   }, [])
-
-  const filtrados = query.trim()
-    ? clientes.filter(c => c.empresa.toLowerCase().includes(query.toLowerCase()))
-    : clientes.slice(0, 8)
-
+  const filtrados = query.trim() ? clientes.filter(c => c.empresa.toLowerCase().includes(query.toLowerCase())) : clientes.slice(0, 8)
   const hayExacto = clientes.some(c => c.empresa.toLowerCase() === query.trim().toLowerCase())
-
   return (
     <div ref={ref} className="relative flex flex-col gap-1">
       <label className="text-sm font-medium text-navy-600">Cliente</label>
       <div className="relative">
         <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9ab0]" />
-        <input
-          value={query}
+        <input value={query}
           onChange={e => { setQuery(e.target.value); onChange({ id: null, nombre: e.target.value }); setOpen(true) }}
           onFocus={() => setOpen(true)}
           placeholder="Buscar cliente..."
-          className="w-full pl-8 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg bg-white text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent"
-        />
+          className="w-full pl-8 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg bg-white text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
       </div>
       {open && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e2e6ea] rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto">
           {filtrados.map(c => (
-            <button key={c.id} type="button" onMouseDown={() => { onChange({ id: c.id, nombre: c.empresa }); setQuery(c.empresa); setOpen(false) }}
+            <button key={c.id} type="button"
+              onMouseDown={() => { onChange({ id: c.id, nombre: c.empresa, obj: c }); setQuery(c.empresa); setOpen(false) }}
               className={`w-full text-left px-3 py-2 text-sm hover:bg-[#f8f9fb] flex items-center gap-2 ${clienteId === c.id ? 'bg-blue-50 text-accent font-medium' : 'text-navy-600'}`}>
               <User size={12} className="text-[#8a9ab0] shrink-0" />{c.empresa}
             </button>
           ))}
           {query.trim() && !hayExacto && (
-            <button type="button" onMouseDown={() => { onChange({ id: null, nombre: query.trim() }); setOpen(false) }}
+            <button type="button"
+              onMouseDown={() => { onChange({ id: null, nombre: query.trim(), obj: null }); setOpen(false) }}
               className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-blue-50 flex items-center gap-2 border-t border-[#f0f2f5]">
               <UserPlus size={12} className="shrink-0" />Usar "<span className="font-medium">{query.trim()}</span>"
             </button>
@@ -74,38 +69,24 @@ function ClienteAutocomplete({ clientes, value, clienteId, onChange }) {
   )
 }
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
 function Skeleton() {
   return <div className="flex flex-col gap-2">{Array(4).fill(0).map((_, i) => <div key={i} className="animate-pulse bg-[#e2e6ea] rounded h-12 w-full" />)}</div>
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function Cotizaciones() {
   const { cotizaciones, loading, crearCotizacion, actualizarCotizacion, eliminarCotizacion } = useCotizaciones()
-  const [clientes,      setClientes]      = useState([])
-  const [busqueda,      setBusqueda]      = useState('')
-  const [filtroEstado,  setFiltroEstado]  = useState('')
-  const [modal,         setModal]         = useState(null)
-  const [confirmId,     setConfirmId]     = useState(null)
-  const [previewing,    setPreviewing]    = useState(null)
-  const [form,          setForm]          = useState(FORM_EMPTY)
-  const [saving,        setSaving]        = useState(false)
-
-  function copiarLink(c) {
-    const url = `${BASE_URL}/cotizacion/${c.id}`
-    navigator.clipboard.writeText(url)
-    toast.success('Link copiado al portapapeles')
-  }
-
-  function compartirWhatsApp(c) {
-    const url = `${BASE_URL}/cotizacion/${c.id}`
-    const num  = String(c.numero).padStart(4, '0')
-    const msg  = encodeURIComponent(`Hola, te comparto la cotización #${num} de Fabrica3D:\n${url}`)
-    window.open(`https://wa.me/?text=${msg}`, '_blank')
-  }
+  const [clientes,     setClientes]     = useState([])
+  const [busqueda,     setBusqueda]     = useState('')
+  const [filtroEstado, setFiltroEstado] = useState('')
+  const [modal,        setModal]        = useState(null)
+  const [confirmId,    setConfirmId]    = useState(null)
+  const [form,         setForm]         = useState(FORM_EMPTY)
+  const [clienteObj,   setClienteObj]   = useState(null) // full client record for PDF
+  const [saving,       setSaving]       = useState(false)
 
   useEffect(() => {
-    supabase.from('clientes').select('id, empresa').order('empresa').then(({ data }) => setClientes(data || []))
+    supabase.from('clientes').select('*').order('empresa').then(({ data }) => setClientes(data || []))
   }, [])
 
   const filtradas = cotizaciones.filter(c => {
@@ -114,55 +95,47 @@ export default function Cotizaciones() {
     return ok && (!filtroEstado || c.estado === filtroEstado)
   })
 
-  // ── Líneas helpers ────────────────────────────────────────────────────────
+  // ── Líneas helpers ─────────────────────────────────────────────────────────
   function setLinea(i, campo, valor) {
-    setForm(f => {
-      const lineas = f.lineas.map((l, idx) => idx === i ? { ...l, [campo]: valor } : l)
-      return { ...f, lineas }
-    })
+    setForm(f => ({ ...f, lineas: f.lineas.map((l, idx) => idx === i ? { ...l, [campo]: valor } : l) }))
   }
-  function addLinea()    { setForm(f => ({ ...f, lineas: [...f.lineas, { ...LINEA_EMPTY }] })) }
+  function addLinea()     { setForm(f => ({ ...f, lineas: [...f.lineas, { ...LINEA_EMPTY }] })) }
   function removeLinea(i) { setForm(f => ({ ...f, lineas: f.lineas.filter((_, idx) => idx !== i) })) }
 
-  const subtotal  = form.lineas.reduce((s, l) => s + Number(l.cantidad || 0) * Number(l.precio_unitario || 0), 0)
+  const subtotal  = form.lineas.reduce((s, l) => s + Number(l.cantidad||0)*Number(l.precio_unitario||0), 0)
   const totalCalc = subtotal - Number(form.descuento || 0)
 
-  // ── Abrir modales ─────────────────────────────────────────────────────────
-  function abrirCrear() {
-    setForm(FORM_EMPTY)
-    setModal({ mode: 'crear' })
-  }
+  // ── Modales ────────────────────────────────────────────────────────────────
+  function abrirCrear() { setForm(FORM_EMPTY); setClienteObj(null); setModal({ mode: 'crear' }) }
 
   function abrirEditar(c) {
     setForm({
       cliente_id:     c.cliente_id || '',
       cliente_nombre: c.cliente_nombre || '',
-      lineas:         c.lineas?.length ? c.lineas : [{ ...LINEA_EMPTY }],
+      lineas:         c.lineas?.length ? c.lineas.map(l => ({ descripcion: l.descripcion||'', detalle: l.detalle||'', cantidad: l.cantidad||1, precio_unitario: l.precio_unitario||'' })) : [{ ...LINEA_EMPTY }],
       descuento:      c.descuento || '',
       estado:         c.estado || 'borrador',
       valida_hasta:   c.valida_hasta || '',
+      tiempo_entrega: c.tiempo_entrega || '',
       notas:          c.notas || '',
     })
+    setClienteObj(clientes.find(cl => cl.id === c.cliente_id) || null)
     setModal({ mode: 'editar', id: c.id })
   }
 
-  // ── Guardar ───────────────────────────────────────────────────────────────
   async function guardar() {
     if (!form.cliente_nombre.trim() || form.lineas.length === 0) return
     setSaving(true)
     const datos = {
       cliente_id:     form.cliente_id || null,
       cliente_nombre: form.cliente_nombre,
-      lineas:         form.lineas.map(l => ({
-        descripcion:    l.descripcion,
-        cantidad:       Number(l.cantidad) || 1,
-        precio_unitario: Number(l.precio_unitario) || 0,
-      })),
-      descuento:    Number(form.descuento) || 0,
-      total:        totalCalc,
-      estado:       form.estado,
-      valida_hasta: form.valida_hasta || null,
-      notas:        form.notas || null,
+      lineas:         form.lineas.map(l => ({ descripcion: l.descripcion, detalle: l.detalle || null, cantidad: Number(l.cantidad)||1, precio_unitario: Number(l.precio_unitario)||0 })),
+      descuento:      Number(form.descuento) || 0,
+      total:          totalCalc,
+      estado:         form.estado,
+      valida_hasta:   form.valida_hasta || null,
+      tiempo_entrega: form.tiempo_entrega || null,
+      notas:          form.notas || null,
     }
     let ok
     if (modal.mode === 'crear') ok = await crearCotizacion(datos)
@@ -171,16 +144,13 @@ export default function Cotizaciones() {
     if (ok) setModal(null)
   }
 
-  async function confirmarEliminar() {
-    setSaving(true)
-    await eliminarCotizacion(confirmId)
-    setSaving(false)
-    setConfirmId(null)
+  function descargarPdf(c) {
+    const cliente = clientes.find(cl => cl.id === c.cliente_id) || null
+    generarPdfCotizacion(c, cliente)
   }
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-navy-600">Cotizaciones</h1>
@@ -215,7 +185,6 @@ export default function Cotizaciones() {
           </div>
         ) : (
           <>
-            {/* Desktop */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -231,32 +200,16 @@ export default function Cotizaciones() {
                 <tbody className="divide-y divide-[#f0f2f5]">
                   {filtradas.map(c => (
                     <tr key={c.id} className="hover:bg-[#f8f9fb] transition-colors">
-                      <td className="px-4 py-3 font-mono font-semibold text-navy-600">
-                        #{String(c.numero).padStart(4, '0')}
-                      </td>
+                      <td className="px-4 py-3 font-mono font-semibold text-navy-600">COT-{String(c.numero).padStart(3,'0')}</td>
                       <td className="px-4 py-3 font-medium text-navy-600">{c.cliente_nombre || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-navy-600">{cop(c.total)}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant={ESTADO_COLOR[c.estado]}>{ESTADO_LABEL[c.estado]}</Badge>
-                      </td>
-                      <td className="px-4 py-3 text-[#8a9ab0] text-xs">
-                        {c.valida_hasta ? new Date(c.valida_hasta + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                      <td className="px-4 py-3"><Badge variant={ESTADO_COLOR[c.estado]}>{ESTADO_LABEL[c.estado]}</Badge></td>
+                      <td className="px-4 py-3 text-xs text-[#8a9ab0]">
+                        {c.valida_hasta ? new Date(c.valida_hasta+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
-                          <button onClick={() => setPreviewing(c)} title="Vista previa"
-                            className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors">
-                            <Eye size={14} />
-                          </button>
-                          <button onClick={() => copiarLink(c)} title="Copiar link"
-                            className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors">
-                            <Link size={14} />
-                          </button>
-                          <button onClick={() => compartirWhatsApp(c)} title="Enviar por WhatsApp"
-                            className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600 transition-colors">
-                            <MessageCircle size={14} />
-                          </button>
-                          <button onClick={() => generarPdfCotizacion(c)} title="Descargar PDF"
+                          <button onClick={() => descargarPdf(c)} title="Descargar PDF"
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
                             <Download size={14} />
                           </button>
@@ -276,22 +229,19 @@ export default function Cotizaciones() {
               </table>
             </div>
 
-            {/* Mobile */}
             <div className="md:hidden divide-y divide-[#f0f2f5]">
               {filtradas.map(c => (
                 <div key={c.id} className="p-4 flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-mono text-xs font-semibold text-[#8a9ab0]">#{String(c.numero).padStart(4, '0')}</span>
+                      <span className="font-mono text-xs font-semibold text-[#8a9ab0]">COT-{String(c.numero).padStart(3,'0')}</span>
                       <Badge variant={ESTADO_COLOR[c.estado]}>{ESTADO_LABEL[c.estado]}</Badge>
                     </div>
                     <p className="font-medium text-navy-600 truncate">{c.cliente_nombre || '—'}</p>
                     <p className="text-sm font-semibold text-navy-600 mt-0.5">{cop(c.total)}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => setPreviewing(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Eye size={14} /></button>
-                    <button onClick={() => compartirWhatsApp(c)} className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><MessageCircle size={14} /></button>
-                    <button onClick={() => generarPdfCotizacion(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
+                    <button onClick={() => descargarPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
                     <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Pencil size={14} /></button>
                     <button onClick={() => setConfirmId(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-600"><Trash2 size={14} /></button>
                   </div>
@@ -302,7 +252,7 @@ export default function Cotizaciones() {
         )}
       </Card>
 
-      {/* ── Modal crear/editar ─────────────────────────────────────────────── */}
+      {/* ── Modal crear/editar ──────────────────────────────────────────────── */}
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'crear' ? 'Nueva cotización' : 'Editar cotización'} size="lg">
         <div className="flex flex-col gap-5">
           {/* Cliente + Estado */}
@@ -311,7 +261,7 @@ export default function Cotizaciones() {
               clientes={clientes}
               value={form.cliente_nombre}
               clienteId={form.cliente_id}
-              onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))}
+              onChange={({ id, nombre, obj }) => { setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre })); setClienteObj(obj || null) }}
             />
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Estado</label>
@@ -322,7 +272,7 @@ export default function Cotizaciones() {
             </div>
           </div>
 
-          {/* Líneas */}
+          {/* Ítems */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-navy-600">Ítems</label>
@@ -330,41 +280,30 @@ export default function Cotizaciones() {
                 <Plus size={12} /> Agregar ítem
               </button>
             </div>
-
-            {/* Header */}
-            <div className="hidden md:grid grid-cols-[1fr_60px_110px_24px] gap-2 mb-1 px-1">
+            <div className="hidden md:grid grid-cols-[1fr_56px_110px_24px] gap-2 mb-1 px-1">
               <span className="text-xs text-[#8a9ab0] font-medium">Descripción</span>
               <span className="text-xs text-[#8a9ab0] font-medium text-center">Cant.</span>
               <span className="text-xs text-[#8a9ab0] font-medium text-right">Precio unit.</span>
               <span />
             </div>
-
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {form.lineas.map((linea, i) => (
-                <div key={i} className="grid grid-cols-[1fr_60px_110px_24px] gap-2 items-center">
-                  <input
-                    value={linea.descripcion}
-                    onChange={e => setLinea(i, 'descripcion', e.target.value)}
-                    placeholder="Descripción del ítem"
-                    className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                  <input
-                    type="number" min="1"
-                    value={linea.cantidad}
-                    onChange={e => setLinea(i, 'cantidad', e.target.value)}
-                    className="border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-navy-600 text-center focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                  <input
-                    type="number" min="0"
-                    value={linea.precio_unitario}
-                    onChange={e => setLinea(i, 'precio_unitario', e.target.value)}
-                    placeholder="0"
-                    className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                  <button onClick={() => removeLinea(i)} disabled={form.lineas.length === 1}
-                    className="p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 disabled:opacity-30 transition-colors">
-                    <X size={14} />
-                  </button>
+                <div key={i} className="flex flex-col gap-1">
+                  <div className="grid grid-cols-[1fr_56px_110px_24px] gap-2 items-center">
+                    <input value={linea.descripcion} onChange={e => setLinea(i,'descripcion',e.target.value)} placeholder="Nombre del producto"
+                      className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
+                    <input type="number" min="1" value={linea.cantidad} onChange={e => setLinea(i,'cantidad',e.target.value)}
+                      className="border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-navy-600 text-center focus:outline-none focus:ring-2 focus:ring-accent" />
+                    <input type="number" min="0" value={linea.precio_unitario} onChange={e => setLinea(i,'precio_unitario',e.target.value)} placeholder="0"
+                      className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent" />
+                    <button onClick={() => removeLinea(i)} disabled={form.lineas.length === 1}
+                      className="p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 disabled:opacity-30 transition-colors">
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <input value={linea.detalle} onChange={e => setLinea(i,'detalle',e.target.value)}
+                    placeholder="Detalle / especificaciones (opcional)"
+                    className="border border-[#e2e6ea] rounded-lg px-3 py-1.5 text-xs text-[#8a9ab0] placeholder:text-[#b0bec5] focus:outline-none focus:ring-2 focus:ring-accent ml-0" />
                 </div>
               ))}
             </div>
@@ -372,36 +311,28 @@ export default function Cotizaciones() {
 
           {/* Descuento + Total */}
           <div className="flex items-end justify-between gap-4 pt-1 border-t border-[#f0f2f5]">
-            <Input
-              label="Descuento (COP)"
-              type="number" min="0"
-              value={form.descuento}
-              onChange={e => setForm(f => ({ ...f, descuento: e.target.value }))}
-              placeholder="0"
-              className="max-w-[160px]"
-            />
+            <Input label="Descuento (COP)" type="number" min="0" value={form.descuento}
+              onChange={e => setForm(f => ({ ...f, descuento: e.target.value }))} placeholder="0" className="max-w-[160px]" />
             <div className="text-right">
-              {Number(form.descuento) > 0 && (
-                <p className="text-xs text-[#8a9ab0] mb-0.5">Subtotal: {cop(subtotal)}</p>
-              )}
+              {Number(form.descuento) > 0 && <p className="text-xs text-[#8a9ab0] mb-0.5">Subtotal: {cop(subtotal)}</p>}
               <p className="text-lg font-bold text-navy-600">Total: {cop(totalCalc)}</p>
             </div>
           </div>
 
-          {/* Validez + Notas */}
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Válida hasta"
-              type="date"
-              value={form.valida_hasta}
-              onChange={e => setForm(f => ({ ...f, valida_hasta: e.target.value }))}
-            />
+          {/* Fechas + Tiempo entrega */}
+          <div className="grid grid-cols-3 gap-3">
+            <Input label="Válida hasta" type="date" value={form.valida_hasta} onChange={e => setForm(f => ({ ...f, valida_hasta: e.target.value }))} />
+            <div className="col-span-2">
+              <Input label="Tiempo de entrega" value={form.tiempo_entrega} onChange={e => setForm(f => ({ ...f, tiempo_entrega: e.target.value }))} placeholder="Ej: 5-7 días hábiles" />
+            </div>
           </div>
+
+          {/* Condiciones / Notas */}
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-navy-600">Notas</label>
+            <label className="text-sm font-medium text-navy-600">Condiciones <span className="text-[#8a9ab0] font-normal">(una por línea — si vacío se usan las condiciones estándar)</span></label>
             <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
-              placeholder="Condiciones, tiempos de entrega, método de pago..."
-              rows={2}
+              placeholder={"Anticipo del 50% para iniciar producción.\nSaldo al momento de la entrega."}
+              rows={3}
               className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent resize-none" />
           </div>
 
@@ -414,37 +345,14 @@ export default function Cotizaciones() {
         </div>
       </Modal>
 
-      {/* Vista previa */}
-      <Modal open={!!previewing} onClose={() => setPreviewing(null)} title={`Vista previa — Cotización #${String(previewing?.numero || 0).padStart(4,'0')}`} size="xl">
-        {previewing && (
-          <div>
-            <div className="flex gap-2 mb-4 flex-wrap">
-              <button onClick={() => copiarLink(previewing)}
-                className="flex items-center gap-2 border border-[#e2e6ea] rounded-lg px-3 py-1.5 text-sm text-navy-600 hover:bg-[#f8f9fb] transition-colors">
-                <Link size={13} /> Copiar link
-              </button>
-              <button onClick={() => compartirWhatsApp(previewing)}
-                className="flex items-center gap-2 border border-green-200 rounded-lg px-3 py-1.5 text-sm text-green-700 hover:bg-green-50 transition-colors">
-                <MessageCircle size={13} /> Enviar por WhatsApp
-              </button>
-              <button onClick={() => generarPdfCotizacion(previewing)}
-                className="flex items-center gap-2 border border-blue-200 rounded-lg px-3 py-1.5 text-sm text-accent hover:bg-blue-50 transition-colors">
-                <Download size={13} /> Descargar PDF
-              </button>
-            </div>
-            <div className="border border-[#e2e6ea] rounded-xl overflow-hidden">
-              <CotizacionVista cotizacion={previewing} />
-            </div>
-          </div>
-        )}
-      </Modal>
-
       {/* Confirmar eliminar */}
       <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar cotización" size="sm">
         <p className="text-sm text-navy-600 mb-5">¿Seguro que quieres eliminar esta cotización?</p>
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setConfirmId(null)}>Cancelar</Button>
-          <Button variant="danger" onClick={confirmarEliminar} disabled={saving}>{saving ? 'Eliminando...' : 'Eliminar'}</Button>
+          <Button variant="danger" onClick={async () => { setSaving(true); await eliminarCotizacion(confirmId); setSaving(false); setConfirmId(null) }} disabled={saving}>
+            {saving ? 'Eliminando...' : 'Eliminar'}
+          </Button>
         </div>
       </Modal>
     </div>
