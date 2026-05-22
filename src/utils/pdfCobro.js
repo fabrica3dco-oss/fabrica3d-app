@@ -172,7 +172,7 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE)
   doc.text(ESTADO_LABEL[cobro.estado] || cobro.estado.toUpperCase(), estadoX + 15, y + 14.8, { align: 'center' })
 
-  y += 28
+  y += 24
 
   // ── SEÑOR(ES) ─────────────────────────────────────────────────────────────
   secLabel(doc, 'SEÑOR(ES)', ML, y, RE)
@@ -183,7 +183,7 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...DARK)
   doc.text(cobro.cliente_nombre || 'Cliente', ML + 7, y + 8.5)
 
-  y += 13 + 9
+  y += 13 + 6
 
   // ── DEBE A ────────────────────────────────────────────────────────────────
   secLabel(doc, 'DEBE A', ML, y, RE)
@@ -195,15 +195,11 @@ async function buildDoc(cobro, cotData) {
   doc.setFillColor(...NAVY); doc.rect(ML, y, 3, 14, 'F')
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY)
-  doc.text('Fabrica3D', ML + 7, y + 7)
-  const fw = doc.getTextWidth('Fabrica3D')
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MID)
-  doc.text('  ·  Impresión 3D Funcional · Barranquilla', ML + 7 + fw, y + 7)
-
+  doc.text('Dimas Domenech', ML + 7, y + 7)
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MID)
   doc.text('C.C. 1001825424  ·  Persona natural', ML + 7, y + 12)
 
-  y += 14 + 9
+  y += 14 + 6
 
   // ── LA SUMA DE ────────────────────────────────────────────────────────────
   secLabel(doc, 'LA SUMA DE', ML, y, RE)
@@ -216,7 +212,7 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
   doc.text(montoEnLetras(cobro.monto), ML + 7, y + 8.5)
 
-  y += 13 + 9
+  y += 13 + 6
 
   // ── POR CONCEPTO DE ───────────────────────────────────────────────────────
   secLabel(doc, 'POR CONCEPTO DE', ML, y, RE)
@@ -257,7 +253,7 @@ async function buildDoc(cobro, cotData) {
     const rowH     = hasDetail ? 14 : 9
     const bg       = idx % 2 === 0 ? [255,255,255] : [248,250,252]
 
-    if (y + rowH > 246) { doc.addPage(); y = 18 }
+    if (y + rowH > 268) { doc.addPage(); y = 18 }
 
     doc.setFillColor(...bg); doc.rect(ML, y, CW, rowH, 'F')
     doc.setDrawColor(...BORDER); doc.setLineWidth(0.2); doc.line(ML, y + rowH, RE, y + rowH)
@@ -299,30 +295,6 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...WHITE)
   doc.text(cotData?.lineas?.length ? 'ESTA CUENTA DE COBRO' : 'TOTAL', totX + 2, y + 7)
   doc.text(copFull(cobro.monto), RE - 4, y + 7, { align: 'right' })
-
-  y += 20
-
-  // ── FIRMA ────────────────────────────────────────────────────────────────
-  if (y + 36 > 254) { doc.addPage(); y = 18 }
-
-  secLabel(doc, 'ATENTAMENTE', ML, y, RE)
-  y += 6
-
-  // Línea de firma
-  doc.setDrawColor(...BORDER); doc.setLineWidth(0.4)
-  doc.line(ML, y + 12, ML + 60, y + 12)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MID)
-  doc.text('Firma', ML, y + 17)
-
-  // Datos del firmante
-  const sigX = ML + 70
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...DARK)
-  doc.text('Dimas Domenech', sigX, y + 6)
-
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MID)
-  doc.text('C.C. 1001825424', sigX, y + 12)
-  doc.text('Nequi  ·  3215735651', sigX, y + 18)
-  doc.text('lafabrica3d.co  ·  fabrica3d.co@gmail.com', sigX, y + 24)
 
   // ── FOOTER ────────────────────────────────────────────────────────────────
   const footY = 274
