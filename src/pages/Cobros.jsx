@@ -168,21 +168,43 @@ export default function Cobros() {
     await actualizarCobro(c.id, { estado: 'pendiente', metodo_pago: null })
   }
 
-  // ── PDF ────────────────────────────────────────────────────────────────────
-  async function descargarPdf(c)  { await generarPdfCobro(c) }
-  async function verPdf(c)        { const url = await previewUrlCobro(c); setPreviewUrl(url) }
+  // ── PDF helpers ────────────────────────────────────────────────────────────
+  async function getCotizacionData(cobro) {
+    if (!cobro.notas) return null
+    const match = cobro.notas.match(/Ref:\s*COT-(\d+)/i)
+    if (!match) return null
+    const cotNum = parseInt(match[1], 10)
+    const { data } = await supabase
+      .from('cotizaciones')
+      .select('lineas, total, numero')
+      .eq('numero', cotNum)
+      .single()
+    if (!data?.lineas?.length) return null
+    return { lineas: data.lineas, total: data.total }
+  }
+
+  async function descargarPdf(c) {
+    const cotData = await getCotizacionData(c)
+    await generarPdfCobro(c, cotData)
+  }
+  async function verPdf(c) {
+    const cotData = await getCotizacionData(c)
+    const url = await previewUrlCobro(c, cotData)
+    setPreviewUrl(url)
+  }
 
   async function compartirWhatsApp(c) {
     const num    = String(c.numero).padStart(4, '0')
     const nombre = c.cliente_nombre || 'cliente'
-    const archivo = `Cobro-${num}-${nombre}.pdf`
-    const blob    = await blobCobro(c)
+    const archivo = `CuentaCobro-${num}-${nombre}.pdf`
+    const cotData = await getCotizacionData(c)
+    const blob    = await blobCobro(c, cotData)
     const file    = new File([blob], archivo, { type: 'application/pdf' })
-    const mensaje = `Hola${c.cliente_nombre ? ` ${c.cliente_nombre}` : ''}, te comparto el cobro *#${num}* de Fabrica3D por un total de *${cop(c.monto)}*. Quedo atento a cualquier pregunta. 😊`
+    const mensaje = `Hola${c.cliente_nombre ? ` ${c.cliente_nombre}` : ''}, te comparto la cuenta de cobro *#${num}* de Fabrica3D por un total de *${cop(c.monto)}*. Quedo atento a cualquier pregunta. 😊`
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: `Cobro #${num} – Fabrica3D`, text: mensaje })
+        await navigator.share({ files: [file], title: `Cuenta de cobro #${num} – Fabrica3D`, text: mensaje })
       } catch (err) {
         if (err.name !== 'AbortError') toast.error('No se pudo compartir el archivo.')
       }
