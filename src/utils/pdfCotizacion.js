@@ -30,15 +30,18 @@ const _logoReady = svgToPng(logoSvgRaw, 520, 126)   // 65mm × 15.7mm a 8px/mm
 // ── Íconos footer (SVG blancos, pre-renderizados) ─────────────────────────────
 const _WA_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M.057 24l1.687-6.163C.598 16.33.057 14.306.057 12.003.057 5.448 5.396.108 11.954.108c3.18 0 6.163 1.24 8.41 3.489a11.825 11.825 0 013.485 8.413c-.003 6.557-5.341 11.896-11.896 11.896a11.9 11.9 0 01-5.688-1.449L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.867-2.031-.967-.272-.099-.471-.148-.669.15-.198.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.447-.52.149-.174.198-.298.298-.497.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>`
 
-const _EMAIL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>`
+const _EMAIL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>`
 
 const _IG_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>`
+
+const _GLOBE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`
 
 // 5mm × 5mm en el PDF → canvas 80×80px (16px/mm)
 const ICON_MM  = 5
 const _waReady    = svgToPng(_WA_SVG,    80, 80)
 const _emailReady = svgToPng(_EMAIL_SVG, 80, 80)
 const _igReady    = svgToPng(_IG_SVG,    80, 80)
+const _globeReady = svgToPng(_GLOBE_SVG, 80, 80)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const cop     = (v) => `$${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number(v) || 0)}`
@@ -117,8 +120,8 @@ async function buildDoc(cotizacion, cliente) {
   doc.rect(0, 0, W, 50, 'F')
 
   // Await logo + iconos (en paralelo, ya están iniciando desde module load)
-  const [logoDataUrl, waIcon, emailIcon, igIcon] = await Promise.all([
-    _logoReady, _waReady, _emailReady, _igReady,
+  const [logoDataUrl, waIcon, emailIcon, igIcon, globeIcon] = await Promise.all([
+    _logoReady, _waReady, _emailReady, _igReady, _globeReady,
   ])
   if (logoDataUrl) {
     const ly = (50 - LOGO_H_MM) / 2   // centrado vertical ~17mm
@@ -392,32 +395,27 @@ async function buildDoc(cotizacion, cliente) {
   doc.setLineWidth(0.4)
   doc.line(0, footY, W, footY)
 
-  // ── Íconos + contacto HORIZONTAL ─────────────────────────────────────────────
-  // 3 ítems a x = 14 | 76 | 138  —  ícono 5mm + gap 2mm + texto
-  // centrados verticalmente: iconY = footY + (23 - 5) / 2 = footY + 9
+  // ── Íconos + contacto HORIZONTAL — 4 ítems equidistantes ────────────────────
   const iconY   = footY + 9        // top del ícono (5mm de altura)
-  const textY   = iconY + 3.8      // baseline texto alineado al centro del ícono
+  const textY   = iconY + 3.8      // baseline texto al centro del ícono
   const iconGap = 2                // mm entre ícono y texto
-  const items   = [
-    { icon: waIcon,    text: '+57 310 6531257',        x: ML },
-    { icon: emailIcon, text: 'fabrica3d.co@gmail.com', x: ML + 62 },
-    { icon: igIcon,    text: '@fabrica3d.co',           x: ML + 130 },
+  const slotW   = (RE - ML) / 4   // 45.5mm por ítem — espaciado igual
+
+  const items = [
+    { icon: waIcon,    text: '+57 310 6531257',        x: ML + 0 * slotW },
+    { icon: emailIcon, text: 'fabrica3d.co@gmail.com', x: ML + 1 * slotW },
+    { icon: igIcon,    text: '@fabrica3d.co',           x: ML + 2 * slotW },
+    { icon: globeIcon, text: 'lafabrica3d.co',          x: ML + 3 * slotW },
   ]
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
+  doc.setFontSize(7.5)
   doc.setTextColor(...LMID)
 
   items.forEach(({ icon, text, x }) => {
     if (icon) doc.addImage(icon, 'PNG', x, iconY, ICON_MM, ICON_MM)
     doc.text(text, x + ICON_MM + iconGap, textY)
   })
-
-  // Dominio — derecha, centrado vertical
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(150, 168, 192)
-  doc.text('lafabrica3d.co', RE, textY, { align: 'right' })
 
   return doc
 }
