@@ -226,7 +226,7 @@ function buildDoc(cotizacion, cliente) {
   doc.setFont('helvetica', 'normal')
   doc.text('Descuento', totX, y)
   if (descuento > 0) {
-    doc.setTextColor([200, 60, 60])
+    doc.setTextColor(200, 60, 60)
     doc.setFont('helvetica', 'bold')
     doc.text(`-${cop(descuento)}`, W - MR - 2, y, { align: 'right' })
   } else {
@@ -271,7 +271,7 @@ function buildDoc(cotizacion, cliente) {
 
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor([146, 64, 14])
+  doc.setTextColor(146, 64, 14)
   conditions.forEach((line, i) => {
     const text = line.startsWith('•') || line.startsWith('-') ? line : `• ${line}`
     doc.text(text, ML + 4, y + 6 + i * condLineH)
