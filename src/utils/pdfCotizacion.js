@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf'
+import { jsPDF } from 'jspdf'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const cop  = (v) => `$${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number(v) || 0)}`
@@ -12,9 +12,8 @@ const fechaMedia = (d) => {
   } catch { return d }
 }
 
-// ── colores ───────────────────────────────────────────────────────────────────
 const NAVY   = [20,  34,  54]
-const BLUE   = [37, 99, 235]
+const BLUE   = [37,  99, 235]
 const LGRAY  = [245, 247, 250]
 const MGRAY  = [224, 230, 234]
 const LBLUE  = [239, 246, 255]
@@ -32,12 +31,13 @@ const DEFAULT_CONDITIONS = [
   'Precios sujetos a ajuste según diseño final.',
 ]
 
-export function generarPdfCotizacion(cotizacion, cliente = null) {
+// ── Función interna que construye el PDF y lo retorna ─────────────────────────
+function buildDoc(cotizacion, cliente) {
   const doc   = new jsPDF({ unit: 'mm', format: 'a4' })
   const W     = 210
-  const ML    = 15   // margin left
-  const MR    = 15   // margin right
-  const CW    = W - ML - MR  // content width = 180mm
+  const ML    = 15
+  const MR    = 15
+  const CW    = W - ML - MR
   let y       = 0
 
   const lineas    = cotizacion.lineas || []
@@ -51,7 +51,6 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
   doc.setFillColor(...NAVY)
   doc.rect(0, 0, W, 44, 'F')
 
-  // Square logo
   doc.setFillColor(...BLUE)
   doc.roundedRect(ML, 12, 17, 17, 2, 2, 'F')
   doc.setTextColor(...WHITE)
@@ -59,16 +58,15 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
   doc.setFontSize(8)
   doc.text('F3D', ML + 8.5, 22.5, { align: 'center' })
 
-  // Brand name
   doc.setFontSize(17)
   doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...WHITE)
   doc.text('Fabrica3D', ML + 21, 22)
   doc.setFontSize(6.5)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...TGRAY)
   doc.text('IMPRESIÓN 3D FUNCIONAL', ML + 21, 27.5)
 
-  // Badge COTIZACIÓN
   const badgeW = 30
   const badgeX = W - MR - badgeW
   doc.setFillColor(...BLUE)
@@ -78,7 +76,6 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
   doc.setFont('helvetica', 'bold')
   doc.text('COTIZACIÓN', badgeX + badgeW / 2, 16.2, { align: 'center' })
 
-  // Número
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...TGRAY)
@@ -86,14 +83,14 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
 
   y = 44
 
-  // ── INFO BAR ─────────────────────────────────────────────────────────────────
+  // ── INFO BAR ──────────────────────────────────────────────────────────────────
   doc.setFillColor(...LGRAY)
   doc.rect(0, y, W, 16, 'F')
 
   const cols = [
-    { label: 'FECHA',            value: fechaMedia(cotizacion.fecha_emision || cotizacion.created_at) },
-    { label: 'VÁLIDA HASTA',     value: cotizacion.valida_hasta ? fechaMedia(cotizacion.valida_hasta) : '—' },
-    { label: 'TIEMPO DE ENTREGA',value: cotizacion.tiempo_entrega || '—' },
+    { label: 'FECHA',             value: fechaMedia(cotizacion.fecha_emision || cotizacion.created_at) },
+    { label: 'VÁLIDA HASTA',      value: cotizacion.valida_hasta ? fechaMedia(cotizacion.valida_hasta) : '—' },
+    { label: 'TIEMPO DE ENTREGA', value: cotizacion.tiempo_entrega || '—' },
   ]
   cols.forEach((col, i) => {
     const x = ML + i * 60
@@ -120,7 +117,6 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
 
   y += 4
 
-  // Client box
   const boxH = cliente ? 18 : 12
   doc.setFillColor(...LBLUE)
   doc.rect(ML, y, CW, boxH, 'F')
@@ -158,34 +154,27 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
 
   y += 4
 
-  // Table columns
-  const COL = { prod: ML, cant: ML + 95, precio: ML + 118, total: ML + 152 }
+  const COL   = { prod: ML, cant: ML + 95, precio: ML + 118, total: ML + 152 }
   const ROW_H = 8
 
-  // Table header
   doc.setFillColor(...NAVY)
   doc.rect(ML, y, CW, ROW_H, 'F')
   doc.setTextColor(...WHITE)
   doc.setFontSize(6.5)
   doc.setFont('helvetica', 'bold')
-  doc.text('PRODUCTO',  COL.prod  + 2,  y + 5.2)
-  doc.text('CANT.',     COL.cant  + 10, y + 5.2, { align: 'center' })
-  doc.text('P. UNIT.',  COL.precio + 15,y + 5.2, { align: 'right' })
-  doc.text('TOTAL',     W - MR - 2,     y + 5.2, { align: 'right' })
+  doc.text('PRODUCTO',  COL.prod  + 2,   y + 5.2)
+  doc.text('CANT.',     COL.cant  + 10,  y + 5.2, { align: 'center' })
+  doc.text('P. UNIT.',  COL.precio + 15, y + 5.2, { align: 'right' })
+  doc.text('TOTAL',     W - MR - 2,      y + 5.2, { align: 'right' })
 
   y += ROW_H
 
-  // Item rows
   lineas.forEach((l, i) => {
-    const subT  = Number(l.cantidad||0) * Number(l.precio_unitario||0)
+    const subT     = Number(l.cantidad||0) * Number(l.precio_unitario||0)
     const hasDetalle = l.detalle && l.detalle.trim()
-    const thisH = hasDetalle ? ROW_H + 5 : ROW_H
+    const thisH    = hasDetalle ? ROW_H + 5 : ROW_H
 
-    // Check page break
-    if (y + thisH > 240) {
-      doc.addPage()
-      y = 20
-    }
+    if (y + thisH > 240) { doc.addPage(); y = 20 }
 
     if (i % 2 === 0) {
       doc.setFillColor(...LGRAY)
@@ -210,8 +199,6 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(80, 100, 130)
     doc.text(String(l.cantidad || 1), COL.cant + 10, y + 5.5, { align: 'center' })
-
-    doc.setTextColor(80, 100, 130)
     doc.text(cop(l.precio_unitario), COL.precio + 15, y + 5.5, { align: 'right' })
 
     doc.setFont('helvetica', 'bold')
@@ -225,12 +212,9 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
 
   // ── TOTALS ────────────────────────────────────────────────────────────────────
   const totX = ML + 100
-  const totW = CW - 100
 
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
-
-  // Subtotal
   doc.setTextColor(...TGRAY)
   doc.text('Subtotal', totX, y)
   doc.setTextColor(...TNAV)
@@ -238,28 +222,21 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
   doc.text(cop(subtotal), W - MR - 2, y, { align: 'right' })
   y += 6
 
-  // Descuento
+  doc.setTextColor(...TGRAY)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Descuento', totX, y)
   if (descuento > 0) {
-    doc.setTextColor(...TGRAY)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Descuento', totX, y)
     doc.setTextColor([200, 60, 60])
     doc.setFont('helvetica', 'bold')
     doc.text(`-${cop(descuento)}`, W - MR - 2, y, { align: 'right' })
-    y += 6
   } else {
     doc.setTextColor(...TGRAY)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Descuento', totX, y)
-    doc.setTextColor(...TGRAY)
     doc.text('—', W - MR - 2, y, { align: 'right' })
-    y += 6
   }
+  y += 7
 
-  y += 1
-  // Total box
   doc.setFillColor(...NAVY)
-  doc.rect(totX - 2, y - 2, totW + 4, 10, 'F')
+  doc.rect(totX - 2, y - 2, W - MR - totX + 4, 10, 'F')
   doc.setTextColor(...WHITE)
   doc.setFontSize(9)
   doc.setFont('helvetica', 'bold')
@@ -285,7 +262,6 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
   doc.setDrawColor(...MGRAY)
   doc.setLineWidth(0.3)
   doc.line(ML + 24, y - 1.5, W - MR, y - 1.5)
-
   y += 4
 
   doc.setFillColor(...AMBER)
@@ -301,8 +277,6 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
     doc.text(text, ML + 4, y + 6 + i * condLineH)
   })
 
-  y += condH + 4
-
   // ── FOOTER ────────────────────────────────────────────────────────────────────
   const footY = 275
   doc.setFillColor(...NAVY)
@@ -317,14 +291,27 @@ export function generarPdfCotizacion(cotizacion, cliente = null) {
 
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...TGRAY)
-  doc.text('+57 310 6531257', ML + 17, footY + 6)
+  doc.text('+57 310 6531257',       ML + 17, footY + 6)
   doc.text('fabrica3d.co@gmail.com', ML + 13, footY + 11)
-  doc.text('@fabrica3d.co', ML + 18, footY + 16)
+  doc.text('@fabrica3d.co',          ML + 18, footY + 16)
 
   doc.setTextColor(...TGRAY)
   doc.text('Barranquilla, Colombia', W - MR, footY + 11, { align: 'right' })
   doc.setTextColor(...BLUE)
   doc.text('fabrica3d.co', W - MR, footY + 16, { align: 'right' })
 
-  doc.save(`Cotizacion-COT-${num}-${cotizacion.cliente_nombre || 'cliente'}.pdf`)
+  return doc
+}
+
+// ── Descargar PDF ─────────────────────────────────────────────────────────────
+export function generarPdfCotizacion(cotizacion, cliente = null) {
+  const doc = buildDoc(cotizacion, cliente)
+  const num = String(cotizacion.numero).padStart(3, '0')
+  doc.save(`COT-${num}-${cotizacion.cliente_nombre || 'cliente'}.pdf`)
+}
+
+// ── URL para previsualizar en iframe ──────────────────────────────────────────
+export function previewUrlCotizacion(cotizacion, cliente = null) {
+  const doc = buildDoc(cotizacion, cliente)
+  return doc.output('bloburl')
 }

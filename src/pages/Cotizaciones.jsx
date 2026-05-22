@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, User, UserPlus, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, Eye, User, UserPlus, X } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { useCotizaciones } from '../hooks/useCotizaciones'
-import { generarPdfCotizacion } from '../utils/pdfCotizacion'
+import { generarPdfCotizacion, previewUrlCotizacion } from '../utils/pdfCotizacion'
 import { supabase } from '../services/supabase'
 
 const ESTADO_COLOR = { borrador: 'gray', enviada: 'blue', aprobada: 'green', rechazada: 'red' }
@@ -84,6 +84,7 @@ export default function Cotizaciones() {
   const [form,         setForm]         = useState(FORM_EMPTY)
   const [clienteObj,   setClienteObj]   = useState(null) // full client record for PDF
   const [saving,       setSaving]       = useState(false)
+  const [previewUrl,   setPreviewUrl]   = useState(null) // blob url for PDF preview
 
   useEffect(() => {
     supabase.from('clientes').select('*').order('empresa').then(({ data }) => setClientes(data || []))
@@ -149,6 +150,12 @@ export default function Cotizaciones() {
     generarPdfCotizacion(c, cliente)
   }
 
+  function verPdf(c) {
+    const cliente = clientes.find(cl => cl.id === c.cliente_id) || null
+    const url = previewUrlCotizacion(c, cliente)
+    setPreviewUrl(url)
+  }
+
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -209,6 +216,10 @@ export default function Cotizaciones() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
+                          <button onClick={() => verPdf(c)} title="Vista previa PDF"
+                            className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
+                            <Eye size={14} />
+                          </button>
                           <button onClick={() => descargarPdf(c)} title="Descargar PDF"
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
                             <Download size={14} />
@@ -241,6 +252,7 @@ export default function Cotizaciones() {
                     <p className="text-sm font-semibold text-navy-600 mt-0.5">{cop(c.total)}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => verPdf(c)} title="Vista previa" className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Eye size={14} /></button>
                     <button onClick={() => descargarPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
                     <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Pencil size={14} /></button>
                     <button onClick={() => setConfirmId(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-600"><Trash2 size={14} /></button>
@@ -344,6 +356,31 @@ export default function Cotizaciones() {
           </div>
         </div>
       </Modal>
+
+      {/* ── Vista previa PDF ────────────────────────────────────────────────── */}
+      {previewUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setPreviewUrl(null)}>
+          <div className="relative bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-3xl"
+            style={{ height: 'min(90vh, 900px)' }}
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#e2e6ea]">
+              <span className="font-semibold text-navy-600 text-sm">Vista previa</span>
+              <button onClick={() => setPreviewUrl(null)}
+                className="p-1.5 rounded-lg hover:bg-[#f0f2f5] text-[#8a9ab0] hover:text-navy-600 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            {/* PDF iframe */}
+            <iframe
+              src={previewUrl}
+              className="flex-1 w-full rounded-b-2xl"
+              title="Vista previa cotización"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Confirmar eliminar */}
       <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar cotización" size="sm">
