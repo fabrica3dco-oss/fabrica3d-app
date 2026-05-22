@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, User, UserPlus, X } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
-import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { useCotizaciones } from '../hooks/useCotizaciones'
@@ -10,9 +9,22 @@ import { generarPdfCotizacion, previewUrlCotizacion, blobCotizacion } from '../u
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
 
-const ESTADO_COLOR = { borrador: 'gray', enviada: 'blue', aprobada: 'green', rechazada: 'red' }
-const ESTADO_LABEL = { borrador: 'Borrador', enviada: 'Enviada', aprobada: 'Aprobada', rechazada: 'Rechazada' }
-const ESTADOS      = ['borrador', 'enviada', 'aprobada', 'rechazada']
+const ESTADO_COLOR  = { borrador: 'gray', enviada: 'blue', aprobada: 'green', rechazada: 'red' }
+const ESTADO_LABEL  = { borrador: 'Borrador', enviada: 'Enviada', aprobada: 'Aprobada', rechazada: 'Rechazada' }
+const ESTADOS       = ['borrador', 'enviada', 'aprobada', 'rechazada']
+const ESTADO_SELECT = {
+  borrador:  'bg-gray-100 text-gray-600',
+  enviada:   'bg-blue-100 text-blue-700',
+  aprobada:  'bg-green-100 text-green-700',
+  rechazada: 'bg-red-100 text-red-700',
+}
+
+const DEFAULT_NOTAS = [
+  'Anticipo del 50% para iniciar producción.',
+  'Saldo al momento de la entrega.',
+  'El cliente debe enviar el logo en formato vectorial (AI, SVG, PDF) o PNG de alta resolución.',
+  'Cotización válida por 7 días calendario.',
+].join('\n')
 
 const cop = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(v) || 0)
 
@@ -21,7 +33,7 @@ const FORM_EMPTY  = {
   cliente_id: '', cliente_nombre: '',
   lineas: [{ ...LINEA_EMPTY }],
   descuento: '', estado: 'borrador',
-  valida_hasta: '', tiempo_entrega: '', notas: '',
+  valida_hasta: '', tiempo_entrega: '', notas: DEFAULT_NOTAS,
 }
 
 // ── Cliente autocomplete ──────────────────────────────────────────────────────
@@ -119,7 +131,7 @@ export default function Cotizaciones() {
       estado:         c.estado || 'borrador',
       valida_hasta:   c.valida_hasta || '',
       tiempo_entrega: c.tiempo_entrega || '',
-      notas:          c.notas || '',
+      notas:          c.notas || DEFAULT_NOTAS,
     })
     setClienteObj(clientes.find(cl => cl.id === c.cliente_id) || null)
     setModal({ mode: 'editar', id: c.id })
@@ -233,7 +245,18 @@ export default function Cotizaciones() {
                       <td className="px-4 py-3 font-mono font-semibold text-navy-600">COT-{String(c.numero).padStart(3,'0')}</td>
                       <td className="px-4 py-3 font-medium text-navy-600">{c.cliente_nombre || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-navy-600">{cop(c.total)}</td>
-                      <td className="px-4 py-3"><Badge variant={ESTADO_COLOR[c.estado]}>{ESTADO_LABEL[c.estado]}</Badge></td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={c.estado}
+                          onClick={e => e.stopPropagation()}
+                          onChange={async e => {
+                            e.stopPropagation()
+                            await actualizarCotizacion(c.id, { estado: e.target.value })
+                          }}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-full cursor-pointer border-0 focus:outline-none focus:ring-2 focus:ring-accent transition-colors appearance-none ${ESTADO_SELECT[c.estado]}`}>
+                          {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+                        </select>
+                      </td>
                       <td className="px-4 py-3 text-xs text-[#8a9ab0]">
                         {c.valida_hasta ? new Date(c.valida_hasta+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
                       </td>
@@ -273,7 +296,13 @@ export default function Cotizaciones() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-xs font-semibold text-[#8a9ab0]">COT-{String(c.numero).padStart(3,'0')}</span>
-                      <Badge variant={ESTADO_COLOR[c.estado]}>{ESTADO_LABEL[c.estado]}</Badge>
+                      <select
+                        value={c.estado}
+                        onClick={e => e.stopPropagation()}
+                        onChange={async e => { e.stopPropagation(); await actualizarCotizacion(c.id, { estado: e.target.value }) }}
+                        className={`text-xs font-semibold px-2 py-0.5 rounded-full cursor-pointer border-0 focus:outline-none appearance-none ${ESTADO_SELECT[c.estado]}`}>
+                        {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+                      </select>
                     </div>
                     <p className="font-medium text-navy-600 truncate">{c.cliente_nombre || '—'}</p>
                     <p className="text-sm font-semibold text-navy-600 mt-0.5">{cop(c.total)}</p>
@@ -369,10 +398,9 @@ export default function Cotizaciones() {
 
           {/* Condiciones / Notas */}
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-navy-600">Condiciones <span className="text-[#8a9ab0] font-normal">(una por línea — si vacío se usan las condiciones estándar)</span></label>
+            <label className="text-sm font-medium text-navy-600">Condiciones <span className="text-[#8a9ab0] font-normal text-xs">(una por línea)</span></label>
             <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
-              placeholder={"Anticipo del 50% para iniciar producción.\nSaldo al momento de la entrega."}
-              rows={3}
+              rows={5}
               className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent resize-none" />
           </div>
 

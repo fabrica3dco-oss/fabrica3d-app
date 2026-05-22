@@ -286,22 +286,18 @@ async function buildDoc(cotizacion, cliente) {
   doc.line(totX, y + 2.5, RE, y + 2.5)
   y += 7
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(...MID)
-  doc.text('Descuento', totX, y)
   if (descuento > 0) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...MID)
+    doc.text('Descuento', totX, y)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(220, 38, 38)
     doc.text(`– ${cop(descuento)}`, RE - 2, y, { align: 'right' })
-  } else {
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...MID)
-    doc.text('—', RE - 2, y, { align: 'right' })
+    doc.setDrawColor(...BORDER)
+    doc.line(totX, y + 2.5, RE, y + 2.5)
+    y += 9
   }
-  doc.setDrawColor(...BORDER)
-  doc.line(totX, y + 2.5, RE, y + 2.5)
-  y += 9
 
   // Caja TOTAL: brand navy
   doc.setFillColor(...NAVY)
