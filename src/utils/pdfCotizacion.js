@@ -315,3 +315,9 @@ export function previewUrlCotizacion(cotizacion, cliente = null) {
   const doc = buildDoc(cotizacion, cliente)
   return doc.output('bloburl')
 }
+
+// ── Blob para compartir via Web Share API ─────────────────────────────────────
+export function blobCotizacion(cotizacion, cliente = null) {
+  const doc = buildDoc(cotizacion, cliente)
+  return doc.output('blob')
+}

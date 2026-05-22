@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, Eye, User, UserPlus, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, User, UserPlus, X } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { useCotizaciones } from '../hooks/useCotizaciones'
-import { generarPdfCotizacion, previewUrlCotizacion } from '../utils/pdfCotizacion'
+import { generarPdfCotizacion, previewUrlCotizacion, blobCotizacion } from '../utils/pdfCotizacion'
 import { supabase } from '../services/supabase'
+import toast from 'react-hot-toast'
 
 const ESTADO_COLOR = { borrador: 'gray', enviada: 'blue', aprobada: 'green', rechazada: 'red' }
 const ESTADO_LABEL = { borrador: 'Borrador', enviada: 'Enviada', aprobada: 'Aprobada', rechazada: 'Rechazada' }
@@ -156,6 +157,28 @@ export default function Cotizaciones() {
     setPreviewUrl(url)
   }
 
+  async function compartirWhatsApp(c) {
+    const cliente = clientes.find(cl => cl.id === c.cliente_id) || null
+    const num     = String(c.numero).padStart(3, '0')
+    const nombre  = c.cliente_nombre || 'cliente'
+    const archivo = `COT-${num}-${nombre}.pdf`
+
+    const blob = blobCotizacion(c, cliente)
+    const file = new File([blob], archivo, { type: 'application/pdf' })
+
+    const mensaje = `Hola${c.cliente_nombre ? ` ${c.cliente_nombre}` : ''}, te comparto la cotización *COT-${num}* de Fabrica3D por un total de *${cop(c.total)}*. Quedo atento a cualquier pregunta. 😊`
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: `Cotización COT-${num} – Fabrica3D`, text: mensaje })
+      } catch (err) {
+        if (err.name !== 'AbortError') toast.error('No se pudo compartir el archivo.')
+      }
+    } else {
+      toast('Tu navegador no soporta compartir archivos directamente.\nDescarga el PDF y adjúntalo en WhatsApp.', { icon: 'ℹ️', duration: 5000 })
+    }
+  }
+
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -216,6 +239,10 @@ export default function Cotizaciones() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
+                          <button onClick={() => compartirWhatsApp(c)} title="Compartir por WhatsApp"
+                            className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600 transition-colors">
+                            <Share2 size={14} />
+                          </button>
                           <button onClick={() => verPdf(c)} title="Vista previa PDF"
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
                             <Eye size={14} />
@@ -252,6 +279,7 @@ export default function Cotizaciones() {
                     <p className="text-sm font-semibold text-navy-600 mt-0.5">{cop(c.total)}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => compartirWhatsApp(c)} title="WhatsApp" className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><Share2 size={14} /></button>
                     <button onClick={() => verPdf(c)} title="Vista previa" className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Eye size={14} /></button>
                     <button onClick={() => descargarPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
                     <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Pencil size={14} /></button>
