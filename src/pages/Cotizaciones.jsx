@@ -146,14 +146,14 @@ export default function Cotizaciones() {
     if (ok) setModal(null)
   }
 
-  function descargarPdf(c) {
+  async function descargarPdf(c) {
     const cliente = clientes.find(cl => cl.id === c.cliente_id) || null
-    generarPdfCotizacion(c, cliente)
+    await generarPdfCotizacion(c, cliente)
   }
 
-  function verPdf(c) {
+  async function verPdf(c) {
     const cliente = clientes.find(cl => cl.id === c.cliente_id) || null
-    const url = previewUrlCotizacion(c, cliente)
+    const url = await previewUrlCotizacion(c, cliente)
     setPreviewUrl(url)
   }
 
@@ -163,7 +163,7 @@ export default function Cotizaciones() {
     const nombre  = c.cliente_nombre || 'cliente'
     const archivo = `COT-${num}-${nombre}.pdf`
 
-    const blob = blobCotizacion(c, cliente)
+    const blob = await blobCotizacion(c, cliente)
     const file = new File([blob], archivo, { type: 'application/pdf' })
 
     const mensaje = `Hola${c.cliente_nombre ? ` ${c.cliente_nombre}` : ''}, te comparto la cotización *COT-${num}* de Fabrica3D por un total de *${cop(c.total)}*. Quedo atento a cualquier pregunta. 😊`

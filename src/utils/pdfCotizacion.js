@@ -1,6 +1,35 @@
 import { jsPDF } from 'jspdf'
+import logoSvgRaw from '../assets/logo-f3d-blanco.svg?raw'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Pre-render SVG logo → PNG data URL (inicia cuando carga el módulo) ────────
+// Aspect ratio logo: 1347 × 326 ≈ 4.13:1
+// En PDF usaremos 82mm × 19.8mm
+const LOGO_W_MM = 82
+const LOGO_H_MM = 19.8
+
+async function svgToPng(svgRaw, canvasW, canvasH) {
+  return new Promise((resolve) => {
+    const blob = new Blob([svgRaw], { type: 'image/svg+xml;charset=utf-8' })
+    const url  = URL.createObjectURL(blob)
+    const img  = new window.Image()
+    img.onload = () => {
+      const canvas  = document.createElement('canvas')
+      canvas.width  = canvasW
+      canvas.height = canvasH
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, canvasW, canvasH)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/png'))
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+    img.src = url
+  })
+}
+
+// Empieza a renderizar en cuanto se importa el módulo (cache para el primer click)
+const _logoReady = svgToPng(logoSvgRaw, 1280, 310)
+
+// ── Helpers numéricos/fecha ───────────────────────────────────────────────────
 const cop     = (v) => `$${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number(v) || 0)}`
 const copFull = (v) => `$${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number(v) || 0)} COP`
 
@@ -13,25 +42,26 @@ const fechaMedia = (d) => {
   } catch { return d }
 }
 
-// "7" → "7 días hábiles" | "5-7" → "5-7 días hábiles" | "3 semanas" → sin cambio
-const formatEntrega = (v) => {
+// "7" → "7 días hábiles" | "5-7" → "5-7 días hábiles" | texto libre → sin cambio
+const fmtEntrega = (v) => {
   if (!v) return '—'
   const t = String(v).trim()
-  if (/^\d+$/.test(t))         return `${t} días hábiles`
-  if (/^\d+[-–]\d+$/.test(t)) return `${t} días hábiles`
+  if (/^\d+$/.test(t))          return `${t} días hábiles`
+  if (/^\d+[-–]\d+$/.test(t))  return `${t} días hábiles`
   return t
 }
 
-// ── Paleta ────────────────────────────────────────────────────────────────────
-const DARK   = [15,  23,  42]    // #0f172a  texto principal / header izq
-const BLUE   = [37,  99,  235]   // #2563eb  acento azul primario
-const MID    = [100, 116, 139]   // #64748b  labels / texto secundario
-const LIGHT  = [248, 250, 252]   // #f8fafc  fondos sección
-const BORDER = [226, 232, 240]   // #e2e8f0  separadores
+// ── Paleta — usa el azul de la marca #3b82f6 ─────────────────────────────────
+const DARK   = [15,  23,  42]    // #0f172a  texto / header izq
+const BLUE   = [59,  130, 246]   // #3b82f6  azul de la marca ← CORREGIDO
+const MID    = [100, 116, 139]   // #64748b  labels, textos secundarios
+const LIGHT  = [248, 250, 252]   // #f8fafc  fondos neutros
+const BORDER = [226, 232, 240]   // #e2e8f0  líneas divisorias
 const WHITE  = [255, 255, 255]
-const LBLUE  = [239, 246, 255]   // #eff6ff  blue-50 (anticipo, tabla header)
-const MBLUE  = [219, 234, 254]   // #dbeafe  blue-100 (bordes)
-const LBLUE2 = [191, 219, 254]   // #bfdbfe  blue-200 (labels sobre azul)
+// Tints derivados del azul de marca (no de otro azul)
+const LBLUE  = [236, 244, 254]   // #3b82f6 al 10% sobre blanco
+const MBLUE  = [207, 228, 253]   // #3b82f6 al 20% sobre blanco
+const LBLUE2 = [186, 215, 252]   // blue-200 derivado — label sobre panel azul
 const LMID   = [156, 163, 175]   // #9ca3af  footer values
 
 const DEFAULT_CONDITIONS = [
@@ -41,10 +71,10 @@ const DEFAULT_CONDITIONS = [
   'Cotización válida por 7 días calendario.',
 ]
 
-// ── Section title: texto gris + línea horizontal ──────────────────────────────
+// ── Section title + línea extendida ──────────────────────────────────────────
 function secTitle(doc, text, x, y, rightEdge) {
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
+  doc.setFontSize(8)
   doc.setTextColor(...MID)
   doc.text(text, x, y)
   const tw = doc.getTextWidth(text) + 4
@@ -53,8 +83,8 @@ function secTitle(doc, text, x, y, rightEdge) {
   doc.line(x + tw, y - 1.5, rightEdge, y - 1.5)
 }
 
-// ── Construcción del PDF ──────────────────────────────────────────────────────
-function buildDoc(cotizacion, cliente) {
+// ── Builder principal (async para await del logo) ─────────────────────────────
+async function buildDoc(cotizacion, cliente) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const W   = 210
   const ML  = 14
@@ -71,52 +101,40 @@ function buildDoc(cotizacion, cliente) {
   const num       = String(cotizacion.numero).padStart(3, '0')
   const año       = new Date(cotizacion.created_at).getFullYear()
 
-  // ── HEADER: split izq oscuro + der azul ─────────────────────────────────────
-  const splitX = 118   // punto de división
+  // ── HEADER: panel izq oscuro + panel der azul ────────────────────────────────
+  const splitX = 116
 
-  // Fondo oscuro (todo el header)
   doc.setFillColor(...DARK)
   doc.rect(0, 0, W, 52, 'F')
 
-  // Bloque azul derecho
   doc.setFillColor(...BLUE)
   doc.rect(splitX, 0, W - splitX, 52, 'F')
 
-  // — Izquierda: icono F3D + nombre —
-  doc.setFillColor(...BLUE)
-  doc.roundedRect(ML, 14, 22, 22, 2.5, 2.5, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(...WHITE)
-  doc.text('F3D', ML + 11, 27.5, { align: 'center' })
+  // Logo SVG como imagen (blanco sobre fondo oscuro)
+  const logoDataUrl = await _logoReady
+  if (logoDataUrl) {
+    const lx = ML
+    const ly = (52 - LOGO_H_MM) / 2   // centrado vertical en el header
+    doc.addImage(logoDataUrl, 'PNG', lx, ly, LOGO_W_MM, LOGO_H_MM)
+  }
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(17)
-  doc.setTextColor(...WHITE)
-  doc.text('Fabrica3D', ML + 27, 24.5)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(6.5)
-  doc.setTextColor(...MID)
-  doc.text('IMPRESIÓN 3D FUNCIONAL', ML + 27, 30.5)
-
-  // — Derecha (panel azul): número de cotización —
-  const rcx = splitX + (W - splitX) / 2   // ~164 mm
+  // Panel derecho: número de cotización
+  const rcx = splitX + (W - splitX) / 2   // ~163 mm
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
   doc.setTextColor(...LBLUE2)
-  doc.text('COTIZACIÓN', rcx, 19, { align: 'center' })
+  doc.text('COTIZACIÓN', rcx, 18, { align: 'center' })
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(20)
+  doc.setFontSize(18)
   doc.setTextColor(...WHITE)
-  doc.text(`#COT-${num}`, rcx, 33.5, { align: 'center' })
+  doc.text(`#COT-${num}`, rcx, 32, { align: 'center' })
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(...LBLUE2)
-  doc.text(String(año), rcx, 43, { align: 'center' })
+  doc.text(String(año), rcx, 42, { align: 'center' })
 
   y = 52
 
@@ -130,11 +148,11 @@ function buildDoc(cotizacion, cliente) {
   ;[
     { label: 'FECHA',             value: fechaMedia(cotizacion.fecha_emision || cotizacion.created_at) },
     { label: 'VÁLIDA HASTA',      value: cotizacion.valida_hasta ? fechaMedia(cotizacion.valida_hasta) : '—' },
-    { label: 'TIEMPO DE ENTREGA', value: formatEntrega(cotizacion.tiempo_entrega) },
+    { label: 'TIEMPO DE ENTREGA', value: fmtEntrega(cotizacion.tiempo_entrega) },
   ].forEach((col, i) => {
     const x = ML + i * 61
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6.5)
+    doc.setFontSize(7)
     doc.setTextColor(...MID)
     doc.text(col.label, x, y + 8)
     doc.setFont('helvetica', 'bold')
@@ -143,7 +161,7 @@ function buildDoc(cotizacion, cliente) {
     doc.text(col.value, x, y + 17)
   })
 
-  y += 30   // 52 + 22 + 8 gap = 82
+  y += 30   // 52 + 22 meta + 8 gap = 82
 
   // ── CLIENTE ───────────────────────────────────────────────────────────────────
   secTitle(doc, 'CLIENTE', ML, y, RE)
@@ -158,7 +176,7 @@ function buildDoc(cotizacion, cliente) {
   doc.rect(ML, y, 3, clientH, 'F')
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
+  doc.setFontSize(12)
   doc.setTextColor(...DARK)
   doc.text(cotizacion.cliente_nombre || 'Cliente', ML + 7, y + 8.5)
 
@@ -182,16 +200,20 @@ function buildDoc(cotizacion, cliente) {
   const CANT_CX = 120   // centro columna cantidad
   const UNIT_RX = 153   // borde derecho precio unitario
 
-  // Header de columnas: fondo azul claro, texto azul
-  doc.setFillColor(...LBLUE)
+  // Encabezado de columnas — gris neutro, texto oscuro
+  doc.setFillColor(...LIGHT)
   doc.rect(ML, y, CW, 8, 'F')
+  doc.setDrawColor(...BORDER)
+  doc.setLineWidth(0.3)
+  doc.line(ML, y + 8, RE, y + 8)
+
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(6.5)
-  doc.setTextColor(...BLUE)
-  doc.text('PRODUCTO',  ML + 2,   y + 5.5)
-  doc.text('CANT.',     CANT_CX,  y + 5.5, { align: 'center' })
-  doc.text('P. UNIT.',  UNIT_RX,  y + 5.5, { align: 'right' })
-  doc.text('TOTAL',     RE - 2,   y + 5.5, { align: 'right' })
+  doc.setFontSize(7)
+  doc.setTextColor(...MID)
+  doc.text('PRODUCTO',  ML + 2,  y + 5.5)
+  doc.text('CANT.',     CANT_CX, y + 5.5, { align: 'center' })
+  doc.text('P. UNIT.',  UNIT_RX, y + 5.5, { align: 'right' })
+  doc.text('TOTAL',     RE - 2,  y + 5.5, { align: 'right' })
   y += 8
 
   lineas.forEach((l) => {
@@ -267,7 +289,7 @@ function buildDoc(cotizacion, cliente) {
   doc.line(totX, y + 2.5, RE, y + 2.5)
   y += 9
 
-  // Caja TOTAL: azul sólido
+  // Caja TOTAL: azul sólido marca
   doc.setFillColor(...BLUE)
   doc.roundedRect(totX - 2, y - 2, totW + 4, 12, 1.5, 1.5, 'F')
   doc.setFont('helvetica', 'bold')
@@ -278,36 +300,35 @@ function buildDoc(cotizacion, cliente) {
 
   y += 18
 
-  // ── ANTICIPO (50%) + DATOS DE PAGO ───────────────────────────────────────────
+  // ── ANTICIPO 50% + DATOS DE PAGO ─────────────────────────────────────────────
   if (y + 32 > 254) { doc.addPage(); y = 18 }
 
   secTitle(doc, 'ANTICIPO PARA INICIAR PRODUCCIÓN', ML, y, RE)
   y += 5
 
-  // Caja azul claro con borde y barra izquierda
+  // Caja: tint del azul de marca + borde + barra izquierda
   doc.setFillColor(...LBLUE)
   doc.setDrawColor(...MBLUE)
   doc.setLineWidth(0.5)
-  doc.roundedRect(ML, y, CW, 21, 2, 2, 'FD')
+  doc.roundedRect(ML, y, CW, 22, 2, 2, 'FD')
   doc.setFillColor(...BLUE)
-  doc.rect(ML, y, 3, 21, 'F')
+  doc.rect(ML, y, 3, 22, 'F')
 
-  // — Izquierda: label + monto grande —
+  // Izquierda: label + monto grande
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
+  doc.setFontSize(7.5)
   doc.setTextColor(...MID)
   doc.text('Cancela el 50% del total para comenzar:', ML + 7, y + 7)
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(17)
+  doc.setFontSize(15)
   doc.setTextColor(...BLUE)
-  doc.text(cop(anticipo), ML + 7, y + 17)
+  doc.text(cop(anticipo), ML + 7, y + 17.5)
 
-  // — Derecha: datos de pago —
-  const payX = splitX - 4   // ~114mm desde izquierda
-
+  // Derecha: datos de pago
+  const payX = ML + 88
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
+  doc.setFontSize(7.5)
   doc.setTextColor(...MID)
   doc.text('Envía a:', payX, y + 7)
 
@@ -317,11 +338,11 @@ function buildDoc(cotizacion, cliente) {
   doc.text('Llave Bre-B  ·  3215735651', payX, y + 13)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
+  doc.setFontSize(8.5)
   doc.setTextColor(...MID)
-  doc.text('Titular: Dimas Domenech', payX, y + 18.5)
+  doc.text('Titular: Dimas Domenech', payX, y + 19.5)
 
-  y += 28
+  y += 29
 
   // ── CONDICIONES ───────────────────────────────────────────────────────────────
   const conditions = cotizacion.notas
@@ -336,7 +357,6 @@ function buildDoc(cotizacion, cliente) {
   secTitle(doc, 'CONDICIONES', ML, y, RE)
   y += 5
 
-  // Caja gris claro + barra azul izq (mismo lenguaje visual)
   doc.setFillColor(...LIGHT)
   doc.setDrawColor(...BORDER)
   doc.setLineWidth(0.3)
@@ -357,19 +377,30 @@ function buildDoc(cotizacion, cliente) {
   doc.setFillColor(...DARK)
   doc.rect(0, footY, W, 23, 'F')
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
-  doc.setTextColor(209, 213, 219)   // gray-300
-  doc.text('WhatsApp:',  ML, footY + 7)
-  doc.text('Email:',     ML, footY + 13)
-  doc.text('Instagram:', ML, footY + 19)
+  // Contacto: label bold + valor normal, alineados dinámicamente
+  const footerItems = [
+    { label: 'WhatsApp:',  value: '+57 310 6531257' },
+    { label: 'Email:',     value: 'fabrica3d.co@gmail.com' },
+    { label: 'Instagram:', value: '@fabrica3d.co' },
+  ]
 
+  footerItems.forEach((item, i) => {
+    const fy = footY + 7 + i * 6
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(209, 213, 219)
+    doc.text(item.label, ML, fy)
+
+    const lw = doc.getTextWidth(item.label) + 2
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...LMID)
+    doc.text(item.value, ML + lw, fy)
+  })
+
+  // Derecha: ubicación + web
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...LMID)
-  doc.text('+57 310 6531257',        ML + 18, footY + 7)
-  doc.text('fabrica3d.co@gmail.com', ML + 13, footY + 13)
-  doc.text('@fabrica3d.co',          ML + 19, footY + 19)
-
+  doc.setFontSize(7.5)
   doc.setTextColor(...LMID)
   doc.text('Barranquilla, Colombia', RE, footY + 13, { align: 'right' })
   doc.setTextColor(...BLUE)
@@ -379,18 +410,18 @@ function buildDoc(cotizacion, cliente) {
 }
 
 // ── Exports ───────────────────────────────────────────────────────────────────
-export function generarPdfCotizacion(cotizacion, cliente = null) {
-  const doc = buildDoc(cotizacion, cliente)
+export async function generarPdfCotizacion(cotizacion, cliente = null) {
+  const doc = await buildDoc(cotizacion, cliente)
   const num = String(cotizacion.numero).padStart(3, '0')
   doc.save(`COT-${num}-${cotizacion.cliente_nombre || 'cliente'}.pdf`)
 }
 
-export function previewUrlCotizacion(cotizacion, cliente = null) {
-  const doc = buildDoc(cotizacion, cliente)
+export async function previewUrlCotizacion(cotizacion, cliente = null) {
+  const doc = await buildDoc(cotizacion, cliente)
   return doc.output('bloburl')
 }
 
-export function blobCotizacion(cotizacion, cliente = null) {
-  const doc = buildDoc(cotizacion, cliente)
+export async function blobCotizacion(cotizacion, cliente = null) {
+  const doc = await buildDoc(cotizacion, cliente)
   return doc.output('blob')
 }
