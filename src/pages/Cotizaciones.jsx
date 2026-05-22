@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, User, UserPlus, X, ChevronDown } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, User, UserPlus, X, ChevronDown, Receipt } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
@@ -96,8 +96,10 @@ export default function Cotizaciones() {
   const [confirmId,    setConfirmId]    = useState(null)
   const [form,         setForm]         = useState(FORM_EMPTY)
   const [clienteObj,   setClienteObj]   = useState(null) // full client record for PDF
-  const [saving,       setSaving]       = useState(false)
-  const [previewUrl,   setPreviewUrl]   = useState(null) // blob url for PDF preview
+  const [saving,          setSaving]          = useState(false)
+  const [previewUrl,      setPreviewUrl]      = useState(null)
+  const [cobrosModal,     setCobrosModal]     = useState(null)   // cotización para generar cobros
+  const [generandoCobros, setGenerandoCobros] = useState(false)
 
   useEffect(() => {
     supabase.from('clientes').select('*').order('empresa').then(({ data }) => setClientes(data || []))
@@ -191,6 +193,48 @@ export default function Cotizaciones() {
     }
   }
 
+  async function confirmarGenerarCobros() {
+    const c = cobrosModal
+    if (!c) return
+    const num    = String(c.numero).padStart(3, '0')
+    const hoy    = new Date().toISOString().split('T')[0]
+    const vence7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const mitad  = Number(c.total) * 0.5
+
+    const cobros = [
+      {
+        cliente_id:        c.cliente_id || null,
+        cliente_nombre:    c.cliente_nombre,
+        concepto:          `Anticipo 50% · COT-${num} · ${c.cliente_nombre}`,
+        monto:             mitad,
+        estado:            'pendiente',
+        fecha_emision:     hoy,
+        fecha_vencimiento: vence7,
+        notas:             `Anticipo para iniciar producción.\nRef: COT-${num}`,
+      },
+      {
+        cliente_id:     c.cliente_id || null,
+        cliente_nombre: c.cliente_nombre,
+        concepto:       `Saldo 50% · COT-${num} · ${c.cliente_nombre}`,
+        monto:          mitad,
+        estado:         'pendiente',
+        fecha_emision:  hoy,
+        notas:          `Saldo contra entrega del pedido.\nRef: COT-${num}`,
+      },
+    ]
+
+    setGenerandoCobros(true)
+    const { error } = await supabase.from('cobros').insert(cobros)
+    setGenerandoCobros(false)
+    setCobrosModal(null)
+
+    if (error) {
+      toast.error('No se pudieron generar los cobros.')
+    } else {
+      toast.success(`¡Listo! Cobros de anticipo y saldo generados para COT-${num}.`, { duration: 4000 })
+    }
+  }
+
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -277,6 +321,12 @@ export default function Cotizaciones() {
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
                             <Download size={14} />
                           </button>
+                          {c.estado === 'aprobada' && (
+                            <button onClick={() => setCobrosModal(c)} title="Generar cobros (anticipo + saldo)"
+                              className="p-1.5 rounded-lg hover:bg-purple-50 text-[#8a9ab0] hover:text-purple-600 transition-colors">
+                              <Receipt size={14} />
+                            </button>
+                          )}
                           <button onClick={() => abrirEditar(c)}
                             className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors">
                             <Pencil size={14} />
@@ -317,6 +367,9 @@ export default function Cotizaciones() {
                     <button onClick={() => compartirWhatsApp(c)} title="WhatsApp" className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><Share2 size={14} /></button>
                     <button onClick={() => verPdf(c)} title="Vista previa" className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Eye size={14} /></button>
                     <button onClick={() => descargarPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
+                    {c.estado === 'aprobada' && (
+                      <button onClick={() => setCobrosModal(c)} title="Generar cobros" className="p-1.5 rounded-lg hover:bg-purple-50 text-[#8a9ab0] hover:text-purple-600"><Receipt size={14} /></button>
+                    )}
                     <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Pencil size={14} /></button>
                     <button onClick={() => setConfirmId(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-600"><Trash2 size={14} /></button>
                   </div>
@@ -443,6 +496,44 @@ export default function Cotizaciones() {
           </div>
         </div>
       )}
+
+      {/* ── Generar cobros ─────────────────────────────────────────────────── */}
+      <Modal open={!!cobrosModal} onClose={() => setCobrosModal(null)} title="Generar cobros" size="sm">
+        {cobrosModal && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-navy-600">
+              Se crearán <strong>2 cobros pendientes</strong> para{' '}
+              <strong>{cobrosModal.cliente_nombre}</strong>:
+            </p>
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-center bg-[#f8f9fb] rounded-lg px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-navy-600">Anticipo 50%</p>
+                  <p className="text-xs text-[#8a9ab0]">Para iniciar producción · vence en 7 días</p>
+                </div>
+                <span className="text-sm font-bold text-navy-600">
+                  {new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(cobrosModal.total)*0.5)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center bg-[#f8f9fb] rounded-lg px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-navy-600">Saldo 50%</p>
+                  <p className="text-xs text-[#8a9ab0]">Contra entrega del pedido</p>
+                </div>
+                <span className="text-sm font-bold text-navy-600">
+                  {new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(cobrosModal.total)*0.5)}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end pt-1">
+              <Button variant="secondary" onClick={() => setCobrosModal(null)}>Cancelar</Button>
+              <Button onClick={confirmarGenerarCobros} disabled={generandoCobros}>
+                {generandoCobros ? 'Generando...' : 'Generar cobros'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Confirmar eliminar */}
       <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar cotización" size="sm">
