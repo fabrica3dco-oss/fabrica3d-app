@@ -395,26 +395,35 @@ async function buildDoc(cotizacion, cliente) {
   doc.setLineWidth(0.4)
   doc.line(0, footY, W, footY)
 
-  // ── Íconos + contacto HORIZONTAL — 4 ítems equidistantes ────────────────────
-  const iconY   = footY + 9        // top del ícono (5mm de altura)
-  const textY   = iconY + 3.8      // baseline texto al centro del ícono
-  const iconGap = 2                // mm entre ícono y texto
-  const slotW   = (RE - ML) / 4   // 45.5mm por ítem — espaciado igual
-
-  const items = [
-    { icon: waIcon,    text: '+57 310 6531257',        x: ML + 0 * slotW },
-    { icon: emailIcon, text: 'fabrica3d.co@gmail.com', x: ML + 1 * slotW },
-    { icon: igIcon,    text: '@fabrica3d.co',           x: ML + 2 * slotW },
-    { icon: globeIcon, text: 'lafabrica3d.co',          x: ML + 3 * slotW },
-  ]
+  // ── Íconos + contacto HORIZONTAL — centrados con gap uniforme ────────────────
+  const iconY   = footY + 9    // top del ícono (5mm de altura)
+  const textY   = iconY + 3.8  // baseline texto alineado al centro del ícono
+  const iconGap = 2            // mm entre ícono y texto
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.setTextColor(...LMID)
 
-  items.forEach(({ icon, text, x }) => {
-    if (icon) doc.addImage(icon, 'PNG', x, iconY, ICON_MM, ICON_MM)
-    doc.text(text, x + ICON_MM + iconGap, textY)
+  const footItems = [
+    { icon: waIcon,    text: '+57 310 6531257'        },
+    { icon: emailIcon, text: 'fabrica3d.co@gmail.com' },
+    { icon: igIcon,    text: '@fabrica3d.co'           },
+    { icon: globeIcon, text: 'lafabrica3d.co'          },
+  ]
+
+  // Ancho real de cada ítem = ícono + gap + texto (medido con la fuente activa)
+  const itemWidths = footItems.map(it => ICON_MM + iconGap + doc.getTextWidth(it.text))
+  const totalW     = itemWidths.reduce((s, w) => s + w, 0)
+
+  // 5 huecos iguales: |gap|item0|gap|item1|gap|item2|gap|item3|gap|
+  // → grupo perfectamente centrado, separación idéntica entre todos
+  const gap = (W - totalW) / (footItems.length + 1)
+  let curX  = gap
+
+  footItems.forEach((it, i) => {
+    if (it.icon) doc.addImage(it.icon, 'PNG', curX, iconY, ICON_MM, ICON_MM)
+    doc.text(it.text, curX + ICON_MM + iconGap, textY)
+    curX += itemWidths[i] + gap
   })
 
   return doc
