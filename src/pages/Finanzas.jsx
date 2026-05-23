@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign,
-  Plus, Upload, Edit2, Trash2, X, FileText
+  Plus, Upload, Edit2, Trash2, X, FileText,
+  CheckSquare, Square, AlertCircle, Loader2,
+  ChevronDown,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -20,6 +22,11 @@ const CATEGORIAS = [
 ]
 const CAT_MAP = Object.fromEntries(CATEGORIAS.map(c => [c.id, c]))
 
+const MESES_LABEL = [
+  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+]
+
 const EMPTY_FORM = {
   fecha:       new Date().toISOString().split('T')[0],
   categoria:   'materiales',
@@ -28,19 +35,7 @@ const EMPTY_FORM = {
   notas:       '',
 }
 
-function getMeses() {
-  const meses = []
-  const now = new Date()
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    meses.push({
-      value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-      label: d.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }),
-    })
-  }
-  return meses
-}
-
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = n =>
   new Intl.NumberFormat('es-CO', {
     style: 'currency', currency: 'COP', maximumFractionDigits: 0,
@@ -51,7 +46,16 @@ const fmtFecha = d =>
     day: '2-digit', month: '2-digit', year: 'numeric',
   })
 
-// ── Componente ────────────────────────────────────────────────────────────────
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 export default function Finanzas() {
   const {
     loading,
@@ -61,6 +65,17 @@ export default function Finanzas() {
     crearGasto, actualizarGasto, eliminarGasto,
   } = useFinanzas()
 
+  // Año/Mes actuales desde mesFiltro ("2026-05")
+  const [anioStr, mesStr] = mesFiltro.split('-')
+  const anioActual = parseInt(anioStr, 10)
+  const mesActual  = parseInt(mesStr,  10)
+
+  const currentYear = new Date().getFullYear()
+  const ANIOS = [currentYear - 1, currentYear, currentYear + 1]
+
+  function setAnio(a) { setMesFiltro(`${a}-${mesStr}`) }
+  function setMes(m)  { setMesFiltro(`${anioStr}-${String(m).padStart(2, '0')}`) }
+
   const [tab,       setTab]       = useState('gastos')
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
@@ -68,25 +83,15 @@ export default function Finanzas() {
   const [busqueda,  setBusqueda]  = useState('')
   const [filtrocat, setFiltrocat] = useState('')
 
-  const meses = useMemo(() => getMeses(), [])
-
-  // ── Handlers modal ──────────────────────────────────────────────────────────
+  // ── Handlers modal gasto ────────────────────────────────────────────────────
   function abrirCrear() {
     setForm({ ...EMPTY_FORM, fecha: new Date().toISOString().split('T')[0] })
     setModal({ mode: 'crear' })
   }
-
   function abrirEditar(g) {
-    setForm({
-      fecha:       g.fecha,
-      categoria:   g.categoria,
-      descripcion: g.descripcion,
-      monto:       String(g.monto),
-      notas:       g.notas || '',
-    })
+    setForm({ fecha: g.fecha, categoria: g.categoria, descripcion: g.descripcion, monto: String(g.monto), notas: g.notas || '' })
     setModal({ mode: 'editar', id: g.id })
   }
-
   async function guardar() {
     if (!form.descripcion.trim()) { toast.error('Agrega una descripcion'); return }
     if (!form.monto || Number(form.monto) <= 0) { toast.error('Monto invalido'); return }
@@ -109,143 +114,112 @@ export default function Finanzas() {
   }, [gastosMes, busqueda, filtrocat])
 
   const porCategoria = useMemo(() =>
-    CATEGORIAS.map(cat => ({
-      ...cat,
-      total: gastosMes.filter(g => g.categoria === cat.id).reduce((s, g) => s + Number(g.monto), 0),
-    })).filter(c => c.total > 0),
+    CATEGORIAS
+      .map(cat => ({ ...cat, total: gastosMes.filter(g => g.categoria === cat.id).reduce((s, g) => s + Number(g.monto), 0) }))
+      .filter(c => c.total > 0),
     [gastosMes]
   )
 
-  const margen = totalIngresos > 0
-    ? Math.round((utilidad / totalIngresos) * 100)
-    : null
+  const margen = totalIngresos > 0 ? Math.round((utilidad / totalIngresos) * 100) : null
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6 gap-3">
+      <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-navy-600">Finanzas</h1>
           <p className="text-sm text-[#8a9ab0] mt-0.5">Ingresos, gastos y extractos</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <select
-            value={mesFiltro}
-            onChange={e => setMesFiltro(e.target.value)}
-            className="text-sm border border-[#e2e6ea] rounded-lg px-3 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 capitalize"
-          >
-            {meses.map(m => (
-              <option key={m.value} value={m.value} className="capitalize">{m.label}</option>
-            ))}
-          </select>
+          {/* Selector mes */}
+          <div className="relative">
+            <select
+              value={mesActual}
+              onChange={e => setMes(Number(e.target.value))}
+              className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
+            >
+              {MESES_LABEL.map((label, i) => (
+                <option key={i + 1} value={i + 1}>{label}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
+          </div>
+          {/* Selector año */}
+          <div className="relative">
+            <select
+              value={anioActual}
+              onChange={e => setAnio(Number(e.target.value))}
+              className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
+            >
+              {ANIOS.map(a => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
+          </div>
           <Button onClick={abrirCrear}><Plus size={16} /> Gasto</Button>
         </div>
       </div>
 
       {/* Métricas */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        {/* Ingresos */}
         <Card className="p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
             <TrendingUp size={12} className="text-green-500" /> Ingresos
           </p>
           <p className="text-xl font-bold text-green-600">{fmt(totalIngresos)}</p>
-          <p className="text-xs text-[#8a9ab0] mt-0.5">
-            {cobrosMes.length} cobro{cobrosMes.length !== 1 ? 's' : ''} pagado{cobrosMes.length !== 1 ? 's' : ''}
-          </p>
+          <p className="text-xs text-[#8a9ab0] mt-0.5">{cobrosMes.length} cobro{cobrosMes.length !== 1 ? 's' : ''} pagado{cobrosMes.length !== 1 ? 's' : ''}</p>
         </Card>
-
-        {/* Gastos */}
         <Card className="p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
             <TrendingDown size={12} className="text-red-500" /> Gastos
           </p>
           <p className="text-xl font-bold text-red-600">{fmt(totalGastos)}</p>
-          <p className="text-xs text-[#8a9ab0] mt-0.5">
-            {gastosMes.length} registro{gastosMes.length !== 1 ? 's' : ''}
-          </p>
+          <p className="text-xs text-[#8a9ab0] mt-0.5">{gastosMes.length} registro{gastosMes.length !== 1 ? 's' : ''}</p>
         </Card>
-
-        {/* Utilidad */}
         <Card className={`p-4 ${utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
           <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 mb-1 ${utilidad >= 0 ? 'text-green-600' : 'text-red-500'}`}>
             <DollarSign size={12} /> Utilidad neta
           </p>
-          <p className={`text-xl font-bold ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-            {fmt(utilidad)}
-          </p>
-          <p className="text-xs text-[#8a9ab0] mt-0.5">
-            {margen !== null ? `${margen}% de margen` : 'Sin ingresos aun'}
-          </p>
+          <p className={`text-xl font-bold ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>{fmt(utilidad)}</p>
+          <p className="text-xs text-[#8a9ab0] mt-0.5">{margen !== null ? `${margen}% de margen` : 'Sin ingresos aun'}</p>
         </Card>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-5 border-b border-[#e2e6ea]">
-        {[
-          ['gastos',   'Gastos'],
-          ['ingresos', 'Ingresos'],
-          ['extracto', 'Extracto bancario'],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
+        {[['gastos','Gastos'],['ingresos','Ingresos'],['extracto','Extracto bancario']].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === key
-                ? 'border-accent text-accent'
-                : 'border-transparent text-[#8a9ab0] hover:text-navy-600'
+              tab === key ? 'border-accent text-accent' : 'border-transparent text-[#8a9ab0] hover:text-navy-600'
             }`}
-          >
-            {label}
-          </button>
+          >{label}</button>
         ))}
       </div>
 
-      {/* ── Tab: Gastos ────────────────────────────────────────────────────── */}
+      {/* ── Tab Gastos ─────────────────────────────────────────────────────── */}
       {tab === 'gastos' && (
         <div>
-          {/* Chips de categoría */}
           {porCategoria.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-4">
-              <button
-                onClick={() => setFiltrocat('')}
-                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-                  !filtrocat
-                    ? 'bg-navy-600 text-white border-navy-600'
-                    : 'bg-white text-[#8a9ab0] border-[#e2e6ea] hover:border-navy-600 hover:text-navy-600'
-                }`}
-              >
+              <button onClick={() => setFiltrocat('')}
+                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${!filtrocat ? 'bg-navy-600 text-white border-navy-600' : 'bg-white text-[#8a9ab0] border-[#e2e6ea] hover:border-navy-600 hover:text-navy-600'}`}>
                 Todos
               </button>
               {porCategoria.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setFiltrocat(filtrocat === cat.id ? '' : cat.id)}
-                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-                    filtrocat === cat.id
-                      ? 'bg-navy-600 text-white border-navy-600'
-                      : 'bg-white text-navy-600 border-[#e2e6ea] hover:border-navy-600'
-                  }`}
-                >
+                <button key={cat.id} onClick={() => setFiltrocat(filtrocat === cat.id ? '' : cat.id)}
+                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${filtrocat === cat.id ? 'bg-navy-600 text-white border-navy-600' : 'bg-white text-navy-600 border-[#e2e6ea] hover:border-navy-600'}`}>
                   {cat.label} · {fmt(cat.total)}
                 </button>
               ))}
             </div>
           )}
-
-          {/* Buscador */}
           <div className="mb-3">
-            <input
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              placeholder="Buscar gasto..."
-              className="w-full px-4 py-2 text-sm border border-[#e2e6ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
+            <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar gasto..." className="w-full px-4 py-2 text-sm border border-[#e2e6ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30" />
           </div>
-
-          {/* Tabla / vacío */}
           {loading ? (
             <div className="text-center py-10 text-[#8a9ab0] text-sm">Cargando...</div>
           ) : gastosFiltrados.length === 0 ? (
@@ -253,7 +227,7 @@ export default function Finanzas() {
               <div className="flex flex-col items-center py-12 gap-3">
                 <TrendingDown size={36} className="text-[#e2e6ea]" />
                 <p className="text-sm font-medium text-navy-600">Sin gastos registrados</p>
-                <p className="text-xs text-[#8a9ab0]">Registra un gasto para controlar tus finanzas</p>
+                <p className="text-xs text-[#8a9ab0]">Registra un gasto o importa desde el extracto</p>
                 <Button variant="secondary" onClick={abrirCrear}><Plus size={14} /> Registrar gasto</Button>
               </div>
             </Card>
@@ -261,11 +235,11 @@ export default function Finanzas() {
             <Card className="overflow-hidden p-0">
               <table className="w-full text-sm table-fixed">
                 <colgroup>
-                  <col className="w-[110px]" />
-                  <col className="w-[130px]" />
+                  <col className="w-[105px]" />
+                  <col className="w-[120px]" />
                   <col />
                   <col className="w-[130px]" />
-                  <col className="w-[80px]" />
+                  <col className="w-[76px]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
@@ -283,33 +257,17 @@ export default function Finanzas() {
                       <tr key={g.id} className="hover:bg-[#f8f9fb] transition-colors">
                         <td className="px-4 py-3 text-[#8a9ab0] whitespace-nowrap text-xs">{fmtFecha(g.fecha)}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${cat.color}`}>
-                            {cat.label}
-                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${cat.color}`}>{cat.label}</span>
                         </td>
                         <td className="px-4 py-3 text-navy-600">
                           <p className="font-medium truncate">{g.descripcion}</p>
-                          {g.notas && (
-                            <p className="text-xs text-[#8a9ab0] truncate mt-0.5">{g.notas}</p>
-                          )}
+                          {g.notas && <p className="text-xs text-[#8a9ab0] truncate mt-0.5">{g.notas}</p>}
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold text-navy-600 whitespace-nowrap">
-                          {fmt(g.monto)}
-                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-navy-600 whitespace-nowrap">{fmt(g.monto)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1 justify-end">
-                            <button
-                              onClick={() => abrirEditar(g)}
-                              className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-navy-600 hover:bg-[#f0f2f5] transition-colors"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              onClick={() => { if (confirm('Eliminar este gasto?')) eliminarGasto(g.id) }}
-                              className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            <button onClick={() => abrirEditar(g)} className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-navy-600 hover:bg-[#f0f2f5] transition-colors"><Edit2 size={14} /></button>
+                            <button onClick={() => { if (confirm('Eliminar este gasto?')) eliminarGasto(g.id) }} className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
                           </div>
                         </td>
                       </tr>
@@ -322,7 +280,7 @@ export default function Finanzas() {
         </div>
       )}
 
-      {/* ── Tab: Ingresos ──────────────────────────────────────────────────── */}
+      {/* ── Tab Ingresos ───────────────────────────────────────────────────── */}
       {tab === 'ingresos' && (
         <div>
           {loading ? (
@@ -339,9 +297,9 @@ export default function Finanzas() {
             <Card className="overflow-hidden p-0">
               <table className="w-full text-sm table-fixed">
                 <colgroup>
-                  <col className="w-[110px]" />
+                  <col className="w-[105px]" />
                   <col />
-                  <col className="w-[160px]" />
+                  <col className="w-[150px]" />
                   <col className="w-[130px]" />
                 </colgroup>
                 <thead>
@@ -358,13 +316,9 @@ export default function Finanzas() {
                       <td className="px-4 py-3 text-[#8a9ab0] whitespace-nowrap text-xs">{fmtFecha(c.fecha_emision)}</td>
                       <td className="px-4 py-3 text-navy-600 font-medium truncate">{c.cliente_nombre}</td>
                       <td className="px-4 py-3">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap">
-                          {c.concepto || 'Pago'}
-                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap">{c.concepto || 'Pago'}</span>
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-green-700 whitespace-nowrap">
-                        {fmt(c.monto)}
-                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-green-700 whitespace-nowrap">{fmt(c.monto)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -374,111 +328,54 @@ export default function Finanzas() {
         </div>
       )}
 
-      {/* ── Tab: Extracto ──────────────────────────────────────────────────── */}
-      {tab === 'extracto' && (
-        <Card>
-          <div className="flex flex-col items-center py-14 text-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center">
-              <FileText size={28} className="text-accent" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-navy-600">Procesador de extractos Nu Colombia</p>
-              <p className="text-xs text-[#8a9ab0] max-w-xs mt-1.5 leading-relaxed">
-                Sube el PDF de tu extracto bancario y la IA identifica y categoriza cada transaccion como gasto o ingreso automaticamente.
-              </p>
-            </div>
-            <Button variant="secondary">
-              <Upload size={14} /> Subir extracto PDF
-            </Button>
-            <span className="text-xs text-[#8a9ab0] bg-[#f8f9fb] border border-[#e2e6ea] rounded-full px-3 py-1">
-              Proximamente · Integracion con Claude AI
-            </span>
-          </div>
-        </Card>
-      )}
+      {/* ── Tab Extracto ───────────────────────────────────────────────────── */}
+      {tab === 'extracto' && <ExtractoTab crearGasto={crearGasto} />}
 
       {/* ── Modal gasto ────────────────────────────────────────────────────── */}
       {modal && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
-          onClick={e => { if (e.target === e.currentTarget) setModal(null) }}
-        >
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
+          onClick={e => { if (e.target === e.currentTarget) setModal(null) }}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-            {/* Cabecera */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#e2e6ea]">
-              <h2 className="font-semibold text-navy-600">
-                {modal.mode === 'crear' ? 'Registrar gasto' : 'Editar gasto'}
-              </h2>
-              <button onClick={() => setModal(null)} className="p-1.5 rounded-lg hover:bg-[#f8f9fb]">
-                <X size={18} />
-              </button>
+              <h2 className="font-semibold text-navy-600">{modal.mode === 'crear' ? 'Registrar gasto' : 'Editar gasto'}</h2>
+              <button onClick={() => setModal(null)} className="p-1.5 rounded-lg hover:bg-[#f8f9fb]"><X size={18} /></button>
             </div>
-
-            {/* Campos */}
             <div className="p-5 flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-navy-600 mb-1">Fecha *</label>
-                  <input
-                    type="date"
-                    value={form.fecha}
-                    onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
-                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
+                  <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-navy-600 mb-1">Categoria *</label>
-                  <select
-                    value={form.categoria}
-                    onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
-                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  >
-                    {CATEGORIAS.map(c => (
-                      <option key={c.id} value={c.id}>{c.label}</option>
-                    ))}
+                  <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
+                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30">
+                    {CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                   </select>
                 </div>
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-navy-600 mb-1">Descripcion *</label>
-                <input
-                  value={form.descripcion}
-                  onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
+                <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
                   placeholder="Ej: Filamento PLA azul 1 kg"
-                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
+                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-navy-600 mb-1">Monto (COP) *</label>
-                <input
-                  type="number"
-                  value={form.monto}
-                  onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
-                  placeholder="0"
-                  min="0"
-                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
+                <input type="number" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
+                  placeholder="0" min="0"
+                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-navy-600 mb-1">Notas (opcional)</label>
-                <textarea
-                  value={form.notas}
-                  onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
-                  rows={2}
-                  placeholder="Observaciones adicionales..."
-                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
-                />
+                <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
+                  rows={2} placeholder="Observaciones adicionales..."
+                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none" />
               </div>
             </div>
-
-            {/* Acciones */}
             <div className="px-5 pb-5 flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>
-                Cancelar
-              </Button>
+              <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Cancelar</Button>
               <Button className="flex-1" onClick={guardar} disabled={saving}>
                 {saving ? 'Guardando...' : modal.mode === 'crear' ? 'Registrar' : 'Guardar'}
               </Button>
@@ -488,4 +385,350 @@ export default function Finanzas() {
       )}
     </div>
   )
+}
+
+// ── Subcomponente: Tab Extracto ───────────────────────────────────────────────
+function ExtractoTab({ crearGasto }) {
+  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
+  const keyOk  = apiKey && apiKey !== 'tu_key_aqui' && apiKey.startsWith('sk-ant-')
+
+  const fileRef = useRef(null)
+  const [archivo,      setArchivo]      = useState(null)
+  const [procesando,   setProcesando]   = useState(false)
+  const [transacciones,setTransacciones] = useState(null) // null = sin procesar
+  const [seleccionadas,setSeleccionadas] = useState(new Set())
+  const [catTxn,       setCatTxn]       = useState({})   // idx -> categoria
+  const [importando,   setImportando]   = useState(false)
+
+  function onFile(e) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (f.type !== 'application/pdf') { toast.error('Solo archivos PDF'); return }
+    setArchivo(f)
+    setTransacciones(null)
+  }
+
+  function onDrop(e) {
+    e.preventDefault()
+    const f = e.dataTransfer.files?.[0]
+    if (!f) return
+    if (f.type !== 'application/pdf') { toast.error('Solo archivos PDF'); return }
+    setArchivo(f)
+    setTransacciones(null)
+  }
+
+  async function analizar() {
+    if (!archivo) return
+    setProcesando(true)
+    try {
+      const base64 = await fileToBase64(archivo)
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type':                 'application/json',
+          'x-api-key':                    apiKey,
+          'anthropic-version':            '2023-06-01',
+          'anthropic-dangerous-allow-browser': 'true',
+        },
+        body: JSON.stringify({
+          model:      'claude-opus-4-5',
+          max_tokens: 4096,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type:   'document',
+                source: { type: 'base64', media_type: 'application/pdf', data: base64 },
+              },
+              {
+                type: 'text',
+                text: `Eres un asistente contable. Analiza este extracto bancario Nu Colombia y extrae TODAS las transacciones.
+Devuelve UNICAMENTE un JSON array (sin markdown, sin explicacion, sin texto adicional) con este formato exacto:
+[{"fecha":"YYYY-MM-DD","descripcion":"descripcion concisa","monto":12345,"tipo":"debito"}]
+Reglas:
+- tipo "debito" = salida de dinero (pagos, compras, transferencias enviadas)
+- tipo "credito" = entrada de dinero (consignaciones, transferencias recibidas, reembolsos)
+- monto siempre numero positivo sin signos ni comas
+- fecha en formato YYYY-MM-DD
+- descripcion maxima 60 caracteres, sin mayusculas innecesarias`,
+              },
+            ],
+          }],
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error?.message || `Error ${res.status}`)
+      }
+
+      const data  = await res.json()
+      const texto = data.content?.[0]?.text || ''
+      const match = texto.match(/\[[\s\S]*\]/)
+      if (!match) throw new Error('No se encontraron transacciones en el extracto')
+
+      const txns = JSON.parse(match[0])
+      if (!Array.isArray(txns) || txns.length === 0) throw new Error('El extracto no contiene transacciones legibles')
+
+      setTransacciones(txns)
+      // Preseleccionar solo debitos
+      setSeleccionadas(new Set(txns.map((t, i) => t.tipo === 'debito' ? i : -1).filter(i => i >= 0)))
+      // Categoria default
+      const map = {}
+      txns.forEach((_, i) => { map[i] = 'otros' })
+      setCatTxn(map)
+      toast.success(`${txns.length} transacciones encontradas`)
+    } catch (err) {
+      toast.error(err.message || 'Error al analizar el extracto')
+    } finally {
+      setProcesando(false)
+    }
+  }
+
+  function toggleTxn(i) {
+    setSeleccionadas(prev => {
+      const s = new Set(prev)
+      s.has(i) ? s.delete(i) : s.add(i)
+      return s
+    })
+  }
+
+  function toggleTodos() {
+    const debitos = (transacciones || []).map((t, i) => t.tipo === 'debito' ? i : -1).filter(i => i >= 0)
+    const todosSeleccionados = debitos.every(i => seleccionadas.has(i))
+    setSeleccionadas(todosSeleccionados ? new Set() : new Set(debitos))
+  }
+
+  async function importarGastos() {
+    const aImportar = (transacciones || [])
+      .filter((t, i) => seleccionadas.has(i) && t.tipo === 'debito')
+      .map((t, i) => ({
+        fecha:       t.fecha,
+        categoria:   catTxn[transacciones.indexOf(t)] || 'otros',
+        descripcion: t.descripcion,
+        monto:       Number(t.monto),
+        notas:       'Importado desde extracto Nu Colombia',
+      }))
+
+    if (aImportar.length === 0) { toast.error('Selecciona al menos un gasto para importar'); return }
+
+    setImportando(true)
+    let ok = 0
+    for (const g of aImportar) {
+      const res = await crearGasto(g)
+      if (res) ok++
+    }
+    setImportando(false)
+
+    if (ok > 0) {
+      toast.success(`${ok} gasto${ok !== 1 ? 's' : ''} importado${ok !== 1 ? 's' : ''}`)
+      setTransacciones(null)
+      setArchivo(null)
+      setSeleccionadas(new Set())
+    }
+  }
+
+  // Sin API key configurada
+  if (!keyOk) {
+    return (
+      <Card>
+        <div className="flex flex-col items-center py-12 text-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center">
+            <AlertCircle size={26} className="text-amber-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-navy-600">API Key de Claude no configurada</p>
+            <p className="text-xs text-[#8a9ab0] max-w-xs mt-1.5 leading-relaxed">
+              Para usar el procesador de extractos, agrega tu API key de Anthropic en el archivo <code className="bg-[#f8f9fb] px-1 rounded">.env.local</code>
+            </p>
+          </div>
+          <div className="bg-[#f8f9fb] border border-[#e2e6ea] rounded-xl px-5 py-3 text-left w-full max-w-sm">
+            <p className="text-xs font-mono text-navy-600">VITE_ANTHROPIC_API_KEY=sk-ant-...</p>
+          </div>
+          <p className="text-xs text-[#8a9ab0]">Obtén tu key en <span className="text-accent">console.anthropic.com</span></p>
+        </div>
+      </Card>
+    )
+  }
+
+  // Sin archivo seleccionado
+  if (!archivo && !transacciones) {
+    return (
+      <div>
+        <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
+        <div
+          onDragOver={e => e.preventDefault()}
+          onDrop={onDrop}
+          onClick={() => fileRef.current?.click()}
+          className="border-2 border-dashed border-[#c0cad6] rounded-2xl p-12 flex flex-col items-center gap-4 cursor-pointer hover:border-accent hover:bg-accent/5 transition-all text-center"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center">
+            <FileText size={28} className="text-accent" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-navy-600">Sube tu extracto Nu Colombia</p>
+            <p className="text-xs text-[#8a9ab0] mt-1">Arrastra el PDF aqui o haz clic para seleccionarlo</p>
+          </div>
+          <Button variant="secondary" onClick={e => { e.stopPropagation(); fileRef.current?.click() }}>
+            <Upload size={14} /> Seleccionar PDF
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Archivo listo para analizar
+  if (archivo && !transacciones && !procesando) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+            <FileText size={22} className="text-red-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-navy-600 truncate">{archivo.name}</p>
+            <p className="text-xs text-[#8a9ab0]">{(archivo.size / 1024).toFixed(0)} KB · PDF</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="secondary" onClick={() => { setArchivo(null); fileRef.current && (fileRef.current.value = '') }}>
+              <X size={14} /> Quitar
+            </Button>
+            <Button onClick={analizar}>
+              <FileText size={14} /> Analizar con IA
+            </Button>
+          </div>
+        </div>
+        <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
+      </Card>
+    )
+  }
+
+  // Procesando
+  if (procesando) {
+    return (
+      <Card>
+        <div className="flex flex-col items-center py-14 gap-4">
+          <Loader2 size={32} className="text-accent animate-spin" />
+          <div className="text-center">
+            <p className="text-sm font-semibold text-navy-600">Analizando extracto con Claude AI</p>
+            <p className="text-xs text-[#8a9ab0] mt-1">Esto puede tomar unos segundos...</p>
+          </div>
+        </div>
+      </Card>
+    )
+  }
+
+  // Resultados — tabla de revisión
+  if (transacciones) {
+    const debitos  = transacciones.filter(t => t.tipo === 'debito')
+    const creditos = transacciones.filter(t => t.tipo === 'credito')
+    const nSel = transacciones.filter((t, i) => seleccionadas.has(i) && t.tipo === 'debito').length
+    const totalSel = transacciones
+      .filter((t, i) => seleccionadas.has(i) && t.tipo === 'debito')
+      .reduce((s, t) => s + Number(t.monto), 0)
+
+    return (
+      <div>
+        {/* Resumen rápido */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <Card className="p-3">
+            <p className="text-xs text-[#8a9ab0]">Transacciones</p>
+            <p className="text-lg font-bold text-navy-600">{transacciones.length}</p>
+          </Card>
+          <Card className="p-3">
+            <p className="text-xs text-red-500">Debitos (gastos)</p>
+            <p className="text-lg font-bold text-red-600">{debitos.length}</p>
+          </Card>
+          <Card className="p-3">
+            <p className="text-xs text-green-500">Creditos (ingresos)</p>
+            <p className="text-lg font-bold text-green-600">{creditos.length}</p>
+          </Card>
+        </div>
+
+        {/* Barra de accion */}
+        <div className="flex items-center justify-between mb-3 px-1">
+          <div className="flex items-center gap-3">
+            <button onClick={toggleTodos} className="flex items-center gap-1.5 text-xs text-[#8a9ab0] hover:text-navy-600 transition-colors">
+              {debitos.every((_, ii) => seleccionadas.has(transacciones.indexOf(debitos[ii])))
+                ? <CheckSquare size={16} className="text-accent" />
+                : <Square size={16} />
+              }
+              Seleccionar todos los gastos
+            </button>
+            {nSel > 0 && (
+              <span className="text-xs text-[#8a9ab0]">{nSel} seleccionado{nSel !== 1 ? 's' : ''} · {fmt(totalSel)}</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => { setTransacciones(null); setArchivo(null) }}>
+              <X size={14} /> Nuevo extracto
+            </Button>
+            <Button onClick={importarGastos} disabled={importando || nSel === 0}>
+              {importando ? <><Loader2 size={14} className="animate-spin" /> Importando...</> : <><Upload size={14} /> Importar {nSel > 0 ? `${nSel} gasto${nSel !== 1 ? 's' : ''}` : 'gastos'}</>}
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabla de transacciones */}
+        <Card className="overflow-hidden p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
+                <th className="w-10 px-3 py-3" />
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[105px]">Fecha</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Descripcion</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[140px]">Categoria</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[90px]">Tipo</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[120px]">Monto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e2e6ea]">
+              {transacciones.map((t, i) => {
+                const esDebito = t.tipo === 'debito'
+                const sel = seleccionadas.has(i)
+                return (
+                  <tr key={i} className={`transition-colors ${esDebito ? (sel ? 'bg-blue-50/40' : 'hover:bg-[#f8f9fb]') : 'opacity-50 bg-[#f8f9fb]'}`}>
+                    <td className="px-3 py-3">
+                      {esDebito ? (
+                        <button onClick={() => toggleTxn(i)} className="text-accent">
+                          {sel ? <CheckSquare size={16} /> : <Square size={16} className="text-[#c0cad6]" />}
+                        </button>
+                      ) : (
+                        <span className="w-4 h-4 block" />
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-[#8a9ab0] whitespace-nowrap text-xs">{t.fecha}</td>
+                    <td className="px-4 py-3 text-navy-600 text-xs">{t.descripcion}</td>
+                    <td className="px-4 py-3">
+                      {esDebito ? (
+                        <select
+                          value={catTxn[i] || 'otros'}
+                          onChange={e => setCatTxn(prev => ({ ...prev, [i]: e.target.value }))}
+                          className="text-xs border border-[#e2e6ea] rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-accent/30 w-full"
+                        >
+                          {CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-[#c0cad6]">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${esDebito ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                        {esDebito ? 'Debito' : 'Credito'}
+                      </span>
+                    </td>
+                    <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap text-xs ${esDebito ? 'text-red-600' : 'text-green-600'}`}>
+                      {esDebito ? '-' : '+'}{fmt(t.monto)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </Card>
+      </div>
+    )
+  }
+
+  return null
 }
