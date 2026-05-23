@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Users, TrendingUp, Package,
   FileText, CreditCard, Archive, BarChart2,
-  Mail, Share2, UsersRound, ClipboardList
+  Share2, UsersRound, ClipboardList
 } from 'lucide-react'
 
 const groups = [
@@ -28,7 +28,6 @@ const groups = [
     items: [
       { to: '/inventario', icon: Archive, label: 'Inventario' },
       { to: '/finanzas', icon: BarChart2, label: 'Finanzas' },
-      { to: '/email-marketing', icon: Mail, label: 'Email Marketing' },
     ],
   },
   {

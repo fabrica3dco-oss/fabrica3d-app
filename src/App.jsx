@@ -11,7 +11,6 @@ import Pedidos from './pages/Pedidos'
 import CotizacionPublica from './pages/CotizacionPublica'
 import Inventario from './pages/Inventario'
 import Finanzas from './pages/Finanzas'
-import EmailMarketing from './pages/EmailMarketing'
 import Redes from './pages/Redes'
 import Equipo from './pages/Equipo'
 
@@ -31,7 +30,6 @@ export default function App() {
           <Route path="pedidos" element={<Pedidos />} />
           <Route path="inventario" element={<Inventario />} />
           <Route path="finanzas" element={<Finanzas />} />
-          <Route path="email-marketing" element={<EmailMarketing />} />
           <Route path="redes" element={<Redes />} />
           <Route path="equipo" element={<Equipo />} />
         </Route>
