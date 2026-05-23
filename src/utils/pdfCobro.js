@@ -186,18 +186,18 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
   doc.text(cobro.fecha_vencimiento ? fechaLarga(cobro.fecha_vencimiento) : '—', vencX, y + 15.5)
 
-  y += 32
+  y += 26
 
   // ── SEÑOR(ES) ─────────────────────────────────────────────────────────────
   secLabel(doc, 'SEÑOR(ES)', ML, y, RE)
   y += 5
 
-  doc.setFillColor(...LIGHT); doc.rect(ML, y, CW, 13, 'F')
-  doc.setFillColor(...NAVY); doc.rect(ML, y, 3, 13, 'F')
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...DARK)
-  doc.text(cobro.cliente_nombre || 'Cliente', ML + 7, y + 8.5)
+  doc.setFillColor(...LIGHT); doc.rect(ML, y, CW, 11, 'F')
+  doc.setFillColor(...NAVY); doc.rect(ML, y, 3, 11, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...DARK)
+  doc.text(cobro.cliente_nombre || 'Cliente', ML + 7, y + 7.5)
 
-  y += 13 + 6
+  y += 11 + 4
 
   // ── DEBE A ────────────────────────────────────────────────────────────────
   secLabel(doc, 'DEBE A', ML, y, RE)
@@ -205,28 +205,28 @@ async function buildDoc(cobro, cotData) {
 
   doc.setFillColor(LNAV[0], LNAV[1], LNAV[2])
   doc.setDrawColor(...MNAV); doc.setLineWidth(0.3)
-  doc.roundedRect(ML, y, CW, 14, 2, 2, 'FD')
-  doc.setFillColor(...NAVY); doc.rect(ML, y, 3, 14, 'F')
+  doc.roundedRect(ML, y, CW, 12, 2, 2, 'FD')
+  doc.setFillColor(...NAVY); doc.rect(ML, y, 3, 12, 'F')
 
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY)
-  doc.text('Dimas Domenech', ML + 7, y + 7)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MID)
-  doc.text('C.C. 1001825424  ·  Persona natural', ML + 7, y + 12)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY)
+  doc.text('Dimas Domenech', ML + 7, y + 5.5)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MID)
+  doc.text('C.C. 1001825424  ·  Persona natural', ML + 7, y + 9.5)
 
-  y += 14 + 6
+  y += 12 + 4
 
   // ── LA SUMA DE ────────────────────────────────────────────────────────────
   secLabel(doc, 'LA SUMA DE', ML, y, RE)
   y += 5
 
   doc.setFillColor(...LIGHT); doc.setDrawColor(...BORDER); doc.setLineWidth(0.3)
-  doc.roundedRect(ML, y, CW, 13, 2, 2, 'FD')
-  doc.setFillColor(...NAVY); doc.rect(ML, y, 3, 13, 'F')
+  doc.roundedRect(ML, y, CW, 11, 2, 2, 'FD')
+  doc.setFillColor(...NAVY); doc.rect(ML, y, 3, 11, 'F')
 
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
-  doc.text(montoEnLetras(cobro.monto), ML + 7, y + 8.5)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...DARK)
+  doc.text(montoEnLetras(cobro.monto), ML + 7, y + 7.5)
 
-  y += 13 + 6
+  y += 11 + 4
 
   // ── POR CONCEPTO DE ───────────────────────────────────────────────────────
   secLabel(doc, 'POR CONCEPTO DE', ML, y, RE)
@@ -258,7 +258,7 @@ async function buildDoc(cobro, cotData) {
     const subT     = Number(l.cantidad || 0) * Number(l.precio_unitario || 0)
     tableTotal    += subT
     const hasDetail = l.detalle && l.detalle.trim()
-    const rowH     = hasDetail ? 14 : 9
+    const rowH     = hasDetail ? 16 : 11
     const bg       = idx % 2 === 0 ? [255,255,255] : [248,250,252]
 
     if (y + rowH > 268) { doc.addPage(); y = 18 }
@@ -310,16 +310,15 @@ async function buildDoc(cobro, cotData) {
     }
   }
 
-  // Caja TOTAL A PAGAR
+  // Caja TOTAL A PAGAR  (dibujada en y-2, alto 12 → base en y+10)
   doc.setFillColor(...NAVY)
   doc.roundedRect(totX - 2, y - 2, totW + 4, 12, 1.5, 1.5, 'F')
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...WHITE)
   doc.text(hayAnticipo ? 'TOTAL A PAGAR' : 'TOTAL', totX + 2, y + 7)
   doc.text(copFull(cobro.monto), RE - 4, y + 7, { align: 'right' })
+  y += 10 + 10  // base de la caja (y+10) + 10mm de respiro
 
   // ── DATOS DE PAGO ────────────────────────────────────────────────────────
-  y += 10
-
   secLabel(doc, 'DATOS DE PAGO', ML, y, RE)
   y += 5
 
@@ -332,19 +331,18 @@ async function buildDoc(cobro, cotData) {
   const lwW = doc.getTextWidth('Llave Bre-B')
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MID)
   doc.text('  ·  3215735651  ·  Dimas Domenech', ML + 7 + lwW, y + 7.5)
+  y += 11 + 10  // base de la caja (y+11) + 10mm de respiro
 
   // ── FIRMA ────────────────────────────────────────────────────────────────
-  y += 18
-
   doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(...MID)
   doc.text('Atentamente,', ML, y)
   y += 4
 
-  // Imagen de firma (aspect ratio 3:2 → 45mm × 30mm)
+  // Imagen de firma (aspect ratio 3:2 → 33mm × 22mm)
   if (firmaDataUrl) {
-    doc.addImage(firmaDataUrl, 'PNG', ML, y, 45, 30)
+    doc.addImage(firmaDataUrl, 'PNG', ML, y, 33, 22)
   }
-  y += 32
+  y += 24
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
   doc.text('Dimas Domenech', ML, y)
