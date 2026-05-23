@@ -216,14 +216,14 @@ export default function Cotizaciones() {
       ? [
           {
             cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
-            concepto: `Anticipo 50% · COT-${num} · ${c.cliente_nombre}`,
+            concepto: 'Anticipo 50%',
             monto: total * 0.5, estado: 'pendiente',
-            fecha_emision: hoy, fecha_vencimiento: vence7,
+            fecha_emision: hoy,
             notas: `Anticipo para iniciar producción.\nRef: COT-${num}`,
           },
           {
             cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
-            concepto: `Saldo 50% · COT-${num} · ${c.cliente_nombre}`,
+            concepto: 'Saldo 50%',
             monto: total * 0.5, estado: 'pendiente',
             fecha_emision: hoy,
             notas: `Saldo contra entrega del pedido.\nRef: COT-${num}`,
@@ -232,9 +232,9 @@ export default function Cotizaciones() {
       : [
           {
             cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
-            concepto: `Pago total · COT-${num} · ${c.cliente_nombre}`,
+            concepto: 'Pago total',
             monto: total, estado: 'pendiente',
-            fecha_emision: hoy, fecha_vencimiento: vence7,
+            fecha_emision: hoy,
             notas: `Pago total del pedido.\nRef: COT-${num}`,
           },
         ]

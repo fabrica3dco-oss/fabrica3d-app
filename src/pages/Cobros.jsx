@@ -325,51 +325,46 @@ export default function Cobros() {
         ) : (
           <>
             {/* Desktop */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="hidden md:block">
+              <table className="w-full text-sm table-fixed">
                 <thead>
                   <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">#</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cliente</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Tipo</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Descripción</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">COT</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Fecha</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Monto</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Estado</th>
-                    <th className="px-4 py-3" />
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[60px]">#</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cliente</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[120px]">Tipo</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[80px]">COT</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[110px]">Fecha</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[110px]">Monto</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[100px]">Estado</th>
+                    <th className="px-3 py-3 w-[140px]" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f2f5]">
                   {filtrados.map(c => {
                     const cotMatch = c.notas?.match(/Ref:\s*COT-(\d+)/i)
                     const cotLabel = cotMatch ? `COT-${String(parseInt(cotMatch[1],10)).padStart(3,'0')}` : null
-                    const descLineas = (c.lineas || [])
-                      .map(l => Number(l.cantidad) > 1 ? `${l.cantidad}× ${l.descripcion}` : l.descripcion)
-                      .join(' · ')
                     const tipoStyle = TIPO_STYLE[c.concepto] || 'bg-[#f0f2f5] text-[#8a9ab0]'
                     return (
                     <tr key={c.id} className="hover:bg-[#f8f9fb] transition-colors">
-                      <td className="px-4 py-3 font-mono font-semibold text-navy-600">#{String(c.numero).padStart(4,'0')}</td>
-                      <td className="px-4 py-3 font-medium text-navy-600">{c.cliente_nombre || '—'}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 font-mono font-semibold text-navy-600 text-xs">#{String(c.numero).padStart(4,'0')}</td>
+                      <td className="px-3 py-3 font-medium text-navy-600 truncate">{c.cliente_nombre || '—'}</td>
+                      <td className="px-3 py-3">
                         {c.concepto
-                          ? <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${tipoStyle}`}>{c.concepto}</span>
+                          ? <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${tipoStyle}`}>{c.concepto}</span>
                           : <span className="text-[#8a9ab0]">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-[#8a9ab0] max-w-[180px] truncate text-xs">{descLineas || '—'}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         {cotLabel
                           ? <span className="inline-block px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-xs font-mono font-medium">{cotLabel}</span>
                           : <span className="text-[#8a9ab0] text-xs">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#8a9ab0] whitespace-nowrap">
+                      <td className="px-3 py-3 text-xs text-[#8a9ab0] whitespace-nowrap">
                         {c.fecha_emision
                           ? new Date(c.fecha_emision + 'T00:00:00').toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' })
                           : '—'}
                       </td>
-                      <td className="px-4 py-3 font-semibold text-navy-600">{cop(c.monto)}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 font-semibold text-navy-600 text-sm">{cop(c.monto)}</td>
+                      <td className="px-3 py-3">
                         <button
                           onClick={() => c.estado !== 'pagado' ? (setPagoModal(c), setMetodoPago('')) : setRevertModal(c)}
                           title={c.estado !== 'pagado' ? 'Clic para marcar como pagado' : 'Clic para revertir a pendiente'}
@@ -379,27 +374,27 @@ export default function Cobros() {
                           </Badge>
                         </button>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 justify-end">
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-0.5 justify-end">
                           <button onClick={() => compartirWhatsApp(c)} title="Compartir por WhatsApp"
                             className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600 transition-colors">
-                            <Share2 size={14} />
+                            <Share2 size={13} />
                           </button>
                           <button onClick={() => verPdf(c)} title="Vista previa PDF"
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
-                            <Eye size={14} />
+                            <Eye size={13} />
                           </button>
                           <button onClick={() => descargarPdf(c)} title="Descargar PDF"
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
-                            <Download size={14} />
+                            <Download size={13} />
                           </button>
                           <button onClick={() => abrirEditar(c)} title="Editar"
                             className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors">
-                            <Pencil size={14} />
+                            <Pencil size={13} />
                           </button>
                           <button onClick={() => setConfirmId(c.id)} title="Eliminar"
                             className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-600 transition-colors">
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>
