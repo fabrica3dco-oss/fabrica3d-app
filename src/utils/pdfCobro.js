@@ -179,12 +179,12 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
   doc.text('Barranquilla, Colombia', ML + 78, y + 15.5)
 
-  // Vencimiento
-  const vencX = ML + 145
+  // C.C. del cobrador
+  const ccX = ML + 145
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MID)
-  doc.text('VENCIMIENTO', vencX, y + 7)
+  doc.text('C.C. DEL COBRADOR', ccX, y + 7)
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
-  doc.text(cobro.fecha_vencimiento ? fechaLarga(cobro.fecha_vencimiento) : '—', vencX, y + 15.5)
+  doc.text('1.001.825.424', ccX, y + 15.5)
 
   y += 32
 
