@@ -189,7 +189,7 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE)
   doc.text(ESTADO_LABEL[cobro.estado] || cobro.estado.toUpperCase(), estadoX + 15, y + 14.8, { align: 'center' })
 
-  y += 24
+  y += 32
 
   // ── SEÑOR(ES) ─────────────────────────────────────────────────────────────
   secLabel(doc, 'SEÑOR(ES)', ML, y, RE)
@@ -230,16 +230,6 @@ async function buildDoc(cobro, cotData) {
   doc.text(montoEnLetras(cobro.monto), ML + 7, y + 8.5)
 
   y += 13 + 6
-
-  // ── POR CONCEPTO DE ───────────────────────────────────────────────────────
-  secLabel(doc, 'POR CONCEPTO DE', ML, y, RE)
-  y += 5
-
-  if (cobro.concepto) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MID)
-    doc.text(cobro.concepto, ML, y)
-    y += 7
-  }
 
   // ── TABLA DE ÍTEMS ────────────────────────────────────────────────────────
   // Columnas: Descripción | Valor Unit. | Cant. | Total
@@ -296,21 +286,35 @@ async function buildDoc(cobro, cotData) {
   const totW = 88
   const totX = RE - totW
 
-  // Subtotal de ítems (si viene de cotización)
+  const montoNum        = Number(cobro.monto)
+  const anticipoAplicado = cotData?.lineas?.length ? tableTotal - montoNum : 0
+  const hayAnticipo      = anticipoAplicado > 1 // margen de redondeo
+
   if (cotData?.lineas?.length) {
+    // Subtotal cotización
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MID)
     doc.text('Subtotal cotización', totX, y)
     doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK)
     doc.text(cop(tableTotal), RE - 2, y, { align: 'right' })
     doc.setDrawColor(...BORDER); doc.setLineWidth(0.2); doc.line(totX, y + 2.5, RE, y + 2.5)
     y += 8
+
+    if (hayAnticipo) {
+      // Anticipo ya aplicado
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MID)
+      doc.text('Anticipo aplicado', totX, y)
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(180, 60, 60)
+      doc.text(`- ${cop(anticipoAplicado)}`, RE - 2, y, { align: 'right' })
+      doc.setDrawColor(...BORDER); doc.setLineWidth(0.2); doc.line(totX, y + 2.5, RE, y + 2.5)
+      y += 8
+    }
   }
 
-  // Caja TOTAL — monto que se cobra en esta cuenta
+  // Caja TOTAL A PAGAR
   doc.setFillColor(...NAVY)
   doc.roundedRect(totX - 2, y - 2, totW + 4, 12, 1.5, 1.5, 'F')
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...WHITE)
-  doc.text(cotData?.lineas?.length ? 'ESTA CUENTA DE COBRO' : 'TOTAL', totX + 2, y + 7)
+  doc.text(hayAnticipo ? 'TOTAL A PAGAR' : 'TOTAL', totX + 2, y + 7)
   doc.text(copFull(cobro.monto), RE - 4, y + 7, { align: 'right' })
 
   // ── FIRMA ────────────────────────────────────────────────────────────────
