@@ -342,7 +342,7 @@ export default function Cobros() {
                 <tbody className="divide-y divide-[#f0f2f5]">
                   {filtrados.map(c => {
                     const cotMatch = c.notas?.match(/Ref:\s*COT-(\d+)/i)
-                    const cotLabel = cotMatch ? `COT-${String(parseInt(cotMatch[1],10)).padStart(3,'0')}` : null
+                    const cotLabel = cotMatch ? String(parseInt(cotMatch[1],10)).padStart(3,'0') : null
                     const tipoStyle = TIPO_STYLE[c.concepto] || 'bg-[#f0f2f5] text-[#8a9ab0]'
                     return (
                     <tr key={c.id} className="hover:bg-[#f8f9fb] transition-colors">
@@ -408,7 +408,7 @@ export default function Cobros() {
             <div className="md:hidden divide-y divide-[#f0f2f5]">
               {filtrados.map(c => {
                 const cotMatchM = c.notas?.match(/Ref:\s*COT-(\d+)/i)
-                const cotLabelM = cotMatchM ? `COT-${String(parseInt(cotMatchM[1],10)).padStart(3,'0')}` : null
+                const cotLabelM = cotMatchM ? String(parseInt(cotMatchM[1],10)).padStart(3,'0') : null
                 const tipoStyleM = TIPO_STYLE[c.concepto] || 'bg-[#f0f2f5] text-[#8a9ab0]'
                 const descLineasM = (c.lineas || [])
                   .map(l => Number(l.cantidad) > 1 ? `${l.cantidad}× ${l.descripcion}` : l.descripcion)
