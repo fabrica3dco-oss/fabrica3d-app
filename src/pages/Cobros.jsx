@@ -313,6 +313,17 @@ export default function Cobros() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
+                          {c.estado !== 'pagado' ? (
+                            <button onClick={() => { setPagoModal(c); setMetodoPago('') }} title="Registrar pago"
+                              className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors shadow-sm">
+                              <CheckCircle size={15} />
+                            </button>
+                          ) : (
+                            <button onClick={() => revertirAPendiente(c)} title="Revertir a pendiente"
+                              className="p-1.5 rounded-lg bg-amber-100 text-amber-600 hover:bg-amber-200 transition-colors">
+                              <RotateCcw size={15} />
+                            </button>
+                          )}
                           <button onClick={() => compartirWhatsApp(c)} title="Compartir por WhatsApp"
                             className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600 transition-colors">
                             <Share2 size={14} />
@@ -325,22 +336,11 @@ export default function Cobros() {
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
                             <Download size={14} />
                           </button>
-                          {c.estado !== 'pagado' ? (
-                            <button onClick={() => { setPagoModal(c); setMetodoPago('') }}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-semibold text-xs transition-colors border border-green-200">
-                              <CheckCircle size={12} /> Pagar
-                            </button>
-                          ) : (
-                            <button onClick={() => revertirAPendiente(c)} title="Revertir a pendiente"
-                              className="p-1.5 rounded-lg hover:bg-amber-50 text-[#8a9ab0] hover:text-amber-500 transition-colors">
-                              <RotateCcw size={14} />
-                            </button>
-                          )}
-                          <button onClick={() => abrirEditar(c)}
+                          <button onClick={() => abrirEditar(c)} title="Editar"
                             className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors">
                             <Pencil size={14} />
                           </button>
-                          <button onClick={() => setConfirmId(c.id)}
+                          <button onClick={() => setConfirmId(c.id)} title="Eliminar"
                             className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-600 transition-colors">
                             <Trash2 size={14} />
                           </button>
@@ -366,20 +366,20 @@ export default function Cobros() {
                     <p className="text-sm font-semibold text-navy-600 mt-0.5">{cop(c.monto)}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => compartirWhatsApp(c)} className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><Share2 size={14} /></button>
-                    <button onClick={() => verPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Eye size={14} /></button>
-                    <button onClick={() => descargarPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
                     {c.estado !== 'pagado' ? (
-                      <button onClick={() => { setPagoModal(c); setMetodoPago('') }}
-                        className="p-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 border border-green-200">
-                        <CheckCircle size={14} />
+                      <button onClick={() => { setPagoModal(c); setMetodoPago('') }} title="Registrar pago"
+                        className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors shadow-sm">
+                        <CheckCircle size={15} />
                       </button>
                     ) : (
                       <button onClick={() => revertirAPendiente(c)} title="Revertir a pendiente"
-                        className="p-1.5 rounded-lg hover:bg-amber-50 text-[#8a9ab0] hover:text-amber-500">
-                        <RotateCcw size={14} />
+                        className="p-1.5 rounded-lg bg-amber-100 text-amber-600 hover:bg-amber-200 transition-colors">
+                        <RotateCcw size={15} />
                       </button>
                     )}
+                    <button onClick={() => compartirWhatsApp(c)} className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><Share2 size={14} /></button>
+                    <button onClick={() => verPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Eye size={14} /></button>
+                    <button onClick={() => descargarPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
                     <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Pencil size={14} /></button>
                     <button onClick={() => setConfirmId(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-600"><Trash2 size={14} /></button>
                   </div>
