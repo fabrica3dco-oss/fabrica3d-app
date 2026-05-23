@@ -91,6 +91,7 @@ export default function Cobros() {
   const [confirmId,    setConfirmId]   = useState(null)
   const [pagoModal,    setPagoModal]   = useState(null)
   const [metodoPago,   setMetodoPago]  = useState('')
+  const [revertModal,  setRevertModal] = useState(null)
   const [form,         setForm]        = useState(EMPTY)
   const [saving,       setSaving]      = useState(false)
   const [previewUrl,   setPreviewUrl]  = useState(null)
@@ -307,7 +308,7 @@ export default function Cobros() {
                       <td className="px-4 py-3 font-semibold text-navy-600">{cop(c.monto)}</td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => c.estado !== 'pagado' ? (setPagoModal(c), setMetodoPago('')) : revertirAPendiente(c)}
+                          onClick={() => c.estado !== 'pagado' ? (setPagoModal(c), setMetodoPago('')) : setRevertModal(c)}
                           title={c.estado !== 'pagado' ? 'Clic para marcar como pagado' : 'Clic para revertir a pendiente'}
                           className="group">
                           <Badge variant={ESTADO_COLOR[c.estado]} className="cursor-pointer group-hover:opacity-70 transition-opacity">
@@ -358,7 +359,7 @@ export default function Cobros() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-xs font-semibold text-[#8a9ab0]">#{String(c.numero).padStart(4,'0')}</span>
                       <button
-                        onClick={() => c.estado !== 'pagado' ? (setPagoModal(c), setMetodoPago('')) : revertirAPendiente(c)}
+                        onClick={() => c.estado !== 'pagado' ? (setPagoModal(c), setMetodoPago('')) : setRevertModal(c)}
                         title={c.estado !== 'pagado' ? 'Clic para marcar como pagado' : 'Clic para revertir a pendiente'}>
                         <Badge variant={ESTADO_COLOR[c.estado]} className="cursor-pointer hover:opacity-70 transition-opacity">
                           {ESTADO_LABEL[c.estado]}
@@ -468,6 +469,27 @@ export default function Cobros() {
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setPagoModal(null)}>Cancelar</Button>
           <Button onClick={confirmarPago} disabled={saving}>{saving ? 'Guardando...' : '✓ Confirmar pago'}</Button>
+        </div>
+      </Modal>
+
+      {/* ── Confirmar revertir a pendiente ─────────────────────────────────── */}
+      <Modal open={!!revertModal} onClose={() => setRevertModal(null)} title="Revertir pago" size="sm">
+        <p className="text-sm text-navy-600 mb-1">
+          ¿Seguro que quieres marcar esta cuenta como <strong>pendiente</strong> de nuevo?
+        </p>
+        <p className="text-xs text-[#8a9ab0] mb-5">
+          {revertModal?.cliente_nombre} — {cop(revertModal?.monto)}
+        </p>
+        <div className="flex gap-3 justify-end">
+          <Button variant="secondary" onClick={() => setRevertModal(null)}>Cancelar</Button>
+          <Button variant="danger" disabled={saving} onClick={async () => {
+            setSaving(true)
+            await revertirAPendiente(revertModal)
+            setSaving(false)
+            setRevertModal(null)
+          }}>
+            {saving ? 'Revirtiendo...' : 'Sí, revertir'}
+          </Button>
         </div>
       </Modal>
 
