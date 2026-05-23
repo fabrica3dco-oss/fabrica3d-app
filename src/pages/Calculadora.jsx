@@ -16,8 +16,6 @@ const DEFAULT_CONFIG = {
   anillo_20mm_precio:     400,
   anillo_cadena_precio:   500,
   resina_litro_precio:    80000,   // COP por litro (A+B combinado)
-  goma_barra_precio:      2000,    // COP por barra de goma magica
-  alcohol_litro_precio:   8000,    // COP por litro de alcohol
   tarifa_hora:            15000,   // COP por hora de trabajo (operario)
 }
 
@@ -28,10 +26,8 @@ const DEFAULT_RECETA = {
   filamento_g: 0,
   anillos:     [],   // [{ tipo: '12mm'|'20mm'|'cadena', cantidad: 1 }]
   resina_ml:   0,
-  goma_barras: 0,
-  alcohol_ml:  0,
   tiempo_min:  0,
-  margen:      40,
+  margen:      50,
   comision:    25,
 }
 
@@ -123,14 +119,10 @@ export default function Calculadora() {
       tipo === 'cadena' ? config.anillo_cadena_precio : 0
 
     const costoAnillos = rec.anillos.reduce((s, a) => s + precioAnillo(a.tipo) * a.cantidad, 0)
-    const costoResina  = (rec.resina_ml  / 1000) * config.resina_litro_precio
-    const costoGoma    = rec.goma_barras * config.goma_barra_precio
-    const costoAlcohol = (rec.alcohol_ml / 1000) * config.alcohol_litro_precio
-    const costoTiempo  = (rec.tiempo_min  / 60)  * config.tarifa_hora
+    const costoResina  = (rec.resina_ml / 1000) * config.resina_litro_precio
+    const costoTiempo  = (rec.tiempo_min / 60)  * config.tarifa_hora
 
-    const costoXUnidad =
-      costoFilamento + costoAnillos + costoResina +
-      costoGoma + costoAlcohol + costoTiempo
+    const costoXUnidad = costoFilamento + costoAnillos + costoResina + costoTiempo
 
     const costoTotal   = costoXUnidad * rec.cantidad
 
@@ -147,8 +139,7 @@ export default function Calculadora() {
     const margenReal       = costoXUnidad > 0 ? Math.round((utilidadNeta / precioSugerido) * 100) : 0
 
     return {
-      costoFilamento, costoAnillos, costoResina,
-      costoGoma, costoAlcohol, costoTiempo,
+      costoFilamento, costoAnillos, costoResina, costoTiempo,
       costoXUnidad, costoTotal,
       precioSugerido, precioTotal,
       utilidadBruta, comisionXUnidad,
@@ -194,13 +185,20 @@ export default function Calculadora() {
                 type="text"
                 className="col-span-2"
               />
-              <Campo
-                label="Cantidad a producir"
-                sublabel="unidades"
-                value={rec.cantidad}
-                onChange={v => updRec('cantidad', Math.max(1, v))}
-                suffix="uds"
-              />
+              <div>
+                <label className="block text-xs font-medium text-navy-600 mb-1">
+                  Cantidad a producir <span className="text-[#8a9ab0] font-normal">(unidades)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number" min={0} value={rec.cantidad === 0 ? '' : rec.cantidad}
+                    onChange={e => updRec('cantidad', e.target.value === '' ? 0 : Number(e.target.value))}
+                    placeholder="1"
+                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">uds</span>
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-navy-600 mb-1">
                   Margen de ganancia <span className="text-[#8a9ab0] font-normal">(sobre costo)</span>
@@ -318,44 +316,6 @@ export default function Calculadora() {
                 </div>
               </div>
 
-              {/* Goma magica */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-navy-600">Gota magica</label>
-                  {rec.goma_barras > 0 && (
-                    <span className="text-xs text-accent font-semibold">{fmt(calc.costoGoma)}/ud</span>
-                  )}
-                </div>
-                <div className="relative">
-                  <input
-                    type="number" min={0} step={0.01} value={rec.goma_barras}
-                    onChange={e => updRec('goma_barras', Number(e.target.value))}
-                    placeholder="0"
-                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-16"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">barras</span>
-                </div>
-              </div>
-
-              {/* Alcohol */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-navy-600">Alcohol isopropilico</label>
-                  {rec.alcohol_ml > 0 && (
-                    <span className="text-xs text-accent font-semibold">{fmt(calc.costoAlcohol)}/ud</span>
-                  )}
-                </div>
-                <div className="relative">
-                  <input
-                    type="number" min={0} step={0.5} value={rec.alcohol_ml}
-                    onChange={e => updRec('alcohol_ml', Number(e.target.value))}
-                    placeholder="0"
-                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">ml</span>
-                </div>
-              </div>
-
               {/* Tiempo */}
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -408,12 +368,6 @@ export default function Calculadora() {
               {calc.costoResina > 0 && (
                 <FilaResultado label={`Resina (${rec.resina_ml}ml)`} valor={fmt(calc.costoResina)} muted />
               )}
-              {calc.costoGoma > 0 && (
-                <FilaResultado label={`Gota magica (${rec.goma_barras} barras)`} valor={fmt(calc.costoGoma)} muted />
-              )}
-              {calc.costoAlcohol > 0 && (
-                <FilaResultado label={`Alcohol (${rec.alcohol_ml}ml)`} valor={fmt(calc.costoAlcohol)} muted />
-              )}
               {calc.costoTiempo > 0 && (
                 <FilaResultado label={`Tiempo (${rec.tiempo_min}min)`} valor={fmt(calc.costoTiempo)} muted />
               )}
@@ -435,43 +389,45 @@ export default function Calculadora() {
           </Card>
 
           {/* Resultados para N unidades */}
-          <Card className={`${cero ? 'opacity-60' : ''} bg-navy-600 border-navy-600`}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-200 mb-3">
-              Para {rec.cantidad} unidad{rec.cantidad !== 1 ? 'es' : ''}
+          <div className={`rounded-xl p-4 ${cero ? 'opacity-60' : ''}`} style={{ backgroundColor: '#142236', border: '1px solid #142236' }}>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#93c5fd' }}>
+              Para {rec.cantidad || 1} unidad{(rec.cantidad || 1) !== 1 ? 'es' : ''}
             </p>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-blue-100">Costo total materiales</span>
+                <span className="text-sm" style={{ color: '#bfdbfe' }}>Costo total materiales</span>
                 <span className="text-base font-bold text-white">{fmt(calc.costoTotal)}</span>
               </div>
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-blue-100">Total a cobrar al cliente</span>
+                <span className="text-sm" style={{ color: '#bfdbfe' }}>Total a cobrar al cliente</span>
                 <span className="text-2xl font-bold text-white">{fmt(calc.precioTotal)}</span>
               </div>
               {rec.comision > 0 && (
                 <div className="flex justify-between items-baseline">
-                  <span className="text-sm text-blue-100">Comision total Andres</span>
-                  <span className="text-base font-bold text-amber-300">- {fmt(calc.comisionXUnidad * rec.cantidad)}</span>
+                  <span className="text-sm" style={{ color: '#bfdbfe' }}>Comision Andres ({rec.comision}%)</span>
+                  <span className="text-base font-bold" style={{ color: '#fcd34d' }}>- {fmt(calc.comisionXUnidad * (rec.cantidad || 1))}</span>
                 </div>
               )}
-              <div className="h-px bg-white/30 my-1" />
+              <div className="h-px my-1" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }} />
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-blue-100">Tu utilidad neta total</span>
-                <span className="text-xl font-bold text-green-400">{fmt(calc.utilidadNetaTotal)}</span>
+                <span className="text-sm font-semibold" style={{ color: '#bfdbfe' }}>Tu utilidad neta total</span>
+                <span className="text-xl font-bold" style={{ color: '#4ade80' }}>{fmt(calc.utilidadNetaTotal)}</span>
               </div>
             </div>
 
-            {/* CTA */}
             {!cero && (
               <button
                 onClick={() => navigate('/cotizaciones?new=1')}
-                className="mt-4 w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 transition-colors text-white text-sm font-medium rounded-lg px-4 py-2.5 border border-white/20"
+                className="mt-4 w-full flex items-center justify-center gap-2 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition-colors"
+                style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)' }}
+                onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'}
+                onMouseOut={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
               >
                 <FileText size={15} /> Crear cotizacion con este precio
               </button>
             )}
-          </Card>
+          </div>
 
           {/* Comision del vendedor */}
           <Card>
@@ -507,83 +463,33 @@ export default function Calculadora() {
 
         {showConfig && (
           <Card className="mt-3">
-            <p className="text-xs text-[#8a9ab0] mb-4">
-              Estos precios se guardan automaticamente en tu dispositivo.
-              Actualiza cuando cambien tus costos de proveedor.
-            </p>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs text-[#8a9ab0]">
+                Actualiza cuando cambien los precios de tu proveedor.
+              </p>
+              <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                ✓ Guardado automaticamente
+              </span>
+            </div>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Rollo filamento 1 kg</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                  <input type="number" min={0} value={config.filamento_rollo_precio}
-                    onChange={e => updCfg('filamento_rollo_precio', Number(e.target.value))}
-                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              {[
+                ['filamento_rollo_precio', 'Rollo filamento 1 kg'],
+                ['anillo_12mm_precio',     'Anillo 12 mm · unidad'],
+                ['anillo_20mm_precio',     'Anillo 20 mm · unidad'],
+                ['anillo_cadena_precio',   'Anillo con cadenita · unidad'],
+                ['resina_litro_precio',    'Resina (A+B) · litro'],
+                ['tarifa_hora',            'Mano de obra · hora'],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <label className="block text-xs font-medium text-navy-600 mb-1">{label}</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                    <input type="number" min={0} value={config[key]}
+                      onChange={e => updCfg(key, Number(e.target.value))}
+                      className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Anillo 12 mm · unidad</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                  <input type="number" min={0} value={config.anillo_12mm_precio}
-                    onChange={e => updCfg('anillo_12mm_precio', Number(e.target.value))}
-                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Anillo 20 mm · unidad</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                  <input type="number" min={0} value={config.anillo_20mm_precio}
-                    onChange={e => updCfg('anillo_20mm_precio', Number(e.target.value))}
-                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Anillo con cadenita · unidad</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                  <input type="number" min={0} value={config.anillo_cadena_precio}
-                    onChange={e => updCfg('anillo_cadena_precio', Number(e.target.value))}
-                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Resina (A+B) · litro</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                  <input type="number" min={0} value={config.resina_litro_precio}
-                    onChange={e => updCfg('resina_litro_precio', Number(e.target.value))}
-                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Gota magica · barra</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                  <input type="number" min={0} value={config.goma_barra_precio}
-                    onChange={e => updCfg('goma_barra_precio', Number(e.target.value))}
-                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Alcohol isopropilico · litro</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                  <input type="number" min={0} value={config.alcohol_litro_precio}
-                    onChange={e => updCfg('alcohol_litro_precio', Number(e.target.value))}
-                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Tarifa mano de obra · hora</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                  <input type="number" min={0} value={config.tarifa_hora}
-                    onChange={e => updCfg('tarifa_hora', Number(e.target.value))}
-                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
-                </div>
-              </div>
+              ))}
             </div>
           </Card>
         )}
