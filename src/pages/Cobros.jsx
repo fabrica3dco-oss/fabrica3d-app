@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, CheckCircle, AlertCircle, Clock, User, UserPlus, Eye, Share2, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, CheckCircle, AlertCircle, Clock, User, UserPlus, Eye, Share2, X, Minus } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -23,8 +23,11 @@ const METODOS      = [
   { id: 'otro',          label: 'Otro' },
 ]
 
+const LINEA_EMPTY = { descripcion: '', detalle: '', cantidad: 1, precio_unitario: '' }
+
 const EMPTY = {
-  cliente_id: '', cliente_nombre: '', concepto: '', monto: '',
+  cliente_id: '', cliente_nombre: '', concepto: '',
+  lineas: [{ ...LINEA_EMPTY }],
   estado: 'pendiente', fecha_emision: '', fecha_vencimiento: '',
   metodo_pago: '', notas: '',
 }
@@ -125,12 +128,21 @@ export default function Cobros() {
   }).reduce((s, c) => s + Number(c.monto), 0)
   const vencidos = cobrosConEstado.filter(c => c.estado === 'vencido').length
 
+  // ── Líneas ─────────────────────────────────────────────────────────────────
+  const subtotalLineas = (form.lineas || []).reduce((s, l) => s + Number(l.cantidad || 0) * Number(l.precio_unitario || 0), 0)
+  function setLinea(i, campo, valor) {
+    setForm(f => ({ ...f, lineas: f.lineas.map((l, idx) => idx === i ? { ...l, [campo]: valor } : l) }))
+  }
+  function addLinea()     { setForm(f => ({ ...f, lineas: [...f.lineas, { ...LINEA_EMPTY }] })) }
+  function removeLinea(i) { setForm(f => ({ ...f, lineas: f.lineas.filter((_, idx) => idx !== i) })) }
+
   // ── Modales ────────────────────────────────────────────────────────────────
   function abrirCrear() { setForm(EMPTY); setModal({ mode: 'crear' }) }
   function abrirEditar(c) {
     setForm({
       cliente_id: c.cliente_id || '', cliente_nombre: c.cliente_nombre || '',
-      concepto: c.concepto || '', monto: c.monto || '',
+      concepto: c.concepto || '',
+      lineas: c.lineas?.length ? c.lineas : [{ ...LINEA_EMPTY }],
       estado: c.estado || 'pendiente', fecha_emision: c.fecha_emision || '',
       fecha_vencimiento: c.fecha_vencimiento || '', metodo_pago: c.metodo_pago || '',
       notas: c.notas || '',
@@ -139,12 +151,19 @@ export default function Cobros() {
   }
 
   async function guardar() {
-    if (!form.concepto.trim() || !form.monto) return
+    if (!form.cliente_nombre.trim() || form.lineas.length === 0) return
     setSaving(true)
+    const lineasValidas = form.lineas.map(l => ({
+      descripcion: l.descripcion, detalle: l.detalle || null,
+      cantidad: Number(l.cantidad) || 1, precio_unitario: Number(l.precio_unitario) || 0,
+    }))
     const datos = {
-      ...form,
-      monto:             Number(form.monto),
       cliente_id:        form.cliente_id || null,
+      cliente_nombre:    form.cliente_nombre,
+      concepto:          form.concepto || lineasValidas.map(l => l.descripcion).join(', '),
+      lineas:            lineasValidas,
+      monto:             subtotalLineas,
+      estado:            form.estado,
       fecha_emision:     form.fecha_emision     || null,
       fecha_vencimiento: form.fecha_vencimiento || null,
       metodo_pago:       form.metodo_pago       || null,
@@ -171,6 +190,10 @@ export default function Cobros() {
 
   // ── PDF helpers ────────────────────────────────────────────────────────────
   async function getCotizacionData(cobro) {
+    // Si el cobro tiene sus propias líneas (creado manualmente), usarlas directo
+    if (cobro.lineas?.length) {
+      return { lineas: cobro.lineas, total: cobro.monto, anticipoPagado: 0 }
+    }
     if (!cobro.notas) return null
     const match = cobro.notas.match(/Ref:\s*COT-(\d+)/i)
     if (!match) return null
@@ -389,36 +412,56 @@ export default function Cobros() {
         <div className="flex flex-col gap-4">
           <ClienteAutocomplete clientes={clientes} value={form.cliente_nombre} clienteId={form.cliente_id}
             onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))} />
-          <Input label="Concepto *" value={form.concepto}
-            onChange={e => setForm(f => ({ ...f, concepto: e.target.value }))}
-            placeholder="Ej: Anticipo 50% · COT-001" />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Monto (COP) *" type="number" min="0" value={form.monto}
-              onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="0" />
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-navy-600">Estado</label>
-              <select value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
-                className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent">
-                {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
-              </select>
+          {/* Líneas / productos */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-navy-600">Productos / Servicios *</label>
+              <button onClick={addLinea} type="button"
+                className="text-xs text-accent hover:underline flex items-center gap-1">
+                <Plus size={12} /> Agregar línea
+              </button>
             </div>
+            <div className="flex flex-col gap-2">
+              {(form.lineas || []).map((linea, i) => (
+                <div key={i} className="grid grid-cols-[1fr_80px_70px_24px] gap-1.5 items-start">
+                  <div className="flex flex-col gap-1">
+                    <input value={linea.descripcion}
+                      onChange={e => setLinea(i, 'descripcion', e.target.value)}
+                      placeholder="Descripción del producto o servicio"
+                      className="w-full px-2.5 py-1.5 text-sm border border-[#e2e6ea] rounded-lg text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
+                    <input value={linea.detalle || ''}
+                      onChange={e => setLinea(i, 'detalle', e.target.value)}
+                      placeholder="Detalle (opcional)"
+                      className="w-full px-2.5 py-1.5 text-xs border border-[#e2e6ea] rounded-lg text-[#8a9ab0] placeholder:text-[#c0cad6] focus:outline-none focus:ring-2 focus:ring-accent" />
+                  </div>
+                  <input value={linea.precio_unitario} type="number" min="0"
+                    onChange={e => setLinea(i, 'precio_unitario', e.target.value)}
+                    placeholder="Precio"
+                    className="px-2.5 py-1.5 text-sm border border-[#e2e6ea] rounded-lg text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
+                  <input value={linea.cantidad} type="number" min="1"
+                    onChange={e => setLinea(i, 'cantidad', e.target.value)}
+                    placeholder="Cant."
+                    className="px-2.5 py-1.5 text-sm border border-[#e2e6ea] rounded-lg text-navy-600 text-center focus:outline-none focus:ring-2 focus:ring-accent" />
+                  <button onClick={() => removeLinea(i)} disabled={form.lineas.length === 1}
+                    className="mt-1.5 p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <Minus size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {subtotalLineas > 0 && (
+              <div className="flex justify-end text-sm font-semibold text-navy-600 pr-8 pt-1 border-t border-[#f0f2f5]">
+                Total: {cop(subtotalLineas)}
+              </div>
+            )}
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <Input label="Fecha de emisión" type="date" value={form.fecha_emision}
               onChange={e => setForm(f => ({ ...f, fecha_emision: e.target.value }))} />
             <Input label="Fecha de vencimiento" type="date" value={form.fecha_vencimiento}
               onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))} />
           </div>
-          {form.estado === 'pagado' && (
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-navy-600">Método de pago</label>
-              <select value={form.metodo_pago} onChange={e => setForm(f => ({ ...f, metodo_pago: e.target.value }))}
-                className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent">
-                <option value="">— Selecciona —</option>
-                {METODOS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-              </select>
-            </div>
-          )}
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-navy-600">Notas</label>
             <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
@@ -427,7 +470,7 @@ export default function Cobros() {
           </div>
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
-            <Button onClick={guardar} disabled={!form.concepto.trim() || !form.monto || saving}>
+            <Button onClick={guardar} disabled={!form.cliente_nombre.trim() || form.lineas.length === 0 || saving}>
               {saving ? 'Guardando...' : modal?.mode === 'crear' ? 'Crear cuenta de cobro' : 'Guardar cambios'}
             </Button>
           </div>
