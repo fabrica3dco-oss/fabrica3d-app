@@ -214,30 +214,29 @@ export default function Inventario() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setCatModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#e2e6ea] bg-white text-sm font-medium text-[#8a9ab0] hover:text-navy-600 hover:border-[#c0cad6] transition-colors">
+          <Button variant="secondary" onClick={() => setCatModal(true)}>
             Gestionar categorías
-          </button>
+          </Button>
           <Button onClick={abrirCrear}><Plus size={16} /> Agregar ítem</Button>
         </div>
       </div>
 
       {/* Métricas */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white border border-[#e2e6ea] rounded-xl p-4">
+      <div className="flex flex-wrap gap-3 mb-6">
+        <div className="bg-white border border-[#e2e6ea] rounded-xl p-4 flex-1 min-w-[130px]">
           <p className="text-xs font-medium text-[#8a9ab0] uppercase tracking-wide flex items-center gap-1">
             <Package size={12} /> Total ítems
           </p>
           <p className="text-xl font-bold text-navy-600 mt-1">{items.length}</p>
         </div>
-        <div className={`border rounded-xl p-4 ${stockBajo > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-[#e2e6ea]'}`}>
+        <div className={`border rounded-xl p-4 flex-1 min-w-[130px] ${stockBajo > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-[#e2e6ea]'}`}>
           <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 ${stockBajo > 0 ? 'text-red-500' : 'text-[#8a9ab0]'}`}>
             <AlertTriangle size={12} /> Stock bajo
           </p>
           <p className={`text-xl font-bold mt-1 ${stockBajo > 0 ? 'text-red-600' : 'text-navy-600'}`}>{stockBajo}</p>
         </div>
-        {categorias.slice(0, 2).map(cat => (
-          <div key={cat.nombre} className="bg-white border border-[#e2e6ea] rounded-xl p-4">
+        {categorias.map(cat => (
+          <div key={cat.nombre} className="bg-white border border-[#e2e6ea] rounded-xl p-4 flex-1 min-w-[130px]">
             <p className="text-xs font-medium text-[#8a9ab0] uppercase tracking-wide capitalize truncate">
               {cat.nombre}
             </p>
