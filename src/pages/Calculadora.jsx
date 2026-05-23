@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
-import { ChevronDown, ChevronUp, Settings, RotateCcw, FileText, Plus, Trash2 } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { ChevronDown, ChevronUp, Settings, RotateCcw, FileText, Plus, Trash2, Save, Check } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Card from '../components/ui/Card'
 
@@ -65,17 +65,27 @@ export default function Calculadora() {
     } catch { return DEFAULT_CONFIG }
   })
 
-  const [rec, setRec]           = useState(DEFAULT_RECETA)
+  const [rec, setRec]               = useState(DEFAULT_RECETA)
   const [showConfig, setShowConfig] = useState(false)
+  const [saved, setSaved]           = useState(true)  // true = sin cambios pendientes
 
-  // Persistir config
-  useEffect(() => {
+  // Detectar cambios en config
+  const hasChanges = !saved
+
+  function guardarConfig() {
     localStorage.setItem('f3d_calc_config_v2', JSON.stringify(config))
-  }, [config])
+    setSaved(true)
+  }
+
+  // Marcar como no guardado al editar config
+  const updCfgTracked = (fn) => {
+    setConfig(fn)
+    setSaved(false)
+  }
 
   // ── Helpers de edicion ────────────────────────────────────────────────────
   const updRec = (key, val) => setRec(r => ({ ...r, [key]: val }))
-  const updCfg = (key, val) => setConfig(c => ({ ...c, [key]: val }))
+  const updCfg = (key, val) => updCfgTracked(c => ({ ...c, [key]: val }))
 
   // Accesorios en receta
   const addAccRec    = () => {
@@ -98,20 +108,20 @@ export default function Calculadora() {
   }))
 
   // Accesorios en config
-  const addAccCfg    = () => setConfig(c => ({
+  const addAccCfg    = () => updCfgTracked(c => ({
     ...c, accesorios: [...c.accesorios, { id: uid(), nombre: 'Nuevo accesorio', precio: 0, unidad: 'ud' }]
   }))
-  const removeAccCfg = id => setConfig(c => ({ ...c, accesorios: c.accesorios.filter(a => a.id !== id) }))
-  const updAccCfg    = (id, key, val) => setConfig(c => ({
+  const removeAccCfg = id => updCfgTracked(c => ({ ...c, accesorios: c.accesorios.filter(a => a.id !== id) }))
+  const updAccCfg    = (id, key, val) => updCfgTracked(c => ({
     ...c, accesorios: c.accesorios.map(a => a.id === id ? { ...a, [key]: val } : a)
   }))
 
   // Acabados en config
-  const addAcbCfg    = () => setConfig(c => ({
+  const addAcbCfg    = () => updCfgTracked(c => ({
     ...c, acabados: [...c.acabados, { id: uid(), nombre: 'Nuevo acabado', precio: 0, unidad: 'ud' }]
   }))
-  const removeAcbCfg = id => setConfig(c => ({ ...c, acabados: c.acabados.filter(a => a.id !== id) }))
-  const updAcbCfg    = (id, key, val) => setConfig(c => ({
+  const removeAcbCfg = id => updCfgTracked(c => ({ ...c, acabados: c.acabados.filter(a => a.id !== id) }))
+  const updAcbCfg    = (id, key, val) => updCfgTracked(c => ({
     ...c, acabados: c.acabados.map(a => a.id === id ? { ...a, [key]: val } : a)
   }))
 
@@ -509,26 +519,6 @@ export default function Calculadora() {
             )}
           </div>
 
-          {/* Reparto de utilidad */}
-          <Card>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Reparto de utilidad</p>
-            <div>
-              <label className="block text-xs font-medium text-navy-600 mb-1">
-                Porcentaje de la parte minoritaria
-              </label>
-              <div className="relative">
-                <input
-                  type="number" min={0} max={99} value={rec.comision}
-                  onChange={e => updRec('comision', Number(e.target.value))}
-                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-8"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">%</span>
-              </div>
-              <p className="text-[11px] text-[#8a9ab0] mt-1.5">
-                Reparto: {100 - rec.comision}% — {rec.comision}%
-              </p>
-            </div>
-          </Card>
 
         </div>
       </div>
@@ -548,7 +538,18 @@ export default function Calculadora() {
           <Card className="mt-3">
             <div className="flex items-center justify-between mb-5">
               <p className="text-xs text-[#8a9ab0]">Actualiza cuando cambien los precios de tu proveedor.</p>
-              <span className="text-xs text-green-600 font-medium flex items-center gap-1">✓ Guardado automaticamente</span>
+              {hasChanges ? (
+                <button
+                  onClick={guardarConfig}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-white bg-accent hover:bg-accent/90 transition-colors rounded-lg px-3 py-1.5"
+                >
+                  <Save size={12} /> Guardar cambios
+                </button>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                  <Check size={12} /> Guardado
+                </span>
+              )}
             </div>
 
             {/* Materiales base */}
