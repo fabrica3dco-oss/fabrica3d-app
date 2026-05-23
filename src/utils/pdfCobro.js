@@ -154,8 +154,8 @@ async function buildDoc(cobro, cotData) {
   doc.setDrawColor(45, 65, 95); doc.setLineWidth(0.4)
   doc.line(ML + LOGO_W_MM + 12, 10, ML + LOGO_W_MM + 12, 40)
 
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...TGRAY)
-  doc.text('CUENTA DE COBRO', RE, 17, { align: 'right' })
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...TGRAY)
+  doc.text('CUENTA DE COBRO', RE, 19, { align: 'right' })
   doc.setFont('helvetica', 'bold'); doc.setFontSize(19); doc.setTextColor(...WHITE)
   doc.text(`#${num}`, RE, 31, { align: 'right' })
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...TGRAY)
@@ -179,15 +179,12 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
   doc.text('Barranquilla, Colombia', ML + 78, y + 15.5)
 
-  // Estado badge
-  const estadoX = ML + 145
+  // Vencimiento
+  const vencX = ML + 145
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MID)
-  doc.text('ESTADO', estadoX, y + 7)
-  const estadoBg = ESTADO_COLOR[cobro.estado] || [150,168,192]
-  doc.setFillColor(...estadoBg)
-  doc.roundedRect(estadoX, y + 9.5, 30, 7, 1.5, 1.5, 'F')
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE)
-  doc.text(ESTADO_LABEL[cobro.estado] || cobro.estado.toUpperCase(), estadoX + 15, y + 14.8, { align: 'center' })
+  doc.text('VENCIMIENTO', vencX, y + 7)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
+  doc.text(cobro.fecha_vencimiento ? fechaLarga(cobro.fecha_vencimiento) : '—', vencX, y + 15.5)
 
   y += 32
 
@@ -230,6 +227,17 @@ async function buildDoc(cobro, cotData) {
   doc.text(montoEnLetras(cobro.monto), ML + 7, y + 8.5)
 
   y += 13 + 6
+
+  // ── POR CONCEPTO DE ───────────────────────────────────────────────────────
+  secLabel(doc, 'POR CONCEPTO DE', ML, y, RE)
+  y += 5
+
+  if (cobro.concepto) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MID)
+    const concLines = doc.splitTextToSize(cobro.concepto, CW)
+    doc.text(concLines, ML, y)
+    y += concLines.length * 5 + 3
+  }
 
   // ── TABLA DE ÍTEMS ────────────────────────────────────────────────────────
   // Columnas: Descripción | Valor Unit. | Cant. | Total
