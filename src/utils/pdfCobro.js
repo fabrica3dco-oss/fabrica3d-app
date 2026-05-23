@@ -179,12 +179,12 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
   doc.text('Barranquilla, Colombia', ML + 78, y + 15.5)
 
-  // Vencimiento
-  const vencX = ML + 145
+  // Datos de pago
+  const pagoX = ML + 145
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MID)
-  doc.text('VENCIMIENTO', vencX, y + 7)
+  doc.text('DATOS DE PAGO', pagoX, y + 7)
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
-  doc.text(cobro.fecha_vencimiento ? fechaLarga(cobro.fecha_vencimiento) : '—', vencX, y + 15.5)
+  doc.text('Llave Bre-B · 3215735651', pagoX, y + 15.5)
 
   y += 26
 
@@ -316,33 +316,18 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...WHITE)
   doc.text(hayAnticipo ? 'TOTAL A PAGAR' : 'TOTAL', totX + 2, y + 7)
   doc.text(copFull(cobro.monto), RE - 4, y + 7, { align: 'right' })
-  y += 10 + 10  // base de la caja (y+10) + 10mm de respiro
-
-  // ── DATOS DE PAGO ────────────────────────────────────────────────────────
-  secLabel(doc, 'DATOS DE PAGO', ML, y, RE)
-  y += 5
-
-  doc.setFillColor(...LIGHT); doc.setDrawColor(...BORDER); doc.setLineWidth(0.3)
-  doc.roundedRect(ML, y, CW, 11, 2, 2, 'FD')
-  doc.setFillColor(...NAVY); doc.rect(ML, y, 3, 11, 'F')
-
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...NAVY)
-  doc.text('Llave Bre-B', ML + 7, y + 7.5)
-  const lwW = doc.getTextWidth('Llave Bre-B')
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MID)
-  doc.text('  ·  3215735651  ·  Dimas Domenech', ML + 7 + lwW, y + 7.5)
-  y += 11 + 10  // base de la caja (y+11) + 10mm de respiro
+  y += 10 + 12  // base de la caja (y+10) + 12mm de respiro
 
   // ── FIRMA ────────────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(...MID)
   doc.text('Atentamente,', ML, y)
   y += 4
 
-  // Imagen de firma (aspect ratio 3:2 → 33mm × 22mm)
+  // Imagen de firma (aspect ratio 3:2 → 45mm × 30mm)
   if (firmaDataUrl) {
-    doc.addImage(firmaDataUrl, 'PNG', ML, y, 33, 22)
+    doc.addImage(firmaDataUrl, 'PNG', ML, y, 45, 30)
   }
-  y += 24
+  y += 32
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
   doc.text('Dimas Domenech', ML, y)
