@@ -98,7 +98,8 @@ export default function Cotizaciones() {
   const [clienteObj,   setClienteObj]   = useState(null) // full client record for PDF
   const [saving,          setSaving]          = useState(false)
   const [previewUrl,      setPreviewUrl]      = useState(null)
-  const [cobrosModal,     setCobrosModal]     = useState(null)   // cotización para generar cobros
+  const [cobrosModal,     setCobrosModal]     = useState(null)
+  const [modalidadCobro,  setModalidadCobro]  = useState('split') // 'split' | 'full'
   const [generandoCobros, setGenerandoCobros] = useState(false)
 
   useEffect(() => {
@@ -199,40 +200,47 @@ export default function Cotizaciones() {
     const num    = String(c.numero).padStart(3, '0')
     const hoy    = new Date().toISOString().split('T')[0]
     const vence7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const mitad  = Number(c.total) * 0.5
+    const total  = Number(c.total)
 
-    const cobros = [
-      {
-        cliente_id:        c.cliente_id || null,
-        cliente_nombre:    c.cliente_nombre,
-        concepto:          `Anticipo 50% · COT-${num} · ${c.cliente_nombre}`,
-        monto:             mitad,
-        estado:            'pendiente',
-        fecha_emision:     hoy,
-        fecha_vencimiento: vence7,
-        notas:             `Anticipo para iniciar producción.\nRef: COT-${num}`,
-      },
-      {
-        cliente_id:     c.cliente_id || null,
-        cliente_nombre: c.cliente_nombre,
-        concepto:       `Saldo 50% · COT-${num} · ${c.cliente_nombre}`,
-        monto:          mitad,
-        estado:         'pendiente',
-        fecha_emision:  hoy,
-        notas:          `Saldo contra entrega del pedido.\nRef: COT-${num}`,
-      },
-    ]
+    const cobros = modalidadCobro === 'split'
+      ? [
+          {
+            cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
+            concepto: `Anticipo 50% · COT-${num} · ${c.cliente_nombre}`,
+            monto: total * 0.5, estado: 'pendiente',
+            fecha_emision: hoy, fecha_vencimiento: vence7,
+            notas: `Anticipo para iniciar producción.\nRef: COT-${num}`,
+          },
+          {
+            cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
+            concepto: `Saldo 50% · COT-${num} · ${c.cliente_nombre}`,
+            monto: total * 0.5, estado: 'pendiente',
+            fecha_emision: hoy,
+            notas: `Saldo contra entrega del pedido.\nRef: COT-${num}`,
+          },
+        ]
+      : [
+          {
+            cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
+            concepto: `Pago total · COT-${num} · ${c.cliente_nombre}`,
+            monto: total, estado: 'pendiente',
+            fecha_emision: hoy, fecha_vencimiento: vence7,
+            notas: `Pago total del pedido.\nRef: COT-${num}`,
+          },
+        ]
 
     setGenerandoCobros(true)
     const { error } = await supabase.from('cobros').insert(cobros)
     setGenerandoCobros(false)
     setCobrosModal(null)
 
-    if (error) {
-      toast.error('No se pudieron generar los cobros.')
-    } else {
-      toast.success(`¡Listo! Cobros de anticipo y saldo generados para COT-${num}.`, { duration: 4000 })
-    }
+    if (error) toast.error('No se pudieron generar las cuentas de cobro.')
+    else toast.success(
+      modalidadCobro === 'split'
+        ? `¡Listo! Anticipo y saldo generados para COT-${num}.`
+        : `¡Listo! Cuenta de cobro por el total generada para COT-${num}.`,
+      { duration: 4000 }
+    )
   }
 
   return (
@@ -309,6 +317,13 @@ export default function Cotizaciones() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
+                          {c.estado === 'aprobada' && (
+                            <button onClick={() => { setCobrosModal(c); setModalidadCobro('split') }}
+                              title="Generar cuentas de cobro"
+                              className="p-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm">
+                              <Receipt size={15} />
+                            </button>
+                          )}
                           <button onClick={() => compartirWhatsApp(c)} title="Compartir por WhatsApp"
                             className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600 transition-colors">
                             <Share2 size={14} />
@@ -321,12 +336,6 @@ export default function Cotizaciones() {
                             className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent transition-colors">
                             <Download size={14} />
                           </button>
-                          {c.estado === 'aprobada' && (
-                            <button onClick={() => setCobrosModal(c)} title="Generar cobros (anticipo + saldo)"
-                              className="p-1.5 rounded-lg hover:bg-purple-50 text-[#8a9ab0] hover:text-purple-600 transition-colors">
-                              <Receipt size={14} />
-                            </button>
-                          )}
                           <button onClick={() => abrirEditar(c)}
                             className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors">
                             <Pencil size={14} />
@@ -364,12 +373,13 @@ export default function Cotizaciones() {
                     <p className="text-sm font-semibold text-navy-600 mt-0.5">{cop(c.total)}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    {c.estado === 'aprobada' && (
+                      <button onClick={() => { setCobrosModal(c); setModalidadCobro('split') }} title="Generar cuentas de cobro"
+                        className="p-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 shadow-sm"><Receipt size={15} /></button>
+                    )}
                     <button onClick={() => compartirWhatsApp(c)} title="WhatsApp" className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><Share2 size={14} /></button>
                     <button onClick={() => verPdf(c)} title="Vista previa" className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Eye size={14} /></button>
                     <button onClick={() => descargarPdf(c)} className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Download size={14} /></button>
-                    {c.estado === 'aprobada' && (
-                      <button onClick={() => setCobrosModal(c)} title="Generar cobros" className="p-1.5 rounded-lg hover:bg-purple-50 text-[#8a9ab0] hover:text-purple-600"><Receipt size={14} /></button>
-                    )}
                     <button onClick={() => abrirEditar(c)} className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600"><Pencil size={14} /></button>
                     <button onClick={() => setConfirmId(c.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-600"><Trash2 size={14} /></button>
                   </div>
@@ -497,38 +507,52 @@ export default function Cotizaciones() {
         </div>
       )}
 
-      {/* ── Generar cobros ─────────────────────────────────────────────────── */}
-      <Modal open={!!cobrosModal} onClose={() => setCobrosModal(null)} title="Generar cobros" size="sm">
+      {/* ── Generar cuentas de cobro ───────────────────────────────────────── */}
+      <Modal open={!!cobrosModal} onClose={() => setCobrosModal(null)} title="Generar cuentas de cobro" size="sm">
         {cobrosModal && (
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-navy-600">
-              Se crearán <strong>2 cobros pendientes</strong> para{' '}
-              <strong>{cobrosModal.cliente_nombre}</strong>:
+            <p className="text-sm text-[#8a9ab0]">
+              <strong className="text-navy-600">{cobrosModal.cliente_nombre}</strong> · Total {cop(cobrosModal.total)}
             </p>
+
+            {/* Selector de modalidad */}
             <div className="flex flex-col gap-2">
-              <div className="flex justify-between items-center bg-[#f8f9fb] rounded-lg px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-navy-600">Anticipo 50%</p>
-                  <p className="text-xs text-[#8a9ab0]">Para iniciar producción · vence en 7 días</p>
-                </div>
-                <span className="text-sm font-bold text-navy-600">
-                  {new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(cobrosModal.total)*0.5)}
+              {/* Opción 50/50 */}
+              <button onClick={() => setModalidadCobro('split')}
+                className={`flex items-start gap-3 rounded-xl px-4 py-3 border-2 text-left transition-colors ${modalidadCobro === 'split' ? 'border-accent bg-blue-50' : 'border-[#e2e6ea] bg-[#f8f9fb] hover:border-accent/40'}`}>
+                <span className={`mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${modalidadCobro === 'split' ? 'border-accent' : 'border-[#c0cad6]'}`}>
+                  {modalidadCobro === 'split' && <span className="w-2 h-2 rounded-full bg-accent block" />}
                 </span>
-              </div>
-              <div className="flex justify-between items-center bg-[#f8f9fb] rounded-lg px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-navy-600">Saldo 50%</p>
-                  <p className="text-xs text-[#8a9ab0]">Contra entrega del pedido</p>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-navy-600">50% anticipo + 50% saldo</p>
+                  <p className="text-xs text-[#8a9ab0] mt-0.5">Dos cuentas de cobro pendientes</p>
+                  <div className="flex gap-3 mt-2">
+                    <span className="text-xs bg-white border border-[#e2e6ea] rounded-lg px-2 py-1 text-navy-600 font-medium">Anticipo {cop(cobrosModal.total * 0.5)}</span>
+                    <span className="text-xs bg-white border border-[#e2e6ea] rounded-lg px-2 py-1 text-navy-600 font-medium">Saldo {cop(cobrosModal.total * 0.5)}</span>
+                  </div>
                 </div>
-                <span className="text-sm font-bold text-navy-600">
-                  {new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(cobrosModal.total)*0.5)}
+              </button>
+
+              {/* Opción 100% */}
+              <button onClick={() => setModalidadCobro('full')}
+                className={`flex items-start gap-3 rounded-xl px-4 py-3 border-2 text-left transition-colors ${modalidadCobro === 'full' ? 'border-accent bg-blue-50' : 'border-[#e2e6ea] bg-[#f8f9fb] hover:border-accent/40'}`}>
+                <span className={`mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${modalidadCobro === 'full' ? 'border-accent' : 'border-[#c0cad6]'}`}>
+                  {modalidadCobro === 'full' && <span className="w-2 h-2 rounded-full bg-accent block" />}
                 </span>
-              </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-navy-600">100% en una sola cuenta</p>
+                  <p className="text-xs text-[#8a9ab0] mt-0.5">Una cuenta de cobro por el total</p>
+                  <div className="mt-2">
+                    <span className="text-xs bg-white border border-[#e2e6ea] rounded-lg px-2 py-1 text-navy-600 font-medium">Total {cop(cobrosModal.total)}</span>
+                  </div>
+                </div>
+              </button>
             </div>
+
             <div className="flex gap-3 justify-end pt-1">
               <Button variant="secondary" onClick={() => setCobrosModal(null)}>Cancelar</Button>
               <Button onClick={confirmarGenerarCobros} disabled={generandoCobros}>
-                {generandoCobros ? 'Generando...' : 'Generar cobros'}
+                {generandoCobros ? 'Generando...' : 'Generar'}
               </Button>
             </div>
           </div>
