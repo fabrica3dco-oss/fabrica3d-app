@@ -317,6 +317,22 @@ async function buildDoc(cobro, cotData) {
   doc.text(hayAnticipo ? 'TOTAL A PAGAR' : 'TOTAL', totX + 2, y + 7)
   doc.text(copFull(cobro.monto), RE - 4, y + 7, { align: 'right' })
 
+  // ── DATOS DE PAGO ────────────────────────────────────────────────────────
+  y += 10
+
+  secLabel(doc, 'DATOS DE PAGO', ML, y, RE)
+  y += 5
+
+  doc.setFillColor(...LIGHT); doc.setDrawColor(...BORDER); doc.setLineWidth(0.3)
+  doc.roundedRect(ML, y, CW, 11, 2, 2, 'FD')
+  doc.setFillColor(...NAVY); doc.rect(ML, y, 3, 11, 'F')
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...NAVY)
+  doc.text('Llave Bre-B', ML + 7, y + 7.5)
+  const lwW = doc.getTextWidth('Llave Bre-B')
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MID)
+  doc.text('  ·  3215735651  ·  Dimas Domenech', ML + 7 + lwW, y + 7.5)
+
   // ── FIRMA ────────────────────────────────────────────────────────────────
   y += 18
 
