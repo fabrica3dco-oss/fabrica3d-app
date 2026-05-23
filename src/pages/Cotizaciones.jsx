@@ -537,10 +537,23 @@ export default function Cotizaciones() {
 
       {/* Confirmar eliminar */}
       <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar cotización" size="sm">
-        <p className="text-sm text-navy-600 mb-5">¿Seguro que quieres eliminar esta cotización?</p>
+        <p className="text-sm text-navy-600 mb-2">¿Seguro que quieres eliminar esta cotización?</p>
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-5">
+          ⚠️ Las cuentas de cobro vinculadas a esta cotización también serán eliminadas automáticamente.
+        </p>
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setConfirmId(null)}>Cancelar</Button>
-          <Button variant="danger" onClick={async () => { setSaving(true); await eliminarCotizacion(confirmId); setSaving(false); setConfirmId(null) }} disabled={saving}>
+          <Button variant="danger" disabled={saving} onClick={async () => {
+            setSaving(true)
+            const cot = cotizaciones.find(c => c.id === confirmId)
+            if (cot?.numero) {
+              const refStr = `Ref: COT-${String(cot.numero).padStart(3, '0')}`
+              await supabase.from('cobros').delete().ilike('notas', `%${refStr}%`)
+            }
+            await eliminarCotizacion(confirmId)
+            setSaving(false)
+            setConfirmId(null)
+          }}>
             {saving ? 'Eliminando...' : 'Eliminar'}
           </Button>
         </div>
