@@ -230,7 +230,10 @@ export default function Calculadora() {
 
           {/* Materiales base */}
           <Card>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Materiales base</p>
+            <div className="flex items-baseline justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Materiales base</p>
+              <span className="text-[11px] text-[#8a9ab0]">valores por 1 unidad</span>
+            </div>
             <div className="flex flex-col gap-4">
 
               {/* Filamento */}
@@ -287,7 +290,10 @@ export default function Calculadora() {
           {/* Accesorios */}
           <Card>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Accesorios</p>
+              <div className="flex items-baseline gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Accesorios</p>
+                <span className="text-[11px] text-[#8a9ab0]">por 1 unidad</span>
+              </div>
               {calc.costoAccesorios > 0 && (
                 <span className="text-xs text-accent font-semibold">{fmt(calc.costoAccesorios)}/ud</span>
               )}
@@ -345,7 +351,10 @@ export default function Calculadora() {
           {/* Acabado */}
           <Card>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Acabado</p>
+              <div className="flex items-baseline gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Acabado</p>
+                <span className="text-[11px] text-[#8a9ab0]">por 1 unidad</span>
+              </div>
               {calc.costoAcabados > 0 && (
                 <span className="text-xs text-accent font-semibold">{fmt(calc.costoAcabados)}/ud</span>
               )}
