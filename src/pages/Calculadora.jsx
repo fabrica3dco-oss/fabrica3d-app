@@ -389,7 +389,7 @@ export default function Calculadora() {
           </Card>
 
           {/* Resultados para N unidades */}
-          <div className={`rounded-xl p-4 ${cero ? 'opacity-60' : ''}`} style={{ backgroundColor: '#142236', border: '1px solid #142236' }}>
+          <div className="rounded-xl p-4" style={{ backgroundColor: '#142236', border: '1px solid #142236' }}>
             <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#93c5fd' }}>
               Para {rec.cantidad || 1} unidad{(rec.cantidad || 1) !== 1 ? 'es' : ''}
             </p>
