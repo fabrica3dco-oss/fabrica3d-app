@@ -287,9 +287,8 @@ async function buildDoc(cobro, cotData) {
   const totW = 88
   const totX = RE - totW
 
-  const montoNum        = Number(cobro.monto)
-  const anticipoAplicado = cotData?.lineas?.length ? tableTotal - montoNum : 0
-  const hayAnticipo      = anticipoAplicado > 1 // margen de redondeo
+  const anticipoAplicado = cotData?.anticipoPagado || 0
+  const hayAnticipo      = anticipoAplicado > 1
 
   if (cotData?.lineas?.length) {
     // Subtotal cotización

@@ -174,13 +174,31 @@ export default function Cobros() {
     const match = cobro.notas.match(/Ref:\s*COT-(\d+)/i)
     if (!match) return null
     const cotNum = parseInt(match[1], 10)
-    const { data } = await supabase
+
+    // Líneas de la cotización
+    const { data: cot } = await supabase
       .from('cotizaciones')
       .select('lineas, total, numero')
       .eq('numero', cotNum)
       .single()
-    if (!data?.lineas?.length) return null
-    return { lineas: data.lineas, total: data.total }
+    if (!cot?.lineas?.length) return null
+
+    // Buscar anticipo PAGADO vinculado a la misma COT (excluyendo este cobro)
+    const refStr = `COT-${String(cotNum).padStart(3, '0')}`
+    const { data: anticipo } = await supabase
+      .from('cobros')
+      .select('monto')
+      .ilike('notas', `%${refStr}%`)
+      .ilike('concepto', '%anticipo%')
+      .eq('estado', 'pagado')
+      .neq('id', cobro.id)
+      .maybeSingle()
+
+    return {
+      lineas: cot.lineas,
+      total: cot.total,
+      anticipoPagado: anticipo ? Number(anticipo.monto) : 0,
+    }
   }
 
   async function descargarPdf(c) {
