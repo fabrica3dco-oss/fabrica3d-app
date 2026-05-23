@@ -1,85 +1,59 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, AlertTriangle, Package, Minus, X } from 'lucide-react'
-import Card from '../components/ui/Card'
+import { Plus, Pencil, Trash2, AlertTriangle, Package, Minus, Settings } from 'lucide-react'
 import Button from '../components/ui/Button'
-import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { useInventario } from '../hooks/useInventario'
 
-// ── Categorías ──────────────────────────────────────────────────────────────
-const CATEGORIAS = [
-  { id: 'filamento', label: 'Filamentos', emoji: '🧵' },
-  { id: 'anillo',    label: 'Anillos',    emoji: '⭕' },
-  { id: 'insumo',    label: 'Insumos',    emoji: '🧪' },
-]
-
-const CAT_BADGE = {
-  filamento: 'blue',
-  anillo:    'gray',
-  insumo:    'amber',
-}
-
 const UNIDADES = [
-  { id: 'u',  label: 'Unidades (u)' },
-  { id: 'g',  label: 'Gramos (g)'   },
+  { id: 'u',  label: 'Unidades (u)'    },
+  { id: 'g',  label: 'Gramos (g)'      },
   { id: 'kg', label: 'Kilogramos (kg)' },
   { id: 'ml', label: 'Mililitros (ml)' },
 ]
-
 const STEPS = { g: 100, ml: 50, kg: 0.5, u: 1 }
-
-const cop = (v) => new Intl.NumberFormat('es-CO', {
-  style: 'currency', currency: 'COP', maximumFractionDigits: 0,
-}).format(Number(v) || 0)
+const EMPTY_ITEM = {
+  nombre: '', categoria: '', color: '#1a1a1a',
+  unidad: 'u', stock_actual: '', stock_minimo: '', costo_unitario: '', notas: '',
+}
+const EMPTY_CAT = { nombre: '', emoji: '📦' }
 
 const fmt = (v, u) => `${Number(v).toLocaleString('es-CO')} ${u}`
 
-const EMPTY_FORM = {
-  nombre: '', categoria: 'filamento', color: '#1a1a1a',
-  unidad: 'g', stock_actual: '', stock_minimo: '', costo_unitario: '', notas: '',
-}
-
-// ── Stock bar ───────────────────────────────────────────────────────────────
+// ── Stock bar ────────────────────────────────────────────────────────────────
 function StockBar({ actual, minimo }) {
-  const max    = Math.max(minimo * 4, actual, 1)
-  const pct    = Math.min((actual / max) * 100, 100)
+  const max     = Math.max(minimo * 4, actual, 1)
+  const pct     = Math.min((actual / max) * 100, 100)
   const critico = actual <= minimo
   const bajo    = actual <= minimo * 1.5 && !critico
-
   return (
     <div className="w-full bg-[#f0f2f5] rounded-full h-1.5 mt-1">
       <div
-        className={`h-1.5 rounded-full transition-all ${
-          critico ? 'bg-red-400' : bajo ? 'bg-amber-400' : 'bg-accent'
-        }`}
+        className={`h-1.5 rounded-full transition-all ${critico ? 'bg-red-400' : bajo ? 'bg-amber-400' : 'bg-accent'}`}
         style={{ width: `${pct}%` }}
       />
     </div>
   )
 }
 
-// ── Item card ───────────────────────────────────────────────────────────────
-function ItemCard({ item, onEdit, onDelete, onAjustar }) {
-  const actual   = Number(item.stock_actual)
-  const minimo   = Number(item.stock_minimo)
-  const critico  = actual <= minimo
-  const step     = STEPS[item.unidad] ?? 1
+// ── Item card ────────────────────────────────────────────────────────────────
+function ItemCard({ item, catEmoji, onEdit, onDelete, onAjustar }) {
+  const actual  = Number(item.stock_actual)
+  const minimo  = Number(item.stock_minimo)
+  const critico = actual <= minimo
+  const step    = STEPS[item.unidad] ?? 1
 
   return (
     <div className={`bg-white border rounded-xl px-4 py-3 flex flex-col gap-2 ${critico ? 'border-red-200' : 'border-[#e2e6ea]'}`}>
       <div className="flex items-start justify-between gap-2">
-        {/* Izquierda: color dot + nombre */}
         <div className="flex items-center gap-2 min-w-0">
           {item.color
             ? <span className="shrink-0 w-3.5 h-3.5 rounded-full border border-black/10" style={{ background: item.color }} />
-            : <span className="shrink-0 text-sm">{CATEGORIAS.find(c => c.id === item.categoria)?.emoji}</span>}
+            : <span className="shrink-0 text-sm leading-none">{catEmoji}</span>}
           <div className="min-w-0">
             <p className="text-sm font-semibold text-navy-600 truncate">{item.nombre}</p>
             {item.notas && <p className="text-xs text-[#8a9ab0] truncate">{item.notas}</p>}
           </div>
         </div>
-
-        {/* Derecha: acciones */}
         <div className="flex items-center gap-1 shrink-0">
           {critico && (
             <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -96,8 +70,6 @@ function ItemCard({ item, onEdit, onDelete, onAjustar }) {
           </button>
         </div>
       </div>
-
-      {/* Cantidad + ajuste rápido */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
           <button onClick={() => onAjustar(item.id, -step)}
@@ -114,7 +86,6 @@ function ItemCard({ item, onEdit, onDelete, onAjustar }) {
         </div>
         <span className="text-xs text-[#8a9ab0]">mín {fmt(minimo, item.unidad)}</span>
       </div>
-
       <StockBar actual={actual} minimo={minimo} />
     </div>
   )
@@ -122,9 +93,9 @@ function ItemCard({ item, onEdit, onDelete, onAjustar }) {
 
 function Skeleton() {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="grid sm:grid-cols-2 gap-3">
       {Array(4).fill(0).map((_, i) => (
-        <div key={i} className="animate-pulse bg-[#e2e6ea] rounded-xl h-24 w-full" />
+        <div key={i} className="animate-pulse bg-[#e2e6ea] rounded-xl h-24" />
       ))}
     </div>
   )
@@ -132,30 +103,46 @@ function Skeleton() {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function Inventario() {
-  const { items, loading, crearItem, actualizarItem, eliminarItem, ajustarStock } = useInventario()
+  const {
+    items, categorias, loading,
+    crearItem, actualizarItem, eliminarItem, ajustarStock,
+    crearCategoria, renombrarCategoria, eliminarCategoria,
+  } = useInventario()
 
-  const [tabActivo,  setTabActivo]  = useState('todos')
-  const [modal,      setModal]      = useState(null)   // null | 'crear' | 'editar'
-  const [editItem,   setEditItem]   = useState(null)
-  const [confirmId,  setConfirmId]  = useState(null)
-  const [form,       setForm]       = useState(EMPTY_FORM)
-  const [saving,     setSaving]     = useState(false)
+  const [tabActivo,    setTabActivo]    = useState('todos')
+  const [itemModal,    setItemModal]    = useState(null)   // null | 'crear' | 'editar'
+  const [editItem,     setEditItem]     = useState(null)
+  const [confirmId,    setConfirmId]    = useState(null)
+  const [form,         setForm]         = useState(EMPTY_ITEM)
+  const [saving,       setSaving]       = useState(false)
 
-  // ── Filtrado por tab ──────────────────────────────────────────────────────
+  // Gestión de categorías
+  const [catModal,     setCatModal]     = useState(false)
+  const [newCat,       setNewCat]       = useState(EMPTY_CAT)
+  const [editCat,      setEditCat]      = useState(null)   // { original, nombre, emoji }
+  const [confirmCat,   setConfirmCat]   = useState(null)   // nombre a eliminar
+  const [savingCat,    setSavingCat]    = useState(false)
+
+  const f = (campo, val) => setForm(prev => ({ ...prev, [campo]: val }))
+
+  // ── Datos derivados ────────────────────────────────────────────────────────
   const itemsFiltrados = tabActivo === 'todos'
     ? items
     : items.filter(i => i.categoria === tabActivo)
 
-  // ── Métricas ──────────────────────────────────────────────────────────────
   const stockBajo = items.filter(i => Number(i.stock_actual) <= Number(i.stock_minimo)).length
-  const totalCats = { filamento: 0, anillo: 0, insumo: 0 }
-  items.forEach(i => { totalCats[i.categoria] = (totalCats[i.categoria] || 0) + 1 })
 
-  // ── Helpers modal ─────────────────────────────────────────────────────────
+  const catMap = Object.fromEntries(categorias.map(c => [c.nombre, c]))
+  const countPorCat = items.reduce((acc, i) => {
+    acc[i.categoria] = (acc[i.categoria] || 0) + 1
+    return acc
+  }, {})
+
+  // ── Helpers item modal ────────────────────────────────────────────────────
   function abrirCrear() {
-    setForm(EMPTY_FORM)
+    setForm({ ...EMPTY_ITEM, categoria: categorias[0]?.nombre || '' })
     setEditItem(null)
-    setModal('crear')
+    setItemModal('crear')
   }
 
   function abrirEditar(item) {
@@ -170,30 +157,53 @@ export default function Inventario() {
       notas:          item.notas || '',
     })
     setEditItem(item)
-    setModal('editar')
+    setItemModal('editar')
   }
 
-  async function guardar() {
-    if (!form.nombre.trim()) return
+  async function guardarItem() {
+    if (!form.nombre.trim() || !form.categoria) return
     setSaving(true)
     const datos = {
       nombre:         form.nombre.trim(),
       categoria:      form.categoria,
-      color:          form.categoria === 'filamento' ? (form.color || null) : null,
+      color:          form.color || null,
       unidad:         form.unidad,
       stock_actual:   Number(form.stock_actual)   || 0,
       stock_minimo:   Number(form.stock_minimo)   || 0,
       costo_unitario: Number(form.costo_unitario) || 0,
       notas:          form.notas.trim() || null,
     }
-    let ok
-    if (modal === 'crear') ok = await crearItem(datos)
-    else ok = await actualizarItem(editItem.id, datos)
+    const ok = itemModal === 'crear'
+      ? await crearItem(datos)
+      : await actualizarItem(editItem.id, datos)
     setSaving(false)
-    if (ok) setModal(null)
+    if (ok) setItemModal(null)
   }
 
-  const f = (campo, val) => setForm(prev => ({ ...prev, [campo]: val }))
+  // ── Helpers categoría modal ────────────────────────────────────────────────
+  async function guardarNuevaCat() {
+    if (!newCat.nombre.trim()) return
+    setSavingCat(true)
+    const ok = await crearCategoria(newCat)
+    setSavingCat(false)
+    if (ok) setNewCat(EMPTY_CAT)
+  }
+
+  async function guardarEditCat() {
+    if (!editCat) return
+    setSavingCat(true)
+    await renombrarCategoria(editCat.original, { nombre: editCat.nombre, emoji: editCat.emoji })
+    setSavingCat(false)
+    setEditCat(null)
+  }
+
+  async function confirmarEliminarCat() {
+    if (!confirmCat) return
+    setSavingCat(true)
+    await eliminarCategoria(confirmCat)
+    setSavingCat(false)
+    setConfirmCat(null)
+  }
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
@@ -205,7 +215,14 @@ export default function Inventario() {
             {loading ? '...' : `${items.length} ítems registrados`}
           </p>
         </div>
-        <Button onClick={abrirCrear}><Plus size={16} /> Agregar ítem</Button>
+        <div className="flex gap-2">
+          <button onClick={() => setCatModal(true)}
+            title="Gestionar categorías"
+            className="p-2 rounded-lg border border-[#e2e6ea] bg-white text-[#8a9ab0] hover:text-navy-600 hover:border-[#c0cad6] transition-colors">
+            <Settings size={16} />
+          </button>
+          <Button onClick={abrirCrear}><Plus size={16} /> Agregar ítem</Button>
+        </div>
       </div>
 
       {/* Métricas */}
@@ -222,48 +239,50 @@ export default function Inventario() {
           </p>
           <p className={`text-xl font-bold mt-1 ${stockBajo > 0 ? 'text-red-600' : 'text-navy-600'}`}>{stockBajo}</p>
         </div>
-        {CATEGORIAS.map(cat => (
-          <div key={cat.id} className="bg-white border border-[#e2e6ea] rounded-xl p-4">
-            <p className="text-xs font-medium text-[#8a9ab0] uppercase tracking-wide">{cat.emoji} {cat.label}</p>
-            <p className="text-xl font-bold text-navy-600 mt-1">{totalCats[cat.id] || 0}</p>
+        {categorias.slice(0, 2).map(cat => (
+          <div key={cat.nombre} className="bg-white border border-[#e2e6ea] rounded-xl p-4">
+            <p className="text-xs font-medium text-[#8a9ab0] uppercase tracking-wide truncate">
+              {cat.emoji} {cat.nombre}
+            </p>
+            <p className="text-xl font-bold text-navy-600 mt-1">{countPorCat[cat.nombre] || 0}</p>
           </div>
         ))}
       </div>
 
-      {/* Tabs de categoría */}
-      <div className="flex gap-1 bg-[#f0f2f5] rounded-xl p-1 mb-5">
-        {[{ id: 'todos', label: 'Todos', emoji: '📦' }, ...CATEGORIAS].map(tab => (
-          <button key={tab.id}
-            onClick={() => setTabActivo(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              tabActivo === tab.id
-                ? 'bg-white text-navy-600 shadow-sm'
-                : 'text-[#8a9ab0] hover:text-navy-600'
-            }`}>
-            <span>{tab.emoji}</span>
-            <span className="hidden sm:inline">{tab.label}</span>
-            <span className={`text-xs rounded-full px-1.5 py-0.5 font-semibold ${
-              tabActivo === tab.id ? 'bg-accent/10 text-accent' : 'bg-[#e2e6ea] text-[#8a9ab0]'
-            }`}>
-              {tab.id === 'todos' ? items.length : (totalCats[tab.id] || 0)}
-            </span>
-          </button>
-        ))}
+      {/* Tabs */}
+      <div className="flex gap-1 bg-[#f0f2f5] rounded-xl p-1 mb-5 overflow-x-auto">
+        {[{ nombre: 'todos', emoji: '📦', label: 'Todos' }, ...categorias.map(c => ({ ...c, label: c.nombre }))].map(tab => {
+          const count = tab.nombre === 'todos' ? items.length : (countPorCat[tab.nombre] || 0)
+          return (
+            <button key={tab.nombre}
+              onClick={() => setTabActivo(tab.nombre)}
+              className={`shrink-0 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                tabActivo === tab.nombre
+                  ? 'bg-white text-navy-600 shadow-sm'
+                  : 'text-[#8a9ab0] hover:text-navy-600'
+              }`}>
+              <span>{tab.emoji}</span>
+              <span className="capitalize hidden sm:inline">{tab.label}</span>
+              <span className={`text-xs rounded-full px-1.5 py-0.5 font-semibold ${
+                tabActivo === tab.nombre ? 'bg-accent/10 text-accent' : 'bg-[#e2e6ea] text-[#8a9ab0]'
+              }`}>{count}</span>
+            </button>
+          )
+        })}
       </div>
 
-      {/* Lista de ítems */}
-      {loading ? (
-        <Skeleton />
-      ) : itemsFiltrados.length === 0 ? (
+      {/* Ítems */}
+      {loading ? <Skeleton /> : itemsFiltrados.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-center gap-3">
           <span className="text-5xl">📦</span>
-          <p className="text-sm font-medium text-navy-600">Sin ítems en esta categoría</p>
+          <p className="text-sm font-medium text-navy-600">Sin ítems aquí</p>
           <p className="text-xs text-[#8a9ab0]">Agrega tu primer ítem con el botón de arriba.</p>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-3">
           {itemsFiltrados.map(item => (
             <ItemCard key={item.id} item={item}
+              catEmoji={catMap[item.categoria]?.emoji || '📦'}
               onEdit={abrirEditar}
               onDelete={setConfirmId}
               onAjustar={ajustarStock}
@@ -272,53 +291,56 @@ export default function Inventario() {
         </div>
       )}
 
-      {/* ── Modal crear/editar ────────────────────────────────────────────── */}
-      <Modal
-        open={!!modal}
-        onClose={() => setModal(null)}
-        title={modal === 'crear' ? 'Agregar ítem' : 'Editar ítem'}>
+      {/* ── Modal crear/editar ítem ───────────────────────────────────────── */}
+      <Modal open={!!itemModal} onClose={() => setItemModal(null)}
+        title={itemModal === 'crear' ? 'Agregar ítem' : 'Editar ítem'}>
         <div className="flex flex-col gap-4">
 
           {/* Categoría */}
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-navy-600">Categoría</label>
-            <div className="flex gap-2">
-              {CATEGORIAS.map(cat => (
-                <button key={cat.id} type="button"
-                  onClick={() => f('categoria', cat.id)}
-                  className={`flex-1 py-2 px-2 text-sm rounded-lg border-2 font-medium transition-colors flex items-center justify-center gap-1 ${
-                    form.categoria === cat.id
-                      ? 'border-accent bg-blue-50 text-accent'
-                      : 'border-[#e2e6ea] bg-white text-[#8a9ab0] hover:border-[#c0cad6]'
-                  }`}>
-                  {cat.emoji} {cat.label}
-                </button>
-              ))}
-            </div>
+            {categorias.length === 0
+              ? <p className="text-xs text-amber-600">No hay categorías. Créalas desde el botón ⚙️.</p>
+              : (
+                <div className="flex flex-wrap gap-2">
+                  {categorias.map(cat => (
+                    <button key={cat.nombre} type="button"
+                      onClick={() => f('categoria', cat.nombre)}
+                      className={`py-1.5 px-3 text-sm rounded-lg border-2 font-medium transition-colors flex items-center gap-1.5 capitalize ${
+                        form.categoria === cat.nombre
+                          ? 'border-accent bg-blue-50 text-accent'
+                          : 'border-[#e2e6ea] bg-white text-[#8a9ab0] hover:border-[#c0cad6]'
+                      }`}>
+                      {cat.emoji} {cat.nombre}
+                    </button>
+                  ))}
+                </div>
+              )}
           </div>
 
           {/* Nombre */}
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-navy-600">Nombre *</label>
             <input value={form.nombre} onChange={e => f('nombre', e.target.value)}
-              placeholder={form.categoria === 'filamento' ? 'Ej: PLA Rojo, PETG Negro...' : 'Nombre del ítem'}
+              placeholder="Nombre del ítem"
               className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
           </div>
 
-          {/* Color (solo filamentos) */}
-          {form.categoria === 'filamento' && (
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-navy-600">Color del filamento</label>
-              <div className="flex items-center gap-3">
-                <input type="color" value={form.color}
-                  onChange={e => f('color', e.target.value)}
-                  className="w-12 h-10 rounded-lg border border-[#e2e6ea] cursor-pointer p-0.5 bg-white" />
-                <span className="text-sm text-[#8a9ab0]">
-                  Selecciona el color para identificarlo visualmente
-                </span>
-              </div>
+          {/* Color (solo si la categoría seleccionada tiene color habilitado — filamento) */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-navy-600">
+              Color <span className="text-[#8a9ab0] font-normal text-xs">(opcional — para identificar visualmente)</span>
+            </label>
+            <div className="flex items-center gap-3">
+              <input type="color" value={form.color || '#1a1a1a'}
+                onChange={e => f('color', e.target.value)}
+                className="w-12 h-10 rounded-lg border border-[#e2e6ea] cursor-pointer p-0.5 bg-white" />
+              <button type="button" onClick={() => f('color', null)}
+                className="text-xs text-[#8a9ab0] hover:text-red-500 underline">
+                Sin color
+              </button>
             </div>
-          )}
+          </div>
 
           {/* Unidad + Cantidades */}
           <div className="grid grid-cols-3 gap-3">
@@ -332,46 +354,122 @@ export default function Inventario() {
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Cantidad actual</label>
               <input type="number" min="0" value={form.stock_actual}
-                onChange={e => f('stock_actual', e.target.value)}
-                placeholder="0"
+                onChange={e => f('stock_actual', e.target.value)} placeholder="0"
                 className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Stock mínimo</label>
               <input type="number" min="0" value={form.stock_minimo}
-                onChange={e => f('stock_minimo', e.target.value)}
-                placeholder="0"
+                onChange={e => f('stock_minimo', e.target.value)} placeholder="0"
                 className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
           </div>
 
-          {/* Costo unitario + Notas */}
+          {/* Costo + Notas */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Costo unitario (COP)</label>
               <input type="number" min="0" value={form.costo_unitario}
-                onChange={e => f('costo_unitario', e.target.value)}
-                placeholder="0"
+                onChange={e => f('costo_unitario', e.target.value)} placeholder="0"
                 className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Notas</label>
               <input value={form.notas} onChange={e => f('notas', e.target.value)}
-                placeholder="Descripción breve (opcional)"
+                placeholder="Descripción breve"
                 className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
           </div>
 
           <div className="flex gap-3 justify-end pt-1">
-            <Button variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
-            <Button onClick={guardar} disabled={!form.nombre.trim() || saving}>
-              {saving ? 'Guardando...' : modal === 'crear' ? 'Agregar ítem' : 'Guardar cambios'}
+            <Button variant="secondary" onClick={() => setItemModal(null)}>Cancelar</Button>
+            <Button onClick={guardarItem} disabled={!form.nombre.trim() || !form.categoria || saving}>
+              {saving ? 'Guardando...' : itemModal === 'crear' ? 'Agregar ítem' : 'Guardar cambios'}
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* ── Confirmar eliminar ────────────────────────────────────────────── */}
+      {/* ── Modal gestionar categorías ────────────────────────────────────── */}
+      <Modal open={catModal} onClose={() => { setCatModal(false); setEditCat(null); setConfirmCat(null) }}
+        title="Gestionar categorías">
+        <div className="flex flex-col gap-5">
+
+          {/* Lista de categorías existentes */}
+          <div className="flex flex-col gap-2">
+            {categorias.length === 0
+              ? <p className="text-sm text-[#8a9ab0] py-4 text-center">No hay categorías aún.</p>
+              : categorias.map(cat => (
+                <div key={cat.nombre} className="border border-[#e2e6ea] rounded-xl px-3 py-2.5">
+                  {editCat?.original === cat.nombre ? (
+                    /* Modo edición inline */
+                    <div className="flex items-center gap-2">
+                      <input value={editCat.emoji} onChange={e => setEditCat(c => ({ ...c, emoji: e.target.value }))}
+                        maxLength={2} placeholder="📦"
+                        className="w-12 text-center border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                      <input value={editCat.nombre} onChange={e => setEditCat(c => ({ ...c, nombre: e.target.value }))}
+                        placeholder="Nombre"
+                        className="flex-1 border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-sm text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent" />
+                      <Button onClick={guardarEditCat} disabled={savingCat}>
+                        {savingCat ? '...' : 'Guardar'}
+                      </Button>
+                      <button onClick={() => setEditCat(null)}
+                        className="text-xs text-[#8a9ab0] hover:text-navy-600 px-2">✕</button>
+                    </div>
+                  ) : confirmCat === cat.nombre ? (
+                    /* Confirmar eliminar */
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-red-600 flex-1">
+                        ¿Eliminar <strong>{cat.nombre}</strong>? ({countPorCat[cat.nombre] || 0} ítems)
+                      </p>
+                      <Button variant="danger" onClick={confirmarEliminarCat} disabled={savingCat}>
+                        {savingCat ? '...' : 'Eliminar'}
+                      </Button>
+                      <button onClick={() => setConfirmCat(null)}
+                        className="text-xs text-[#8a9ab0] hover:text-navy-600 px-2">✕</button>
+                    </div>
+                  ) : (
+                    /* Vista normal */
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl leading-none">{cat.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-navy-600 capitalize">{cat.nombre}</p>
+                        <p className="text-xs text-[#8a9ab0]">{countPorCat[cat.nombre] || 0} ítems</p>
+                      </div>
+                      <button onClick={() => setEditCat({ original: cat.nombre, nombre: cat.nombre, emoji: cat.emoji })}
+                        className="p-1.5 rounded-lg hover:bg-[#f0f2f5] text-[#8a9ab0] hover:text-navy-600 transition-colors">
+                        <Pencil size={13} />
+                      </button>
+                      <button onClick={() => setConfirmCat(cat.nombre)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+
+          {/* Agregar nueva categoría */}
+          <div className="border-t border-[#f0f2f5] pt-4">
+            <p className="text-sm font-medium text-navy-600 mb-2">Nueva categoría</p>
+            <div className="flex items-center gap-2">
+              <input value={newCat.emoji} onChange={e => setNewCat(c => ({ ...c, emoji: e.target.value }))}
+                maxLength={2} placeholder="📦"
+                className="w-12 text-center border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+              <input value={newCat.nombre} onChange={e => setNewCat(c => ({ ...c, nombre: e.target.value }))}
+                placeholder="Nombre de la categoría (ej: empaque, chip nfc...)"
+                onKeyDown={e => e.key === 'Enter' && guardarNuevaCat()}
+                className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
+              <Button onClick={guardarNuevaCat} disabled={!newCat.nombre.trim() || savingCat}>
+                {savingCat ? '...' : <><Plus size={14} /> Agregar</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Confirmar eliminar ítem ────────────────────────────────────────── */}
       <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar ítem" size="sm">
         <p className="text-sm text-navy-600 mb-5">¿Seguro que quieres eliminar este ítem del inventario?</p>
         <div className="flex gap-3 justify-end">
