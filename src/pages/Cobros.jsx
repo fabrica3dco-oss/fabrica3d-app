@@ -329,14 +329,14 @@ export default function Cobros() {
               <table className="w-full text-sm table-fixed">
                 <thead>
                   <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[60px]">#</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[58px]">#</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cliente</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[120px]">Tipo</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[80px]">COT</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[110px]">Fecha</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[110px]">Monto</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[100px]">Estado</th>
-                    <th className="px-3 py-3 w-[140px]" />
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[115px]">Tipo</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[82px]">COT</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[92px]">Fecha</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[108px]">Monto</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[98px]">Estado</th>
+                    <th className="px-3 py-3 w-[138px]" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f2f5]">
@@ -355,12 +355,12 @@ export default function Cobros() {
                       </td>
                       <td className="px-3 py-3">
                         {cotLabel
-                          ? <span className="inline-block px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-xs font-mono font-medium">{cotLabel}</span>
+                          ? <span className="inline-block px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-xs font-mono font-medium whitespace-nowrap">{cotLabel}</span>
                           : <span className="text-[#8a9ab0] text-xs">—</span>}
                       </td>
                       <td className="px-3 py-3 text-xs text-[#8a9ab0] whitespace-nowrap">
                         {c.fecha_emision
-                          ? new Date(c.fecha_emision + 'T00:00:00').toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' })
+                          ? new Date(c.fecha_emision + 'T00:00:00').toLocaleDateString('es-CO', { day:'2-digit', month:'2-digit', year:'numeric' })
                           : '—'}
                       </td>
                       <td className="px-3 py-3 font-semibold text-navy-600 text-sm">{cop(c.monto)}</td>
