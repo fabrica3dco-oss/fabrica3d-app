@@ -132,22 +132,29 @@ export default function Calculadora() {
       return s + (item ? item.precio * a.cantidad : 0)
     }, 0)
 
-    const costoXUnidad    = costoFilamento + costoAccesorios + costoAcabados + costoTiempo
-    const costoTotal      = costoXUnidad * (rec.cantidad || 1)
-    const precioSugerido  = costoXUnidad * (1 + rec.margen / 100)
-    const precioTotal     = precioSugerido * (rec.cantidad || 1)
-    const utilidadBruta   = precioSugerido - costoXUnidad
-    const comisionXUnidad = utilidadBruta * (rec.comision / 100)
-    const utilidadNeta    = utilidadBruta - comisionXUnidad
-    const utilidadNetaTotal = utilidadNeta * (rec.cantidad || 1)
+    const costoXUnidad   = costoFilamento + costoAccesorios + costoAcabados + costoTiempo
+    const costoTotal     = costoXUnidad * (rec.cantidad || 1)
+    const precioSugerido = costoXUnidad * (1 + rec.margen / 100)
+    const precioTotal    = precioSugerido * (rec.cantidad || 1)
+    const utilidad       = precioSugerido - costoXUnidad   // ganancia por unidad
+    const utilidadTotal  = utilidad * (rec.cantidad || 1)  // ganancia total
+
+    // Reparto: parte mayoritaria y parte minoritaria (configurable)
+    const pctMenor  = rec.comision                         // ej. 25
+    const pctMayor  = 100 - rec.comision                   // ej. 75
+    const parteB    = utilidad * (pctMenor / 100)          // por unidad
+    const parteA    = utilidad * (pctMayor / 100)
+    const parteATotal = parteA * (rec.cantidad || 1)
+    const parteBTotal = parteB * (rec.cantidad || 1)
 
     return {
       costoFilamento, costoTiempo,
       costoAccesorios, costoAcabados,
       costoXUnidad, costoTotal,
       precioSugerido, precioTotal,
-      utilidadBruta, comisionXUnidad,
-      utilidadNeta, utilidadNetaTotal,
+      utilidad, utilidadTotal,
+      pctMenor, pctMayor,
+      parteA, parteB, parteATotal, parteBTotal,
     }
   }, [rec, config])
 
@@ -439,14 +446,13 @@ export default function Calculadora() {
             <FilaResultado label="Costo de produccion" valor={fmt(calc.costoXUnidad)} bold />
             <div className="my-2 border-t border-dashed border-[#e2e6ea]" />
             <FilaResultado label={`Precio sugerido (+${rec.margen}%)`} valor={fmt(calc.precioSugerido)} bold green />
-            <FilaResultado label="Utilidad bruta" valor={fmt(calc.utilidadBruta)} muted />
+            <FilaResultado label="Utilidad por pieza" valor={fmt(calc.utilidad)} bold />
             {rec.comision > 0 && (
-              <FilaResultado
-                label={`Comision vendedor (${rec.comision}%)`}
-                valor={`- ${fmt(calc.comisionXUnidad)}`}
-                muted red />
+              <div className="mt-1 bg-[#f8f9fb] rounded-lg px-3 py-1.5">
+                <FilaResultado label={`${calc.pctMayor}%`} valor={fmt(calc.parteA)} muted />
+                <FilaResultado label={`${calc.pctMenor}%`} valor={fmt(calc.parteB)} muted />
+              </div>
             )}
-            <FilaResultado label="Utilidad neta / pieza" valor={fmt(calc.utilidadNeta)} bold green />
           </Card>
 
           {/* Para N unidades */}
@@ -463,19 +469,23 @@ export default function Calculadora() {
                 <span className="text-sm" style={{ color: '#bfdbfe' }}>Total a cobrar al cliente</span>
                 <span className="text-2xl font-bold text-white">{fmt(calc.precioTotal)}</span>
               </div>
-              {rec.comision > 0 && (
-                <div className="flex justify-between items-baseline">
-                  <span className="text-sm" style={{ color: '#bfdbfe' }}>Comision Andres ({rec.comision}%)</span>
-                  <span className="text-base font-bold" style={{ color: '#fcd34d' }}>
-                    - {fmt(calc.comisionXUnidad * (rec.cantidad || 1))}
-                  </span>
-                </div>
-              )}
               <div className="h-px my-1" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }} />
               <div className="flex justify-between items-baseline">
-                <span className="text-sm font-semibold" style={{ color: '#bfdbfe' }}>Tu utilidad neta total</span>
-                <span className="text-xl font-bold" style={{ color: '#4ade80' }}>{fmt(calc.utilidadNetaTotal)}</span>
+                <span className="text-sm font-semibold" style={{ color: '#bfdbfe' }}>Utilidad total</span>
+                <span className="text-xl font-bold text-white">{fmt(calc.utilidadTotal)}</span>
               </div>
+              {rec.comision > 0 && (
+                <div className="mt-2 rounded-lg px-3 py-2" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="text-sm" style={{ color: '#bfdbfe' }}>{calc.pctMayor}%</span>
+                    <span className="text-base font-bold" style={{ color: '#4ade80' }}>{fmt(calc.parteATotal)}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm" style={{ color: '#bfdbfe' }}>{calc.pctMenor}%</span>
+                    <span className="text-base font-bold" style={{ color: '#fcd34d' }}>{fmt(calc.parteBTotal)}</span>
+                  </div>
+                </div>
+              )}
             </div>
             {!cero && (
               <button
@@ -490,22 +500,24 @@ export default function Calculadora() {
             )}
           </div>
 
-          {/* Comision vendedor */}
+          {/* Reparto de utilidad */}
           <Card>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Comision vendedor</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Reparto de utilidad</p>
             <div>
               <label className="block text-xs font-medium text-navy-600 mb-1">
-                % sobre utilidad bruta
-                <span className="text-[#8a9ab0] font-normal ml-1">(Andres: 25% por defecto)</span>
+                Porcentaje de la parte minoritaria
               </label>
               <div className="relative">
                 <input
-                  type="number" min={0} max={100} value={rec.comision}
+                  type="number" min={0} max={99} value={rec.comision}
                   onChange={e => updRec('comision', Number(e.target.value))}
                   className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-8"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">%</span>
               </div>
+              <p className="text-[11px] text-[#8a9ab0] mt-1.5">
+                Reparto: {100 - rec.comision}% — {rec.comision}%
+              </p>
             </div>
           </Card>
 
