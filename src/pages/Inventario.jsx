@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, AlertTriangle, Package, Minus, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertTriangle, Package, Minus, ShoppingCart } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import { useInventario } from '../hooks/useInventario'
@@ -13,7 +13,7 @@ const UNIDADES = [
 const STEPS = { g: 100, ml: 50, kg: 0.5, u: 1 }
 const EMPTY_ITEM = {
   nombre: '', categoria: '', color: '',
-  unidad: 'u', stock_actual: '', stock_minimo: '', costo_unitario: '', notas: '',
+  unidad: 'u', stock_actual: '', stock_minimo: '', costo_unitario: '', notas: '', link_compra: '',
 }
 
 const fmt = (v, u) => `${Number(v).toLocaleString('es-CO')} ${u}`
@@ -58,6 +58,13 @@ function ItemCard({ item, onEdit, onDelete, onAjustar }) {
             <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1">
               <AlertTriangle size={10} /> Stock bajo
             </span>
+          )}
+          {item.link_compra && (
+            <a href={item.link_compra} target="_blank" rel="noreferrer"
+              title="Ir a comprar"
+              className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600 transition-colors">
+              <ShoppingCart size={13} />
+            </a>
           )}
           <button onClick={() => onEdit(item)}
             className="p-1.5 rounded-lg hover:bg-[#f0f2f5] text-[#8a9ab0] hover:text-navy-600 transition-colors">
@@ -153,6 +160,7 @@ export default function Inventario() {
       stock_minimo:   String(item.stock_minimo),
       costo_unitario: String(item.costo_unitario || ''),
       notas:          item.notas || '',
+      link_compra:    item.link_compra || '',
     })
     setEditItem(item)
     setItemModal('editar')
@@ -170,6 +178,7 @@ export default function Inventario() {
       stock_minimo:   Number(form.stock_minimo)   || 0,
       costo_unitario: Number(form.costo_unitario) || 0,
       notas:          form.notas.trim() || null,
+      link_compra:    form.link_compra.trim() || null,
     }
     const ok = itemModal === 'crear'
       ? await crearItem(datos)
@@ -374,6 +383,20 @@ export default function Inventario() {
               <input value={form.notas} onChange={e => f('notas', e.target.value)}
                 placeholder="Descripción breve"
                 className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
+          </div>
+
+          {/* Link de compra */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-navy-600">
+              Link de compra <span className="text-[#8a9ab0] font-normal text-xs">(opcional)</span>
+            </label>
+            <div className="relative">
+              <ShoppingCart size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9ab0]" />
+              <input value={form.link_compra} onChange={e => f('link_compra', e.target.value)}
+                placeholder="https://..."
+                type="url"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
           </div>
 
