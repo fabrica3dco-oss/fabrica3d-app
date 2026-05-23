@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2 } from 'lucide-react'
 import Card from '../components/ui/Card'
 
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = n =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
@@ -473,25 +474,41 @@ export default function Calculadora() {
           </Card>
 
           {/* Para N unidades */}
-          <Card className={`transition-all ${cero ? 'opacity-60' : ''}`}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">
+          <div
+            className={`rounded-xl p-4 transition-all ${cero ? 'opacity-60' : ''}`}
+            style={{ backgroundColor: '#142236' }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#93c5fd' }}>
               Para {rec.cantidad || 1} unidad{(rec.cantidad || 1) !== 1 ? 'es' : ''}
             </p>
-
-            <div className="bg-[#f8f9fb] rounded-lg px-3 py-2 mb-3">
-              <FilaResultado label="Costo total materiales" valor={fmt(calc.costoTotal)} muted />
-            </div>
-
-            <FilaResultado label="Total a cobrar al cliente" valor={fmt(calc.precioTotal)} bold green />
-            <div className="my-2 border-t border-dashed border-[#e2e6ea]" />
-            <FilaResultado label="Utilidad total" valor={fmt(calc.utilidadTotal)} bold />
-            {rec.comision > 0 && (
-              <div className="mt-1 bg-[#f8f9fb] rounded-lg px-3 py-1.5">
-                <FilaResultado label={`${calc.pctMayor}%`} valor={fmt(calc.parteATotal)} muted />
-                <FilaResultado label={`${calc.pctMenor}%`} valor={fmt(calc.parteBTotal)} muted />
+            <div className="flex flex-col gap-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-sm" style={{ color: '#bfdbfe' }}>Costo total materiales</span>
+                <span className="text-base font-bold" style={{ color: '#ffffff' }}>{fmt(calc.costoTotal)}</span>
               </div>
-            )}
-          </Card>
+              <div className="flex justify-between items-baseline">
+                <span className="text-sm" style={{ color: '#bfdbfe' }}>Total a cobrar al cliente</span>
+                <span className="text-2xl font-bold" style={{ color: '#ffffff' }}>{fmt(calc.precioTotal)}</span>
+              </div>
+              <div className="h-px" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+              <div className="flex justify-between items-baseline">
+                <span className="text-sm font-semibold" style={{ color: '#bfdbfe' }}>Utilidad total</span>
+                <span className="text-xl font-bold" style={{ color: '#ffffff' }}>{fmt(calc.utilidadTotal)}</span>
+              </div>
+              {rec.comision > 0 && (
+                <div className="rounded-lg px-3 py-2" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="text-sm" style={{ color: '#bfdbfe' }}>{calc.pctMayor}%</span>
+                    <span className="text-base font-bold" style={{ color: '#4ade80' }}>{fmt(calc.parteATotal)}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm" style={{ color: '#bfdbfe' }}>{calc.pctMenor}%</span>
+                    <span className="text-base font-bold" style={{ color: '#fcd34d' }}>{fmt(calc.parteBTotal)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
         </div>
       </div>
