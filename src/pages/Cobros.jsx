@@ -25,10 +25,16 @@ const METODOS      = [
 
 const LINEA_EMPTY = { descripcion: '', detalle: '', cantidad: 1, precio_unitario: '' }
 
+const TIPOS_COBRO = [
+  { id: 'Pago total',   label: 'Pago total' },
+  { id: 'Anticipo 50%', label: 'Anticipo 50%' },
+  { id: 'Saldo 50%',    label: 'Saldo 50%' },
+]
+
 const EMPTY = {
-  cliente_id: '', cliente_nombre: '', concepto: '',
+  cliente_id: '', cliente_nombre: '', concepto: 'Pago total',
   lineas: [{ ...LINEA_EMPTY }],
-  estado: 'pendiente', fecha_emision: '', fecha_vencimiento: '',
+  estado: 'pendiente', fecha_emision: '',
   metodo_pago: '', notas: '',
 }
 
@@ -139,12 +145,13 @@ export default function Cobros() {
   // ── Modales ────────────────────────────────────────────────────────────────
   function abrirCrear() { setForm(EMPTY); setModal({ mode: 'crear' }) }
   function abrirEditar(c) {
+    const tipoValido = TIPOS_COBRO.some(t => t.id === c.concepto)
     setForm({
       cliente_id: c.cliente_id || '', cliente_nombre: c.cliente_nombre || '',
-      concepto: c.concepto || '',
+      concepto: tipoValido ? c.concepto : 'Pago total',
       lineas: c.lineas?.length ? c.lineas : [{ ...LINEA_EMPTY }],
       estado: c.estado || 'pendiente', fecha_emision: c.fecha_emision || '',
-      fecha_vencimiento: c.fecha_vencimiento || '', metodo_pago: c.metodo_pago || '',
+      metodo_pago: c.metodo_pago || '',
       notas: c.notas || '',
     })
     setModal({ mode: 'editar', id: c.id })
@@ -158,16 +165,15 @@ export default function Cobros() {
       cantidad: Number(l.cantidad) || 1, precio_unitario: Number(l.precio_unitario) || 0,
     }))
     const datos = {
-      cliente_id:        form.cliente_id || null,
-      cliente_nombre:    form.cliente_nombre,
-      concepto:          form.concepto || lineasValidas.map(l => l.descripcion).join(', '),
-      lineas:            lineasValidas,
-      monto:             subtotalLineas,
-      estado:            form.estado,
-      fecha_emision:     form.fecha_emision     || null,
-      fecha_vencimiento: form.fecha_vencimiento || null,
-      metodo_pago:       form.metodo_pago       || null,
-      notas:             form.notas             || null,
+      cliente_id:     form.cliente_id || null,
+      cliente_nombre: form.cliente_nombre,
+      concepto:       form.concepto,
+      lineas:         lineasValidas,
+      monto:          subtotalLineas,
+      estado:         form.estado,
+      fecha_emision:  form.fecha_emision || null,
+      metodo_pago:    form.metodo_pago   || null,
+      notas:          form.notas         || null,
     }
     let ok
     if (modal.mode === 'crear') ok = await crearCobro(datos)
@@ -318,7 +324,6 @@ export default function Cobros() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Concepto</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Monto</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Estado</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Vencimiento</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -338,11 +343,6 @@ export default function Cobros() {
                             {ESTADO_LABEL[c.estado]}
                           </Badge>
                         </button>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-[#8a9ab0]">
-                        {c.fecha_vencimiento
-                          ? new Date(c.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' })
-                          : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
@@ -412,6 +412,25 @@ export default function Cobros() {
         <div className="flex flex-col gap-4">
           <ClienteAutocomplete clientes={clientes} value={form.cliente_nombre} clienteId={form.cliente_id}
             onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))} />
+
+          {/* Tipo de cobro */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-navy-600">Tipo de cobro</label>
+            <div className="flex gap-2">
+              {TIPOS_COBRO.map(t => (
+                <button key={t.id} type="button"
+                  onClick={() => setForm(f => ({ ...f, concepto: t.id }))}
+                  className={`flex-1 py-2 px-3 text-sm rounded-lg border-2 font-medium transition-colors ${
+                    form.concepto === t.id
+                      ? 'border-accent bg-blue-50 text-accent'
+                      : 'border-[#e2e6ea] bg-white text-[#8a9ab0] hover:border-[#c0cad6]'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Líneas / productos */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -456,12 +475,8 @@ export default function Cobros() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Fecha de emisión" type="date" value={form.fecha_emision}
-              onChange={e => setForm(f => ({ ...f, fecha_emision: e.target.value }))} />
-            <Input label="Fecha de vencimiento" type="date" value={form.fecha_vencimiento}
-              onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))} />
-          </div>
+          <Input label="Fecha de emisión" type="date" value={form.fecha_emision}
+            onChange={e => setForm(f => ({ ...f, fecha_emision: e.target.value }))} />
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-navy-600">Notas</label>
             <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
