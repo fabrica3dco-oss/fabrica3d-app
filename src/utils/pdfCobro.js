@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import logoSvgRaw from '../assets/logo-f3d-blanco.svg?raw'
+import firmaPngUrl from '../assets/firma-dimas.png'
 
 // ── Pre-render SVG logo ────────────────────────────────────────────────────────
 const LOGO_W_MM = 65
@@ -24,7 +25,23 @@ async function svgToPng(svgRaw, canvasW, canvasH) {
   })
 }
 
-const _logoReady = svgToPng(logoSvgRaw, 520, 126)
+async function loadPng(url) {
+  return new Promise((resolve) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width  = img.naturalWidth
+      canvas.height = img.naturalHeight
+      canvas.getContext('2d').drawImage(img, 0, 0)
+      resolve(canvas.toDataURL('image/png'))
+    }
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
+
+const _logoReady  = svgToPng(logoSvgRaw, 520, 126)
+const _firmaReady = loadPng(firmaPngUrl)
 
 // ── Íconos footer ─────────────────────────────────────────────────────────────
 const _WA_SVG    = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M.057 24l1.687-6.163C.598 16.33.057 14.306.057 12.003.057 5.448 5.396.108 11.954.108c3.18 0 6.163 1.24 8.41 3.489a11.825 11.825 0 013.485 8.413c-.003 6.557-5.341 11.896-11.896 11.896a11.9 11.9 0 01-5.688-1.449L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.867-2.031-.967-.272-.099-.471-.148-.669.15-.198.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.447-.52.149-.174.198-.298.298-.497.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>`
@@ -125,8 +142,8 @@ async function buildDoc(cobro, cotData) {
     ? new Date(cobro.fecha_emision + 'T00:00:00').getFullYear()
     : new Date().getFullYear()
 
-  const [logoDataUrl, waIcon, emailIcon, igIcon, globeIcon] = await Promise.all([
-    _logoReady, _waReady, _emailReady, _igReady, _globeReady,
+  const [logoDataUrl, waIcon, emailIcon, igIcon, globeIcon, firmaDataUrl] = await Promise.all([
+    _logoReady, _waReady, _emailReady, _igReady, _globeReady, _firmaReady,
   ])
 
   // ── HEADER ───────────────────────────────────────────────────────────────────
@@ -295,6 +312,25 @@ async function buildDoc(cobro, cotData) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...WHITE)
   doc.text(cotData?.lineas?.length ? 'ESTA CUENTA DE COBRO' : 'TOTAL', totX + 2, y + 7)
   doc.text(copFull(cobro.monto), RE - 4, y + 7, { align: 'right' })
+
+  // ── FIRMA ────────────────────────────────────────────────────────────────
+  y += 18
+
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(...MID)
+  doc.text('Atentamente,', ML, y)
+  y += 4
+
+  // Imagen de firma (aspect ratio 3:2 → 45mm × 30mm)
+  if (firmaDataUrl) {
+    doc.addImage(firmaDataUrl, 'PNG', ML, y, 45, 30)
+  }
+  y += 32
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...DARK)
+  doc.text('Dimas Domenech', ML, y)
+  y += 5
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MID)
+  doc.text('C.C: 1001825424', ML, y)
 
   // ── FOOTER ────────────────────────────────────────────────────────────────
   const footY = 274
