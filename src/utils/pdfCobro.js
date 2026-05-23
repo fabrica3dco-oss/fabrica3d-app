@@ -232,13 +232,6 @@ async function buildDoc(cobro, cotData) {
   secLabel(doc, 'POR CONCEPTO DE', ML, y, RE)
   y += 5
 
-  if (cobro.concepto) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MID)
-    const concLines = doc.splitTextToSize(cobro.concepto, CW)
-    doc.text(concLines, ML, y)
-    y += concLines.length * 5 + 3
-  }
-
   // ── TABLA DE ÍTEMS ────────────────────────────────────────────────────────
   // Columnas: Descripción | Valor Unit. | Cant. | Total
   const C_UNIT = ML + 90
