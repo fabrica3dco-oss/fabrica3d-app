@@ -115,7 +115,8 @@ export default function Inventario() {
     crearCategoria, renombrarCategoria, eliminarCategoria,
   } = useInventario()
 
-  const [tabActivo,   setTabActivo]   = useState('todos')
+  const [tabActivo,      setTabActivo]      = useState('todos')
+  const [filtroStockBajo, setFiltroStockBajo] = useState(false)
   const [itemModal,   setItemModal]   = useState(null)
   const [editItem,    setEditItem]    = useState(null)
   const [confirmId,   setConfirmId]   = useState(null)
@@ -132,16 +133,19 @@ export default function Inventario() {
   const f = (campo, val) => setForm(prev => ({ ...prev, [campo]: val }))
 
   // ── Datos derivados ────────────────────────────────────────────────────────
-  const itemsFiltrados = tabActivo === 'todos'
-    ? items
-    : items.filter(i => i.categoria === tabActivo)
+  const itemsStockBajo = items.filter(i => Number(i.stock_actual) <= Number(i.stock_minimo))
+  const stockBajo      = itemsStockBajo.length
 
-  const stockBajo = items.filter(i => Number(i.stock_actual) <= Number(i.stock_minimo)).length
+  const itemsPorTab = tabActivo === 'todos' ? items : items.filter(i => i.categoria === tabActivo)
+  const itemsFiltrados = filtroStockBajo ? itemsStockBajo : itemsPorTab
 
   const countPorCat = items.reduce((acc, i) => {
     acc[i.categoria] = (acc[i.categoria] || 0) + 1
     return acc
   }, {})
+
+  function activarTotal() { setFiltroStockBajo(false); setTabActivo('todos') }
+  function activarStockBajo() { setFiltroStockBajo(true) }
 
   // ── Helpers item modal ────────────────────────────────────────────────────
   function abrirCrear() {
@@ -231,27 +235,35 @@ export default function Inventario() {
       </div>
 
       {/* Métricas */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="bg-white border border-[#e2e6ea] rounded-xl p-4 flex-1 min-w-[130px]">
-          <p className="text-xs font-medium text-[#8a9ab0] uppercase tracking-wide flex items-center gap-1">
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <button onClick={activarTotal}
+          className={`text-left border rounded-xl p-4 transition-all ${
+            !filtroStockBajo
+              ? 'bg-accent/5 border-accent ring-1 ring-accent/20'
+              : 'bg-white border-[#e2e6ea] hover:border-[#c0cad6]'
+          }`}>
+          <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 ${!filtroStockBajo ? 'text-accent' : 'text-[#8a9ab0]'}`}>
             <Package size={12} /> Total ítems
           </p>
-          <p className="text-xl font-bold text-navy-600 mt-1">{items.length}</p>
-        </div>
-        <div className={`border rounded-xl p-4 flex-1 min-w-[130px] ${stockBajo > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-[#e2e6ea]'}`}>
+          <p className={`text-2xl font-bold mt-1 ${!filtroStockBajo ? 'text-accent' : 'text-navy-600'}`}>{items.length}</p>
+        </button>
+
+        <button onClick={activarStockBajo}
+          className={`text-left border rounded-xl p-4 transition-all ${
+            filtroStockBajo
+              ? 'bg-red-50 border-red-400 ring-1 ring-red-200'
+              : stockBajo > 0
+                ? 'bg-red-50 border-red-200 hover:border-red-400'
+                : 'bg-white border-[#e2e6ea] hover:border-[#c0cad6]'
+          }`}>
           <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 ${stockBajo > 0 ? 'text-red-500' : 'text-[#8a9ab0]'}`}>
             <AlertTriangle size={12} /> Stock bajo
           </p>
-          <p className={`text-xl font-bold mt-1 ${stockBajo > 0 ? 'text-red-600' : 'text-navy-600'}`}>{stockBajo}</p>
-        </div>
-        {categorias.map(cat => (
-          <div key={cat.nombre} className="bg-white border border-[#e2e6ea] rounded-xl p-4 flex-1 min-w-[130px]">
-            <p className="text-xs font-medium text-[#8a9ab0] uppercase tracking-wide capitalize truncate">
-              {cat.nombre}
-            </p>
-            <p className="text-xl font-bold text-navy-600 mt-1">{countPorCat[cat.nombre] || 0}</p>
-          </div>
-        ))}
+          <p className={`text-2xl font-bold mt-1 ${stockBajo > 0 ? 'text-red-600' : 'text-navy-600'}`}>{stockBajo}</p>
+          {filtroStockBajo && stockBajo > 0 && (
+            <p className="text-xs text-red-400 mt-0.5">Mostrando ítems con stock bajo</p>
+          )}
+        </button>
       </div>
 
       {/* Tabs */}
