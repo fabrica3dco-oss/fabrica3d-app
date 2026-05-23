@@ -16,6 +16,8 @@ const DEFAULT_CONFIG = {
   anillo_20mm_precio:     400,
   anillo_cadena_precio:   500,
   resina_litro_precio:    80000,   // COP por litro (A+B combinado)
+  goma_barra_precio:      2000,    // COP por barra de goma magica
+  alcohol_litro_precio:   8000,    // COP por litro de alcohol
   tarifa_hora:            15000,   // COP por hora de trabajo (operario)
 }
 
@@ -27,6 +29,8 @@ const DEFAULT_RECETA = {
   anillo_tipo:     'ninguno',   // 'ninguno' | '12mm' | '20mm' | 'cadena'
   anillo_cantidad: 1,
   resina_ml:       0,
+  goma_barras:     0,
+  alcohol_ml:      0,
   tiempo_min:      0,
   margen:          40,          // % margen sobre costo
   comision:        25,          // % comision vendedor sobre utilidad bruta
@@ -115,10 +119,13 @@ export default function Calculadora() {
 
     const costoAnillo  = precioPorAnillo * (rec.anillo_tipo !== 'ninguno' ? rec.anillo_cantidad : 0)
     const costoResina  = (rec.resina_ml  / 1000) * config.resina_litro_precio
+    const costoGoma    = rec.goma_barras * config.goma_barra_precio
+    const costoAlcohol = (rec.alcohol_ml / 1000) * config.alcohol_litro_precio
     const costoTiempo  = (rec.tiempo_min  / 60)  * config.tarifa_hora
 
     const costoXUnidad =
-      costoFilamento + costoAnillo + costoResina + costoTiempo
+      costoFilamento + costoAnillo + costoResina +
+      costoGoma + costoAlcohol + costoTiempo
 
     const costoTotal   = costoXUnidad * rec.cantidad
 
@@ -135,7 +142,8 @@ export default function Calculadora() {
     const margenReal       = costoXUnidad > 0 ? Math.round((utilidadNeta / precioSugerido) * 100) : 0
 
     return {
-      costoFilamento, costoAnillo, costoResina, costoTiempo,
+      costoFilamento, costoAnillo, costoResina,
+      costoGoma, costoAlcohol, costoTiempo,
       costoXUnidad, costoTotal,
       precioSugerido, precioTotal,
       utilidadBruta, comisionXUnidad,
@@ -290,6 +298,44 @@ export default function Calculadora() {
                 </div>
               </div>
 
+              {/* Goma magica */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-navy-600">Gota magica</label>
+                  {rec.goma_barras > 0 && (
+                    <span className="text-xs text-accent font-semibold">{fmt(calc.costoGoma)}/ud</span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type="number" min={0} step={0.01} value={rec.goma_barras}
+                    onChange={e => updRec('goma_barras', Number(e.target.value))}
+                    placeholder="0"
+                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-16"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">barras</span>
+                </div>
+              </div>
+
+              {/* Alcohol */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-navy-600">Alcohol isopropilico</label>
+                  {rec.alcohol_ml > 0 && (
+                    <span className="text-xs text-accent font-semibold">{fmt(calc.costoAlcohol)}/ud</span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type="number" min={0} step={0.5} value={rec.alcohol_ml}
+                    onChange={e => updRec('alcohol_ml', Number(e.target.value))}
+                    placeholder="0"
+                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">ml</span>
+                </div>
+              </div>
+
               {/* Tiempo */}
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -340,6 +386,12 @@ export default function Calculadora() {
               )}
               {calc.costoResina > 0 && (
                 <FilaResultado label={`Resina (${rec.resina_ml}ml)`} valor={fmt(calc.costoResina)} muted />
+              )}
+              {calc.costoGoma > 0 && (
+                <FilaResultado label={`Gota magica (${rec.goma_barras} barras)`} valor={fmt(calc.costoGoma)} muted />
+              )}
+              {calc.costoAlcohol > 0 && (
+                <FilaResultado label={`Alcohol (${rec.alcohol_ml}ml)`} valor={fmt(calc.costoAlcohol)} muted />
               )}
               {calc.costoTiempo > 0 && (
                 <FilaResultado label={`Tiempo (${rec.tiempo_min}min)`} valor={fmt(calc.costoTiempo)} muted />
@@ -481,6 +533,24 @@ export default function Calculadora() {
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
                   <input type="number" min={0} value={config.resina_litro_precio}
                     onChange={e => updCfg('resina_litro_precio', Number(e.target.value))}
+                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-navy-600 mb-1">Gota magica · barra</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                  <input type="number" min={0} value={config.goma_barra_precio}
+                    onChange={e => updCfg('goma_barra_precio', Number(e.target.value))}
+                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-navy-600 mb-1">Alcohol isopropilico · litro</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                  <input type="number" min={0} value={config.alcohol_litro_precio}
+                    onChange={e => updCfg('alcohol_litro_precio', Number(e.target.value))}
                     className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
                 </div>
               </div>
