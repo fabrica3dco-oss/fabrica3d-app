@@ -23,24 +23,22 @@ const DEFAULT_CONFIG = {
 
 // ── Receta por defecto (lo que usa 1 pieza) ───────────────────────────────────
 const DEFAULT_RECETA = {
-  nombre:          '',
-  cantidad:        1,
-  filamento_g:     0,
-  anillo_tipo:     'ninguno',   // 'ninguno' | '12mm' | '20mm' | 'cadena'
-  anillo_cantidad: 1,
-  resina_ml:       0,
-  goma_barras:     0,
-  alcohol_ml:      0,
-  tiempo_min:      0,
-  margen:          40,          // % margen sobre costo
-  comision:        25,          // % comision vendedor sobre utilidad bruta
+  nombre:      '',
+  cantidad:    1,
+  filamento_g: 0,
+  anillos:     [],   // [{ tipo: '12mm'|'20mm'|'cadena', cantidad: 1 }]
+  resina_ml:   0,
+  goma_barras: 0,
+  alcohol_ml:  0,
+  tiempo_min:  0,
+  margen:      40,
+  comision:    25,
 }
 
 const ANILLO_OPCIONES = [
-  { id: 'ninguno', label: 'Sin anillo' },
-  { id: '12mm',    label: 'Anillo 12 mm' },
-  { id: '20mm',    label: 'Anillo 20 mm' },
-  { id: 'cadena',  label: 'Anillo con cadenita' },
+  { id: '12mm',   label: 'Anillo 12 mm' },
+  { id: '20mm',   label: 'Anillo 20 mm' },
+  { id: 'cadena', label: 'Anillo con cadenita' },
 ]
 
 // ── Campo de entrada reutilizable ─────────────────────────────────────────────
@@ -105,6 +103,13 @@ export default function Calculadora() {
   const updRec = (key, val) => setRec(r => ({ ...r, [key]: val }))
   const updCfg = (key, val) => setConfig(c => ({ ...c, [key]: val }))
 
+  // Anillos dinamicos
+  const addAnillo    = () => setRec(r => ({ ...r, anillos: [...r.anillos, { tipo: '12mm', cantidad: 1 }] }))
+  const removeAnillo = i  => setRec(r => ({ ...r, anillos: r.anillos.filter((_, j) => j !== i) }))
+  const updAnillo    = (i, key, val) => setRec(r => ({
+    ...r, anillos: r.anillos.map((a, j) => j === i ? { ...a, [key]: val } : a)
+  }))
+
   // ── Calculos ────────────────────────────────────────────────────────────────
   const calc = useMemo(() => {
     const costoFilamento =
@@ -112,19 +117,19 @@ export default function Calculadora() {
         ? (rec.filamento_g / config.filamento_rollo_gramos) * config.filamento_rollo_precio
         : 0
 
-    const precioPorAnillo =
-      rec.anillo_tipo === '12mm'   ? config.anillo_12mm_precio  :
-      rec.anillo_tipo === '20mm'   ? config.anillo_20mm_precio  :
-      rec.anillo_tipo === 'cadena' ? config.anillo_cadena_precio : 0
+    const precioAnillo = tipo =>
+      tipo === '12mm'   ? config.anillo_12mm_precio  :
+      tipo === '20mm'   ? config.anillo_20mm_precio  :
+      tipo === 'cadena' ? config.anillo_cadena_precio : 0
 
-    const costoAnillo  = precioPorAnillo * (rec.anillo_tipo !== 'ninguno' ? rec.anillo_cantidad : 0)
+    const costoAnillos = rec.anillos.reduce((s, a) => s + precioAnillo(a.tipo) * a.cantidad, 0)
     const costoResina  = (rec.resina_ml  / 1000) * config.resina_litro_precio
     const costoGoma    = rec.goma_barras * config.goma_barra_precio
     const costoAlcohol = (rec.alcohol_ml / 1000) * config.alcohol_litro_precio
     const costoTiempo  = (rec.tiempo_min  / 60)  * config.tarifa_hora
 
     const costoXUnidad =
-      costoFilamento + costoAnillo + costoResina +
+      costoFilamento + costoAnillos + costoResina +
       costoGoma + costoAlcohol + costoTiempo
 
     const costoTotal   = costoXUnidad * rec.cantidad
@@ -142,13 +147,13 @@ export default function Calculadora() {
     const margenReal       = costoXUnidad > 0 ? Math.round((utilidadNeta / precioSugerido) * 100) : 0
 
     return {
-      costoFilamento, costoAnillo, costoResina,
+      costoFilamento, costoAnillos, costoResina,
       costoGoma, costoAlcohol, costoTiempo,
       costoXUnidad, costoTotal,
       precioSugerido, precioTotal,
       utilidadBruta, comisionXUnidad,
       utilidadNeta, utilidadNetaTotal, margenReal,
-      precioPorAnillo,
+      precioAnillo,
     }
   }, [rec, config])
 
@@ -243,40 +248,55 @@ export default function Calculadora() {
                 )}
               </div>
 
-              {/* Anillo */}
+              {/* Anillos — lista dinámica */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-navy-600">Anillo / accesorio</label>
-                  {rec.anillo_tipo !== 'ninguno' && (
-                    <span className="text-xs text-accent font-semibold">{fmt(calc.costoAnillo)}/ud</span>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium text-navy-600">Anillos / accesorios</label>
+                  {calc.costoAnillos > 0 && (
+                    <span className="text-xs text-accent font-semibold">{fmt(calc.costoAnillos)}/ud</span>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={rec.anillo_tipo}
-                    onChange={e => updRec('anillo_tipo', e.target.value)}
-                    className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  >
-                    {ANILLO_OPCIONES.map(o => (
-                      <option key={o.id} value={o.id}>{o.label}</option>
-                    ))}
-                  </select>
-                  {rec.anillo_tipo !== 'ninguno' && (
-                    <div className="relative">
-                      <input
-                        type="number" min={1} value={rec.anillo_cantidad}
-                        onChange={e => updRec('anillo_cantidad', Math.max(1, Number(e.target.value)))}
-                        className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-8"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">uds</span>
-                    </div>
-                  )}
-                </div>
-                {rec.anillo_tipo !== 'ninguno' && (
-                  <p className="text-[11px] text-[#8a9ab0] mt-1">
-                    {rec.anillo_cantidad} × {fmt(calc.precioPorAnillo)} c/u
-                  </p>
+
+                {rec.anillos.length === 0 && (
+                  <p className="text-xs text-[#8a9ab0] mb-2">Sin anillos agregados</p>
                 )}
+
+                <div className="flex flex-col gap-2">
+                  {rec.anillos.map((a, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <select
+                        value={a.tipo}
+                        onChange={e => updAnillo(i, 'tipo', e.target.value)}
+                        className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      >
+                        {ANILLO_OPCIONES.map(o => (
+                          <option key={o.id} value={o.id}>{o.label} · {fmt(calc.precioAnillo(o.id))}</option>
+                        ))}
+                      </select>
+                      <div className="relative w-20 shrink-0">
+                        <input
+                          type="number" min={1} value={a.cantidad}
+                          onChange={e => updAnillo(i, 'cantidad', Math.max(1, Number(e.target.value)))}
+                          className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">ud</span>
+                      </div>
+                      <button
+                        onClick={() => removeAnillo(i)}
+                        className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={addAnillo}
+                  className="mt-2 text-xs text-accent hover:text-accent/80 font-medium transition-colors flex items-center gap-1"
+                >
+                  + Agregar anillo
+                </button>
               </div>
 
               {/* Resina */}
@@ -378,12 +398,13 @@ export default function Calculadora() {
               {calc.costoFilamento > 0 && (
                 <FilaResultado label={`Filamento (${rec.filamento_g}g)`} valor={fmt(calc.costoFilamento)} muted />
               )}
-              {calc.costoAnillo > 0 && (
+              {rec.anillos.map((a, i) => (
                 <FilaResultado
-                  label={`${ANILLO_OPCIONES.find(o => o.id === rec.anillo_tipo)?.label} ×${rec.anillo_cantidad}`}
-                  valor={fmt(calc.costoAnillo)} muted
+                  key={i}
+                  label={`${ANILLO_OPCIONES.find(o => o.id === a.tipo)?.label} ×${a.cantidad}`}
+                  valor={fmt(calc.precioAnillo(a.tipo) * a.cantidad)} muted
                 />
-              )}
+              ))}
               {calc.costoResina > 0 && (
                 <FilaResultado label={`Resina (${rec.resina_ml}ml)`} valor={fmt(calc.costoResina)} muted />
               )}
@@ -415,28 +436,28 @@ export default function Calculadora() {
 
           {/* Resultados para N unidades */}
           <Card className={`${cero ? 'opacity-60' : ''} bg-navy-600 border-navy-600`}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/60 mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-200 mb-3">
               Para {rec.cantidad} unidad{rec.cantidad !== 1 ? 'es' : ''}
             </p>
 
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-white/70">Costo total materiales</span>
-                <span className="text-base font-bold text-white/80">{fmt(calc.costoTotal)}</span>
+                <span className="text-sm text-blue-100">Costo total materiales</span>
+                <span className="text-base font-bold text-white">{fmt(calc.costoTotal)}</span>
               </div>
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-white/70">Total a cobrar al cliente</span>
+                <span className="text-sm text-blue-100">Total a cobrar al cliente</span>
                 <span className="text-2xl font-bold text-white">{fmt(calc.precioTotal)}</span>
               </div>
               {rec.comision > 0 && (
                 <div className="flex justify-between items-baseline">
-                  <span className="text-sm text-white/60">Comision total Andres</span>
+                  <span className="text-sm text-blue-100">Comision total Andres</span>
                   <span className="text-base font-bold text-amber-300">- {fmt(calc.comisionXUnidad * rec.cantidad)}</span>
                 </div>
               )}
-              <div className="h-px bg-white/20 my-1" />
+              <div className="h-px bg-white/30 my-1" />
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-white/70">Tu utilidad neta total</span>
+                <span className="text-sm text-blue-100">Tu utilidad neta total</span>
                 <span className="text-xl font-bold text-green-400">{fmt(calc.utilidadNetaTotal)}</span>
               </div>
             </div>
