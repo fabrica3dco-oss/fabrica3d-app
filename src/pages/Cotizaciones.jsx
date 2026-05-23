@@ -102,6 +102,8 @@ export default function Cotizaciones() {
   const [modalidadCobro,  setModalidadCobro]  = useState('split') // 'split' | 'full'
   const [generandoCobros, setGenerandoCobros] = useState(false)
   const [cotConCobros,    setCotConCobros]    = useState(new Set()) // Set de números de COT que ya tienen cobros
+  const [warnCobrosModal, setWarnCobrosModal] = useState(false)   // advertencia al editar COT con cobros
+  const [pendingGuardar,  setPendingGuardar]  = useState(null)    // { datos, cotNum } en espera de confirmación
 
   useEffect(() => {
     supabase.from('clientes').select('*').order('empresa').then(({ data }) => setClientes(data || []))
@@ -152,7 +154,6 @@ export default function Cotizaciones() {
 
   async function guardar() {
     if (!form.cliente_nombre.trim() || form.lineas.length === 0) return
-    setSaving(true)
     const datos = {
       cliente_id:     form.cliente_id || null,
       cliente_nombre: form.cliente_nombre,
@@ -164,11 +165,37 @@ export default function Cotizaciones() {
       tiempo_entrega: form.tiempo_entrega || null,
       notas:          form.notas || null,
     }
+    // Si es edición y ya tiene cobros generados → advertir antes de guardar
+    if (modal.mode === 'editar') {
+      const cot = cotizaciones.find(c => c.id === modal.id)
+      if (cot && cotConCobros.has(cot.numero)) {
+        setPendingGuardar({ datos, cotNum: cot.numero })
+        setWarnCobrosModal(true)
+        return
+      }
+    }
+    setSaving(true)
     let ok
     if (modal.mode === 'crear') ok = await crearCotizacion(datos)
     else ok = await actualizarCotizacion(modal.id, datos)
     setSaving(false)
     if (ok) setModal(null)
+  }
+
+  async function confirmarGuardarConBorrado() {
+    if (!pendingGuardar) return
+    const { datos, cotNum } = pendingGuardar
+    setSaving(true)
+    const refStr = `Ref: COT-${String(cotNum).padStart(3, '0')}`
+    await supabase.from('cobros').delete().ilike('notas', `%${refStr}%`)
+    const ok = await actualizarCotizacion(modal.id, datos)
+    setSaving(false)
+    setWarnCobrosModal(false)
+    setPendingGuardar(null)
+    if (ok) {
+      setCotConCobros(prev => { const s = new Set(prev); s.delete(cotNum); return s })
+      setModal(null)
+    }
   }
 
   async function descargarPdf(c) {
@@ -578,6 +605,26 @@ export default function Cotizaciones() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* ── Advertencia: editar COT con cobros existentes ─────────────────── */}
+      <Modal open={warnCobrosModal} onClose={() => { setWarnCobrosModal(false); setPendingGuardar(null) }} title="¿Guardar cambios?" size="sm">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-navy-600">
+            Esta cotización ya tiene <strong>cuentas de cobro generadas</strong>. Si guardas los cambios, esas cuentas de cobro serán eliminadas automáticamente.
+          </p>
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            ⚠️ Podrás volver a generar las cuentas de cobro una vez guardada la cotización editada.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <Button variant="secondary" onClick={() => { setWarnCobrosModal(false); setPendingGuardar(null) }}>
+              Cancelar
+            </Button>
+            <Button variant="danger" disabled={saving} onClick={confirmarGuardarConBorrado}>
+              {saving ? 'Guardando...' : 'Sí, guardar y eliminar cobros'}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Confirmar eliminar */}
