@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { ChevronDown, ChevronUp, Settings, RotateCcw, FileText, Plus, Trash2, Save, Check } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { ChevronDown, ChevronUp, Settings, RotateCcw, FileText, Plus, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Card from '../components/ui/Card'
 
@@ -8,6 +8,9 @@ const fmt = n =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
 
 const uid = () => Math.random().toString(36).slice(2, 8)
+
+// Convierte el valor de un <input type="number"> a número, permitiendo borrar
+const toNum = v => (v === '' || v === undefined ? 0 : Number(v))
 
 // ── Config por defecto ────────────────────────────────────────────────────────
 const DEFAULT_CONFIG = {
@@ -67,25 +70,15 @@ export default function Calculadora() {
 
   const [rec, setRec]               = useState(DEFAULT_RECETA)
   const [showConfig, setShowConfig] = useState(false)
-  const [saved, setSaved]           = useState(true)  // true = sin cambios pendientes
 
-  // Detectar cambios en config
-  const hasChanges = !saved
-
-  function guardarConfig() {
+  // Auto-save config
+  useEffect(() => {
     localStorage.setItem('f3d_calc_config_v2', JSON.stringify(config))
-    setSaved(true)
-  }
-
-  // Marcar como no guardado al editar config
-  const updCfgTracked = (fn) => {
-    setConfig(fn)
-    setSaved(false)
-  }
+  }, [config])
 
   // ── Helpers de edicion ────────────────────────────────────────────────────
   const updRec = (key, val) => setRec(r => ({ ...r, [key]: val }))
-  const updCfg = (key, val) => updCfgTracked(c => ({ ...c, [key]: val }))
+  const updCfg = (key, val) => setConfig(c => ({ ...c, [key]: val }))
 
   // Accesorios en receta
   const addAccRec    = () => {
@@ -108,20 +101,20 @@ export default function Calculadora() {
   }))
 
   // Accesorios en config
-  const addAccCfg    = () => updCfgTracked(c => ({
+  const addAccCfg    = () => setConfig(c => ({
     ...c, accesorios: [...c.accesorios, { id: uid(), nombre: 'Nuevo accesorio', precio: 0, unidad: 'ud' }]
   }))
-  const removeAccCfg = id => updCfgTracked(c => ({ ...c, accesorios: c.accesorios.filter(a => a.id !== id) }))
-  const updAccCfg    = (id, key, val) => updCfgTracked(c => ({
+  const removeAccCfg = id => setConfig(c => ({ ...c, accesorios: c.accesorios.filter(a => a.id !== id) }))
+  const updAccCfg    = (id, key, val) => setConfig(c => ({
     ...c, accesorios: c.accesorios.map(a => a.id === id ? { ...a, [key]: val } : a)
   }))
 
   // Acabados en config
-  const addAcbCfg    = () => updCfgTracked(c => ({
+  const addAcbCfg    = () => setConfig(c => ({
     ...c, acabados: [...c.acabados, { id: uid(), nombre: 'Nuevo acabado', precio: 0, unidad: 'ud' }]
   }))
-  const removeAcbCfg = id => updCfgTracked(c => ({ ...c, acabados: c.acabados.filter(a => a.id !== id) }))
-  const updAcbCfg    = (id, key, val) => updCfgTracked(c => ({
+  const removeAcbCfg = id => setConfig(c => ({ ...c, acabados: c.acabados.filter(a => a.id !== id) }))
+  const updAcbCfg    = (id, key, val) => setConfig(c => ({
     ...c, acabados: c.acabados.map(a => a.id === id ? { ...a, [key]: val } : a)
   }))
 
@@ -146,14 +139,13 @@ export default function Calculadora() {
     const costoTotal     = costoXUnidad * (rec.cantidad || 1)
     const precioSugerido = costoXUnidad * (1 + rec.margen / 100)
     const precioTotal    = precioSugerido * (rec.cantidad || 1)
-    const utilidad       = precioSugerido - costoXUnidad   // ganancia por unidad
-    const utilidadTotal  = utilidad * (rec.cantidad || 1)  // ganancia total
+    const utilidad       = precioSugerido - costoXUnidad
+    const utilidadTotal  = utilidad * (rec.cantidad || 1)
 
-    // Reparto: parte mayoritaria y parte minoritaria (configurable)
-    const pctMenor  = rec.comision                         // ej. 25
-    const pctMayor  = 100 - rec.comision                   // ej. 75
-    const parteB    = utilidad * (pctMenor / 100)          // por unidad
-    const parteA    = utilidad * (pctMayor / 100)
+    const pctMenor    = rec.comision
+    const pctMayor    = 100 - rec.comision
+    const parteA      = utilidad * (pctMayor / 100)
+    const parteB      = utilidad * (pctMenor / 100)
     const parteATotal = parteA * (rec.cantidad || 1)
     const parteBTotal = parteB * (rec.cantidad || 1)
 
@@ -213,9 +205,9 @@ export default function Calculadora() {
                   <div className="relative">
                     <input
                       type="number" min={0}
-                      value={rec.cantidad === 0 ? '' : rec.cantidad}
-                      onChange={e => updRec('cantidad', e.target.value === '' ? 0 : Number(e.target.value))}
-                      placeholder="1"
+                      value={rec.cantidad || ''}
+                      onChange={e => updRec('cantidad', toNum(e.target.value))}
+                      placeholder="0"
                       className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">uds</span>
@@ -227,8 +219,10 @@ export default function Calculadora() {
                   </label>
                   <div className="relative">
                     <input
-                      type="number" min={0} max={500} value={rec.margen}
-                      onChange={e => updRec('margen', Number(e.target.value))}
+                      type="number" min={0} max={500}
+                      value={rec.margen || ''}
+                      onChange={e => updRec('margen', toNum(e.target.value))}
+                      placeholder="0"
                       className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-8"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">%</span>
@@ -256,8 +250,9 @@ export default function Calculadora() {
                 </div>
                 <div className="relative">
                   <input
-                    type="number" min={0} step={0.5} value={rec.filamento_g}
-                    onChange={e => updRec('filamento_g', Number(e.target.value))}
+                    type="number" min={0} step={0.5}
+                    value={rec.filamento_g || ''}
+                    onChange={e => updRec('filamento_g', toNum(e.target.value))}
                     placeholder="0"
                     className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-8"
                   />
@@ -280,8 +275,9 @@ export default function Calculadora() {
                 </div>
                 <div className="relative">
                   <input
-                    type="number" min={0} step={5} value={rec.tiempo_min}
-                    onChange={e => updRec('tiempo_min', Number(e.target.value))}
+                    type="number" min={0} step={5}
+                    value={rec.tiempo_min || ''}
+                    onChange={e => updRec('tiempo_min', toNum(e.target.value))}
                     placeholder="0"
                     className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
                   />
@@ -335,8 +331,10 @@ export default function Calculadora() {
                       </select>
                       <div className="relative w-20 shrink-0">
                         <input
-                          type="number" min={1} value={a.cantidad}
-                          onChange={e => updAccRec(i, 'cantidad', Math.max(1, Number(e.target.value)))}
+                          type="number" min={0}
+                          value={a.cantidad || ''}
+                          onChange={e => updAccRec(i, 'cantidad', toNum(e.target.value))}
+                          placeholder="0"
                           className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">ud</span>
@@ -398,8 +396,10 @@ export default function Calculadora() {
                         </select>
                         <div className="relative w-24 shrink-0">
                           <input
-                            type="number" min={0} step={0.5} value={a.cantidad}
-                            onChange={e => updAcbRec(i, 'cantidad', Number(e.target.value))}
+                            type="number" min={0} step={0.5}
+                            value={a.cantidad || ''}
+                            onChange={e => updAcbRec(i, 'cantidad', toNum(e.target.value))}
+                            placeholder="0"
                             className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">
@@ -494,7 +494,7 @@ export default function Calculadora() {
                 <span className="text-xl font-bold text-white">{fmt(calc.utilidadTotal)}</span>
               </div>
               {rec.comision > 0 && (
-                <div className="mt-2 rounded-lg px-3 py-2" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                <div className="mt-1 rounded-lg px-3 py-2" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
                   <div className="flex justify-between items-baseline mb-1">
                     <span className="text-sm" style={{ color: '#bfdbfe' }}>{calc.pctMayor}%</span>
                     <span className="text-base font-bold" style={{ color: '#4ade80' }}>{fmt(calc.parteATotal)}</span>
@@ -519,7 +519,6 @@ export default function Calculadora() {
             )}
           </div>
 
-
         </div>
       </div>
 
@@ -538,18 +537,7 @@ export default function Calculadora() {
           <Card className="mt-3">
             <div className="flex items-center justify-between mb-5">
               <p className="text-xs text-[#8a9ab0]">Actualiza cuando cambien los precios de tu proveedor.</p>
-              {hasChanges ? (
-                <button
-                  onClick={guardarConfig}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-white bg-accent hover:bg-accent/90 transition-colors rounded-lg px-3 py-1.5"
-                >
-                  <Save size={12} /> Guardar cambios
-                </button>
-              ) : (
-                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                  <Check size={12} /> Guardado
-                </span>
-              )}
+              <span className="text-xs text-green-600 font-medium">✓ Guardado automaticamente</span>
             </div>
 
             {/* Materiales base */}
@@ -563,9 +551,13 @@ export default function Calculadora() {
                   <label className="block text-xs font-medium text-navy-600 mb-1">{label}</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                    <input type="number" min={0} value={config[key]}
-                      onChange={e => updCfg(key, Number(e.target.value))}
-                      className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
+                    <input
+                      type="number" min={0}
+                      value={config[key] || ''}
+                      onChange={e => updCfg(key, toNum(e.target.value))}
+                      placeholder="0"
+                      className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    />
                   </div>
                 </div>
               ))}
@@ -596,8 +588,10 @@ export default function Calculadora() {
                   <div className="relative w-28 shrink-0">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
                     <input
-                      type="number" min={0} value={a.precio}
-                      onChange={e => updAccCfg(a.id, 'precio', Number(e.target.value))}
+                      type="number" min={0}
+                      value={a.precio || ''}
+                      onChange={e => updAccCfg(a.id, 'precio', toNum(e.target.value))}
+                      placeholder="0"
                       className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                     />
                   </div>
@@ -642,8 +636,10 @@ export default function Calculadora() {
                   <div className="relative w-28 shrink-0">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
                     <input
-                      type="number" min={0} value={a.precio}
-                      onChange={e => updAcbCfg(a.id, 'precio', Number(e.target.value))}
+                      type="number" min={0}
+                      value={a.precio || ''}
+                      onChange={e => updAcbCfg(a.id, 'precio', toNum(e.target.value))}
+                      placeholder="0"
                       className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                     />
                   </div>
