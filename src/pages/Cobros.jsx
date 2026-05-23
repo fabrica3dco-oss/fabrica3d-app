@@ -100,8 +100,9 @@ function Skeleton() {
 export default function Cobros() {
   const { cobros, loading, crearCobro, actualizarCobro, marcarPagado, eliminarCobro } = useCobros()
   const [clientes,     setClientes]    = useState([])
-  const [busqueda,     setBusqueda]    = useState('')
+  const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
+  const [filtroTipo,   setFiltroTipo]   = useState('')
   const [modal,        setModal]       = useState(null)
   const [confirmId,    setConfirmId]   = useState(null)
   const [pagoModal,    setPagoModal]   = useState(null)
@@ -124,10 +125,18 @@ export default function Cobros() {
   )
 
   const filtrados = cobrosConEstado.filter(c => {
-    const match = c.cliente_nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-                  c.concepto?.toLowerCase().includes(busqueda.toLowerCase()) ||
-                  String(c.numero).includes(busqueda)
-    return match && (!filtroEstado || c.estado === filtroEstado)
+    const q = busqueda.trim().toLowerCase()
+    const cotMatch = c.notas?.match(/Ref:\s*COT-(\d+)/i)
+    const cotNum   = cotMatch ? String(parseInt(cotMatch[1], 10)).padStart(3, '0') : ''
+    const matchQ   = !q ||
+      String(c.numero).includes(q) ||
+      c.cliente_nombre?.toLowerCase().includes(q) ||
+      c.concepto?.toLowerCase().includes(q) ||
+      cotNum.includes(q) ||
+      String(Math.round(Number(c.monto))).includes(q)
+    return matchQ &&
+      (!filtroEstado || c.estado === filtroEstado) &&
+      (!filtroTipo   || c.concepto === filtroTipo)
   })
 
   const totalPendiente = cobrosConEstado
@@ -299,12 +308,17 @@ export default function Cobros() {
 
       {/* Filtros */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative flex-1 min-w-[220px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9ab0]" />
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por cliente o concepto..."
+            placeholder="Buscar por #, cliente, COT, monto..."
             className="w-full pl-8 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg bg-white text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
         </div>
+        <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
+          className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent">
+          <option value="">Todos los tipos</option>
+          {TIPOS_COBRO.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
         <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}
           className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent">
           <option value="">Todos los estados</option>
