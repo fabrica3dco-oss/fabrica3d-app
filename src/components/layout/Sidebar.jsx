@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Users, TrendingUp, Package,
   FileText, CreditCard, Archive, BarChart2,
-  Share2, UsersRound, ClipboardList
+  Share2, UsersRound, ClipboardList, Calculator
 } from 'lucide-react'
 
 const groups = [
@@ -26,8 +26,9 @@ const groups = [
   {
     label: 'Negocio',
     items: [
-      { to: '/inventario', icon: Archive, label: 'Inventario' },
-      { to: '/finanzas', icon: BarChart2, label: 'Finanzas' },
+      { to: '/inventario',   icon: Archive,     label: 'Inventario' },
+      { to: '/finanzas',     icon: BarChart2,   label: 'Finanzas' },
+      { to: '/calculadora',  icon: Calculator,  label: 'Calculadora' },
     ],
   },
   {
