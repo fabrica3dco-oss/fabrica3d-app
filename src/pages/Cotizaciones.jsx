@@ -101,9 +101,19 @@ export default function Cotizaciones() {
   const [cobrosModal,     setCobrosModal]     = useState(null)
   const [modalidadCobro,  setModalidadCobro]  = useState('split') // 'split' | 'full'
   const [generandoCobros, setGenerandoCobros] = useState(false)
+  const [cotConCobros,    setCotConCobros]    = useState(new Set()) // Set de números de COT que ya tienen cobros
 
   useEffect(() => {
     supabase.from('clientes').select('*').order('empresa').then(({ data }) => setClientes(data || []))
+    // Qué cotizaciones ya tienen cobros generados
+    supabase.from('cobros').select('notas').ilike('notas', '%Ref: COT-%').then(({ data }) => {
+      const nums = new Set()
+      data?.forEach(r => {
+        const m = r.notas?.match(/Ref:\s*COT-(\d+)/i)
+        if (m) nums.add(parseInt(m[1], 10))
+      })
+      setCotConCobros(nums)
+    })
   }, [])
 
   const filtradas = cotizaciones.filter(c => {
@@ -235,12 +245,15 @@ export default function Cotizaciones() {
     setCobrosModal(null)
 
     if (error) toast.error('No se pudieron generar las cuentas de cobro.')
-    else toast.success(
-      modalidadCobro === 'split'
-        ? `¡Listo! Anticipo y saldo generados para COT-${num}.`
-        : `¡Listo! Cuenta de cobro por el total generada para COT-${num}.`,
-      { duration: 4000 }
-    )
+    else {
+      setCotConCobros(prev => new Set([...prev, c.numero]))
+      toast.success(
+        modalidadCobro === 'split'
+          ? `¡Listo! Anticipo y saldo generados para COT-${num}.`
+          : `¡Listo! Cuenta de cobro por el total generada para COT-${num}.`,
+        { duration: 4000 }
+      )
+    }
   }
 
   return (
@@ -318,11 +331,16 @@ export default function Cotizaciones() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
                           {c.estado === 'aprobada' && (
-                            <button onClick={() => { setCobrosModal(c); setModalidadCobro('split') }}
-                              title="Generar cuentas de cobro"
-                              className="p-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm">
-                              <Receipt size={15} />
-                            </button>
+                            cotConCobros.has(c.numero)
+                              ? <button disabled title="Ya se generaron cuentas de cobro para esta cotización"
+                                  className="p-1.5 rounded-lg bg-purple-100 text-purple-300 cursor-not-allowed">
+                                  <Receipt size={15} />
+                                </button>
+                              : <button onClick={() => { setCobrosModal(c); setModalidadCobro('split') }}
+                                  title="Generar cuentas de cobro"
+                                  className="p-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm">
+                                  <Receipt size={15} />
+                                </button>
                           )}
                           <button onClick={() => compartirWhatsApp(c)} title="Compartir por WhatsApp"
                             className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600 transition-colors">
@@ -374,8 +392,11 @@ export default function Cotizaciones() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {c.estado === 'aprobada' && (
-                      <button onClick={() => { setCobrosModal(c); setModalidadCobro('split') }} title="Generar cuentas de cobro"
-                        className="p-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 shadow-sm"><Receipt size={15} /></button>
+                      cotConCobros.has(c.numero)
+                        ? <button disabled title="Ya se generaron cuentas de cobro para esta cotización"
+                            className="p-1.5 rounded-lg bg-purple-100 text-purple-300 cursor-not-allowed"><Receipt size={15} /></button>
+                        : <button onClick={() => { setCobrosModal(c); setModalidadCobro('split') }} title="Generar cuentas de cobro"
+                            className="p-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 shadow-sm"><Receipt size={15} /></button>
                     )}
                     <button onClick={() => compartirWhatsApp(c)} title="WhatsApp" className="p-1.5 rounded-lg hover:bg-green-50 text-[#8a9ab0] hover:text-green-600"><Share2 size={14} /></button>
                     <button onClick={() => verPdf(c)} title="Vista previa" className="p-1.5 rounded-lg hover:bg-blue-50 text-[#8a9ab0] hover:text-accent"><Eye size={14} /></button>
