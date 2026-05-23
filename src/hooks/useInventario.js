@@ -65,12 +65,12 @@ export function useInventario() {
   }
 
   // ── Categorías CRUD ────────────────────────────────────────────────────────
-  async function crearCategoria({ nombre, emoji }) {
+  async function crearCategoria(nombre) {
     const trimmed = nombre.trim().toLowerCase().replace(/\s+/g, '_')
     if (!trimmed) return false
     const { error } = await supabase
       .from('categorias_inventario')
-      .insert([{ nombre: trimmed, emoji: emoji || '📦', orden: categorias.length + 1 }])
+      .insert([{ nombre: trimmed, emoji: '', orden: categorias.length + 1 }])
     if (error) {
       if (error.code === '23505') toast.error('Ya existe una categoría con ese nombre')
       else toast.error('Error al crear categoría')
@@ -81,28 +81,20 @@ export function useInventario() {
     return true
   }
 
-  async function renombrarCategoria(nombreActual, { nombre, emoji }) {
-    const nuevoNombre = nombre.trim().toLowerCase().replace(/\s+/g, '_')
-    if (!nuevoNombre || nuevoNombre === nombreActual) {
-      // Solo actualiza emoji si el nombre no cambió
-      if (emoji) {
-        await supabase.from('categorias_inventario').update({ emoji }).eq('nombre', nombreActual)
-        fetchCategorias()
-      }
-      return true
-    }
-    // Actualiza en ambas tablas (transacción manual)
+  async function renombrarCategoria(nombreActual, nuevoNombre) {
+    const trimmed = nuevoNombre.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!trimmed || trimmed === nombreActual) return true
     const { error: e1 } = await supabase
       .from('inventario')
-      .update({ categoria: nuevoNombre })
+      .update({ categoria: trimmed })
       .eq('categoria', nombreActual)
     if (e1) { toast.error('Error actualizando ítems'); return false }
     const { error: e2 } = await supabase
       .from('categorias_inventario')
-      .update({ nombre: nuevoNombre, emoji: emoji || '📦' })
+      .update({ nombre: trimmed })
       .eq('nombre', nombreActual)
     if (e2) { toast.error('Error renombrando categoría'); return false }
-    toast.success('Categoría actualizada')
+    toast.success('Categoría renombrada')
     fetchCategorias()
     fetchItems()
     return true
