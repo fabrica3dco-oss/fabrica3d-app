@@ -35,7 +35,7 @@ const DEFAULT_RECETA = {
   tiempo_min:  0,
   accesorios:  [],  // [{ id, cantidad }]
   acabados:    [],  // [{ id, cantidad }]
-  margen:      50,
+  margen:      150,
   comision:    25,
 }
 
@@ -267,7 +267,7 @@ export default function Calculadora() {
               {/* Tiempo */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-navy-600">Tiempo de produccion</label>
+                  <label className="text-xs font-medium text-navy-600">Tiempo de impresion</label>
                   {rec.tiempo_min > 0 && (
                     <span className="text-xs text-accent font-semibold">{fmt(calc.costoTiempo)}/ud</span>
                   )}
@@ -536,7 +536,7 @@ export default function Calculadora() {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               {[
                 ['filamento_rollo_precio', 'Rollo filamento 1 kg'],
-                ['tarifa_hora',            'Mano de obra · hora'],
+                ['tarifa_hora',            'Costo maquina · hora'],
               ].map(([key, label]) => (
                 <div key={key}>
                   <label className="block text-xs font-medium text-navy-600 mb-1">{label}</label>
