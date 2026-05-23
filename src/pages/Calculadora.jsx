@@ -1,65 +1,39 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Calculator, ChevronDown, ChevronUp, Settings, RotateCcw, FileText } from 'lucide-react'
+import { ChevronDown, ChevronUp, Settings, RotateCcw, FileText, Plus, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Card from '../components/ui/Card'
-import Button from '../components/ui/Button'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = n =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
 
-// ── Precios base (editables, persisten en localStorage) ───────────────────────
+const uid = () => Math.random().toString(36).slice(2, 8)
+
+// ── Config por defecto ────────────────────────────────────────────────────────
 const DEFAULT_CONFIG = {
-  filamento_rollo_precio: 90000,   // COP por rollo de 1 kg
-  filamento_rollo_gramos: 1000,    // gramos del rollo
-  anillo_12mm_precio:     100,     // COP por unidad
-  anillo_20mm_precio:     400,
-  anillo_cadena_precio:   500,
-  resina_litro_precio:    80000,   // COP por litro (A+B combinado)
-  tarifa_hora:            15000,   // COP por hora de trabajo (operario)
+  filamento_rollo_precio: 90000,
+  filamento_rollo_gramos: 1000,
+  tarifa_hora: 15000,
+  accesorios: [
+    { id: 'acc_1', nombre: 'Anillo 12 mm',        precio: 100, unidad: 'ud' },
+    { id: 'acc_2', nombre: 'Anillo 20 mm',        precio: 400, unidad: 'ud' },
+    { id: 'acc_3', nombre: 'Anillo con cadenita', precio: 500, unidad: 'ud' },
+  ],
+  acabados: [
+    { id: 'acb_1', nombre: 'Resina (A+B)', precio: 80, unidad: 'ml' },
+  ],
 }
 
-// ── Receta por defecto (lo que usa 1 pieza) ───────────────────────────────────
+// ── Receta por defecto ────────────────────────────────────────────────────────
 const DEFAULT_RECETA = {
   nombre:      '',
   cantidad:    1,
   filamento_g: 0,
-  anillos:     [],   // [{ tipo: '12mm'|'20mm'|'cadena', cantidad: 1 }]
-  resina_ml:   0,
   tiempo_min:  0,
+  accesorios:  [],  // [{ id, cantidad }]
+  acabados:    [],  // [{ id, cantidad }]
   margen:      50,
   comision:    25,
-}
-
-const ANILLO_OPCIONES = [
-  { id: '12mm',   label: 'Anillo 12 mm' },
-  { id: '20mm',   label: 'Anillo 20 mm' },
-  { id: 'cadena', label: 'Anillo con cadenita' },
-]
-
-// ── Campo de entrada reutilizable ─────────────────────────────────────────────
-function Campo({ label, sublabel, value, onChange, type = 'number', min = 0, step = 1, suffix, className = '' }) {
-  return (
-    <div className={className}>
-      <label className="block text-xs font-medium text-navy-600 mb-1">
-        {label}
-        {sublabel && <span className="text-[#8a9ab0] font-normal ml-1">({sublabel})</span>}
-      </label>
-      <div className="relative">
-        <input
-          type={type}
-          value={value}
-          onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
-          min={min}
-          step={step}
-          className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
-        />
-        {suffix && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0] pointer-events-none">{suffix}</span>
-        )}
-      </div>
-    </div>
-  )
 }
 
 // ── Fila de resultado ─────────────────────────────────────────────────────────
@@ -76,81 +50,110 @@ function FilaResultado({ label, valor, muted, bold, green, red, border }) {
 export default function Calculadora() {
   const navigate = useNavigate()
 
-  // Config de precios (persiste en localStorage)
+  // Config (persiste en localStorage)
   const [config, setConfig] = useState(() => {
     try {
-      const s = localStorage.getItem('f3d_calc_config')
-      return s ? { ...DEFAULT_CONFIG, ...JSON.parse(s) } : DEFAULT_CONFIG
+      const s = localStorage.getItem('f3d_calc_config_v2')
+      if (!s) return DEFAULT_CONFIG
+      const saved = JSON.parse(s)
+      return {
+        ...DEFAULT_CONFIG,
+        ...saved,
+        accesorios: saved.accesorios ?? DEFAULT_CONFIG.accesorios,
+        acabados:   saved.acabados   ?? DEFAULT_CONFIG.acabados,
+      }
     } catch { return DEFAULT_CONFIG }
   })
 
-  // Receta (inputs de la calculadora)
-  const [rec, setRec] = useState(DEFAULT_RECETA)
-
-  // UI
+  const [rec, setRec]           = useState(DEFAULT_RECETA)
   const [showConfig, setShowConfig] = useState(false)
 
   // Persistir config
   useEffect(() => {
-    localStorage.setItem('f3d_calc_config', JSON.stringify(config))
+    localStorage.setItem('f3d_calc_config_v2', JSON.stringify(config))
   }, [config])
 
-  // Helpers de edicion
+  // ── Helpers de edicion ────────────────────────────────────────────────────
   const updRec = (key, val) => setRec(r => ({ ...r, [key]: val }))
   const updCfg = (key, val) => setConfig(c => ({ ...c, [key]: val }))
 
-  // Anillos dinamicos
-  const addAnillo    = () => setRec(r => ({ ...r, anillos: [...r.anillos, { tipo: '12mm', cantidad: 1 }] }))
-  const removeAnillo = i  => setRec(r => ({ ...r, anillos: r.anillos.filter((_, j) => j !== i) }))
-  const updAnillo    = (i, key, val) => setRec(r => ({
-    ...r, anillos: r.anillos.map((a, j) => j === i ? { ...a, [key]: val } : a)
+  // Accesorios en receta
+  const addAccRec    = () => {
+    if (config.accesorios.length === 0) return
+    setRec(r => ({ ...r, accesorios: [...r.accesorios, { id: config.accesorios[0].id, cantidad: 1 }] }))
+  }
+  const removeAccRec = i => setRec(r => ({ ...r, accesorios: r.accesorios.filter((_, j) => j !== i) }))
+  const updAccRec    = (i, key, val) => setRec(r => ({
+    ...r, accesorios: r.accesorios.map((a, j) => j === i ? { ...a, [key]: val } : a)
   }))
 
-  // ── Calculos ────────────────────────────────────────────────────────────────
+  // Acabados en receta
+  const addAcbRec    = () => {
+    if (config.acabados.length === 0) return
+    setRec(r => ({ ...r, acabados: [...r.acabados, { id: config.acabados[0].id, cantidad: 0 }] }))
+  }
+  const removeAcbRec = i => setRec(r => ({ ...r, acabados: r.acabados.filter((_, j) => j !== i) }))
+  const updAcbRec    = (i, key, val) => setRec(r => ({
+    ...r, acabados: r.acabados.map((a, j) => j === i ? { ...a, [key]: val } : a)
+  }))
+
+  // Accesorios en config
+  const addAccCfg    = () => setConfig(c => ({
+    ...c, accesorios: [...c.accesorios, { id: uid(), nombre: 'Nuevo accesorio', precio: 0, unidad: 'ud' }]
+  }))
+  const removeAccCfg = id => setConfig(c => ({ ...c, accesorios: c.accesorios.filter(a => a.id !== id) }))
+  const updAccCfg    = (id, key, val) => setConfig(c => ({
+    ...c, accesorios: c.accesorios.map(a => a.id === id ? { ...a, [key]: val } : a)
+  }))
+
+  // Acabados en config
+  const addAcbCfg    = () => setConfig(c => ({
+    ...c, acabados: [...c.acabados, { id: uid(), nombre: 'Nuevo acabado', precio: 0, unidad: 'ud' }]
+  }))
+  const removeAcbCfg = id => setConfig(c => ({ ...c, acabados: c.acabados.filter(a => a.id !== id) }))
+  const updAcbCfg    = (id, key, val) => setConfig(c => ({
+    ...c, acabados: c.acabados.map(a => a.id === id ? { ...a, [key]: val } : a)
+  }))
+
+  // ── Calculos ──────────────────────────────────────────────────────────────
   const calc = useMemo(() => {
-    const costoFilamento =
-      rec.filamento_g > 0
-        ? (rec.filamento_g / config.filamento_rollo_gramos) * config.filamento_rollo_precio
-        : 0
+    const costoFilamento = rec.filamento_g > 0
+      ? (rec.filamento_g / config.filamento_rollo_gramos) * config.filamento_rollo_precio
+      : 0
+    const costoTiempo = (rec.tiempo_min / 60) * config.tarifa_hora
 
-    const precioAnillo = tipo =>
-      tipo === '12mm'   ? config.anillo_12mm_precio  :
-      tipo === '20mm'   ? config.anillo_20mm_precio  :
-      tipo === 'cadena' ? config.anillo_cadena_precio : 0
+    const costoAccesorios = rec.accesorios.reduce((s, a) => {
+      const item = config.accesorios.find(x => x.id === a.id)
+      return s + (item ? item.precio * a.cantidad : 0)
+    }, 0)
 
-    const costoAnillos = rec.anillos.reduce((s, a) => s + precioAnillo(a.tipo) * a.cantidad, 0)
-    const costoResina  = (rec.resina_ml / 1000) * config.resina_litro_precio
-    const costoTiempo  = (rec.tiempo_min / 60)  * config.tarifa_hora
+    const costoAcabados = rec.acabados.reduce((s, a) => {
+      const item = config.acabados.find(x => x.id === a.id)
+      return s + (item ? item.precio * a.cantidad : 0)
+    }, 0)
 
-    const costoXUnidad = costoFilamento + costoAnillos + costoResina + costoTiempo
-
-    const costoTotal   = costoXUnidad * rec.cantidad
-
-    // margen sobre costo (markup), no sobre precio
-    const precioSugerido = rec.margen < 100
-      ? costoXUnidad * (1 + rec.margen / 100)
-      : costoXUnidad * 2
-
-    const precioTotal      = precioSugerido * rec.cantidad
-    const utilidadBruta    = precioSugerido - costoXUnidad
-    const comisionXUnidad  = utilidadBruta * (rec.comision / 100)
-    const utilidadNeta     = utilidadBruta - comisionXUnidad
-    const utilidadNetaTotal = utilidadNeta * rec.cantidad
-    const margenReal       = costoXUnidad > 0 ? Math.round((utilidadNeta / precioSugerido) * 100) : 0
+    const costoXUnidad    = costoFilamento + costoAccesorios + costoAcabados + costoTiempo
+    const costoTotal      = costoXUnidad * (rec.cantidad || 1)
+    const precioSugerido  = costoXUnidad * (1 + rec.margen / 100)
+    const precioTotal     = precioSugerido * (rec.cantidad || 1)
+    const utilidadBruta   = precioSugerido - costoXUnidad
+    const comisionXUnidad = utilidadBruta * (rec.comision / 100)
+    const utilidadNeta    = utilidadBruta - comisionXUnidad
+    const utilidadNetaTotal = utilidadNeta * (rec.cantidad || 1)
 
     return {
-      costoFilamento, costoAnillos, costoResina, costoTiempo,
+      costoFilamento, costoTiempo,
+      costoAccesorios, costoAcabados,
       costoXUnidad, costoTotal,
       precioSugerido, precioTotal,
       utilidadBruta, comisionXUnidad,
-      utilidadNeta, utilidadNetaTotal, margenReal,
-      precioAnillo,
+      utilidadNeta, utilidadNetaTotal,
     }
   }, [rec, config])
 
   const cero = calc.costoXUnidad === 0
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
 
@@ -161,63 +164,66 @@ export default function Calculadora() {
           <p className="text-sm text-[#8a9ab0] mt-0.5">Calcula el costo y precio sugerido de cualquier producto</p>
         </div>
         <button
-          onClick={() => { setRec(DEFAULT_RECETA) }}
+          onClick={() => setRec(DEFAULT_RECETA)}
           className="flex items-center gap-1.5 text-xs text-[#8a9ab0] hover:text-navy-600 transition-colors border border-[#e2e6ea] rounded-lg px-3 py-2"
         >
           <RotateCcw size={13} /> Reiniciar
         </button>
       </div>
 
-      {/* Grid principal */}
       <div className="grid lg:grid-cols-2 gap-5">
 
-        {/* ── Columna izquierda: Inputs ─────────────────────────────────── */}
+        {/* ── Columna izquierda: Inputs ───────────────────────────────────── */}
         <div className="flex flex-col gap-4">
 
           {/* Producto */}
           <Card>
             <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Producto</p>
-            <div className="grid grid-cols-2 gap-3">
-              <Campo
-                label="Nombre del producto"
-                value={rec.nombre}
-                onChange={v => updRec('nombre', v)}
-                type="text"
-                className="col-span-2"
-              />
+            <div className="flex flex-col gap-3">
               <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">
-                  Cantidad a producir <span className="text-[#8a9ab0] font-normal">(unidades)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number" min={0} value={rec.cantidad === 0 ? '' : rec.cantidad}
-                    onChange={e => updRec('cantidad', e.target.value === '' ? 0 : Number(e.target.value))}
-                    placeholder="1"
-                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">uds</span>
-                </div>
+                <label className="block text-xs font-medium text-navy-600 mb-1">Nombre del producto</label>
+                <input
+                  type="text" value={rec.nombre}
+                  onChange={e => updRec('nombre', e.target.value)}
+                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">
-                  Margen de ganancia <span className="text-[#8a9ab0] font-normal">(sobre costo)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number" min={0} max={500} value={rec.margen}
-                    onChange={e => updRec('margen', Number(e.target.value))}
-                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-8"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">%</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-navy-600 mb-1">
+                    Cantidad <span className="text-[#8a9ab0] font-normal">(unidades)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number" min={0}
+                      value={rec.cantidad === 0 ? '' : rec.cantidad}
+                      onChange={e => updRec('cantidad', e.target.value === '' ? 0 : Number(e.target.value))}
+                      placeholder="1"
+                      className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">uds</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-navy-600 mb-1">
+                    Margen <span className="text-[#8a9ab0] font-normal">(sobre costo)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number" min={0} max={500} value={rec.margen}
+                      onChange={e => updRec('margen', Number(e.target.value))}
+                      className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-8"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">%</span>
+                  </div>
                 </div>
               </div>
             </div>
           </Card>
 
-          {/* Materiales */}
+          {/* Materiales base */}
           <Card>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Materiales por unidad</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Materiales base</p>
             <div className="flex flex-col gap-4">
 
               {/* Filamento */}
@@ -225,9 +231,7 @@ export default function Calculadora() {
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-navy-600">Filamento</label>
                   {rec.filamento_g > 0 && (
-                    <span className="text-xs text-accent font-semibold">
-                      {fmt(calc.costoFilamento)}/ud
-                    </span>
+                    <span className="text-xs text-accent font-semibold">{fmt(calc.costoFilamento)}/ud</span>
                   )}
                 </div>
                 <div className="relative">
@@ -235,7 +239,7 @@ export default function Calculadora() {
                     type="number" min={0} step={0.5} value={rec.filamento_g}
                     onChange={e => updRec('filamento_g', Number(e.target.value))}
                     placeholder="0"
-                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
+                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-8"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">g</span>
                 </div>
@@ -244,76 +248,6 @@ export default function Calculadora() {
                     {rec.filamento_g}g de {config.filamento_rollo_gramos}g · rollo {fmt(config.filamento_rollo_precio)}
                   </p>
                 )}
-              </div>
-
-              {/* Anillos — lista dinámica */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-medium text-navy-600">Anillos / accesorios</label>
-                  {calc.costoAnillos > 0 && (
-                    <span className="text-xs text-accent font-semibold">{fmt(calc.costoAnillos)}/ud</span>
-                  )}
-                </div>
-
-                {rec.anillos.length === 0 && (
-                  <p className="text-xs text-[#8a9ab0] mb-2">Sin anillos agregados</p>
-                )}
-
-                <div className="flex flex-col gap-2">
-                  {rec.anillos.map((a, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <select
-                        value={a.tipo}
-                        onChange={e => updAnillo(i, 'tipo', e.target.value)}
-                        className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
-                      >
-                        {ANILLO_OPCIONES.map(o => (
-                          <option key={o.id} value={o.id}>{o.label} · {fmt(calc.precioAnillo(o.id))}</option>
-                        ))}
-                      </select>
-                      <div className="relative w-20 shrink-0">
-                        <input
-                          type="number" min={1} value={a.cantidad}
-                          onChange={e => updAnillo(i, 'cantidad', Math.max(1, Number(e.target.value)))}
-                          className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">ud</span>
-                      </div>
-                      <button
-                        onClick={() => removeAnillo(i)}
-                        className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  onClick={addAnillo}
-                  className="mt-2 text-xs text-accent hover:text-accent/80 font-medium transition-colors flex items-center gap-1"
-                >
-                  + Agregar anillo
-                </button>
-              </div>
-
-              {/* Resina */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-navy-600">Resina (A+B)</label>
-                  {rec.resina_ml > 0 && (
-                    <span className="text-xs text-accent font-semibold">{fmt(calc.costoResina)}/ud</span>
-                  )}
-                </div>
-                <div className="relative">
-                  <input
-                    type="number" min={0} step={0.5} value={rec.resina_ml}
-                    onChange={e => updRec('resina_ml', Number(e.target.value))}
-                    placeholder="0"
-                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">ml</span>
-                </div>
               </div>
 
               {/* Tiempo */}
@@ -342,34 +276,160 @@ export default function Calculadora() {
 
             </div>
           </Card>
+
+          {/* Accesorios */}
+          <Card>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Accesorios</p>
+              {calc.costoAccesorios > 0 && (
+                <span className="text-xs text-accent font-semibold">{fmt(calc.costoAccesorios)}/ud</span>
+              )}
+            </div>
+
+            {config.accesorios.length === 0 ? (
+              <p className="text-xs text-[#8a9ab0]">
+                No hay accesorios configurados.{' '}
+                <button onClick={() => setShowConfig(true)} className="text-accent underline">Agregar en config</button>
+              </p>
+            ) : (
+              <>
+                {rec.accesorios.length === 0 && (
+                  <p className="text-xs text-[#8a9ab0] mb-2">Sin accesorios para esta unidad</p>
+                )}
+                <div className="flex flex-col gap-2">
+                  {rec.accesorios.map((a, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <select
+                        value={a.id}
+                        onChange={e => updAccRec(i, 'id', e.target.value)}
+                        className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      >
+                        {config.accesorios.map(o => (
+                          <option key={o.id} value={o.id}>
+                            {o.nombre} · {fmt(o.precio)}/{o.unidad}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="relative w-20 shrink-0">
+                        <input
+                          type="number" min={1} value={a.cantidad}
+                          onChange={e => updAccRec(i, 'cantidad', Math.max(1, Number(e.target.value)))}
+                          className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">ud</span>
+                      </div>
+                      <button
+                        onClick={() => removeAccRec(i)}
+                        className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={addAccRec}
+                  className="mt-2 text-xs text-accent hover:text-accent/80 font-medium transition-colors flex items-center gap-1"
+                >
+                  + Agregar accesorio
+                </button>
+              </>
+            )}
+          </Card>
+
+          {/* Acabado */}
+          <Card>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Acabado</p>
+              {calc.costoAcabados > 0 && (
+                <span className="text-xs text-accent font-semibold">{fmt(calc.costoAcabados)}/ud</span>
+              )}
+            </div>
+
+            {config.acabados.length === 0 ? (
+              <p className="text-xs text-[#8a9ab0]">
+                No hay acabados configurados.{' '}
+                <button onClick={() => setShowConfig(true)} className="text-accent underline">Agregar en config</button>
+              </p>
+            ) : (
+              <>
+                {rec.acabados.length === 0 && (
+                  <p className="text-xs text-[#8a9ab0] mb-2">Sin acabados para esta unidad</p>
+                )}
+                <div className="flex flex-col gap-2">
+                  {rec.acabados.map((a, i) => {
+                    const cfgItem = config.acabados.find(x => x.id === a.id)
+                    return (
+                      <div key={i} className="flex items-center gap-2">
+                        <select
+                          value={a.id}
+                          onChange={e => updAcbRec(i, 'id', e.target.value)}
+                          className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        >
+                          {config.acabados.map(o => (
+                            <option key={o.id} value={o.id}>
+                              {o.nombre} · {fmt(o.precio)}/{o.unidad}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="relative w-24 shrink-0">
+                          <input
+                            type="number" min={0} step={0.5} value={a.cantidad}
+                            onChange={e => updAcbRec(i, 'cantidad', Number(e.target.value))}
+                            className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">
+                            {cfgItem?.unidad || ''}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => removeAcbRec(i)}
+                          className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                        >✕</button>
+                      </div>
+                    )
+                  })}
+                </div>
+                <button
+                  onClick={addAcbRec}
+                  className="mt-2 text-xs text-accent hover:text-accent/80 font-medium transition-colors flex items-center gap-1"
+                >
+                  + Agregar acabado
+                </button>
+              </>
+            )}
+          </Card>
+
         </div>
 
-        {/* ── Columna derecha: Resultados ───────────────────────────────── */}
+        {/* ── Columna derecha: Resultados ─────────────────────────────────── */}
         <div className="flex flex-col gap-4">
 
-          {/* Resultados por unidad */}
+          {/* Por unidad */}
           <Card className={`transition-all ${cero ? 'opacity-60' : ''}`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">
               Por unidad {rec.nombre ? `· ${rec.nombre}` : ''}
             </p>
-
-            {/* Desglose de costos */}
             <div className="bg-[#f8f9fb] rounded-lg px-3 py-2 mb-3">
               {calc.costoFilamento > 0 && (
                 <FilaResultado label={`Filamento (${rec.filamento_g}g)`} valor={fmt(calc.costoFilamento)} muted />
               )}
-              {rec.anillos.map((a, i) => (
-                <FilaResultado
-                  key={i}
-                  label={`${ANILLO_OPCIONES.find(o => o.id === a.tipo)?.label} ×${a.cantidad}`}
-                  valor={fmt(calc.precioAnillo(a.tipo) * a.cantidad)} muted
-                />
-              ))}
-              {calc.costoResina > 0 && (
-                <FilaResultado label={`Resina (${rec.resina_ml}ml)`} valor={fmt(calc.costoResina)} muted />
-              )}
+              {rec.accesorios.map((a, i) => {
+                const item = config.accesorios.find(x => x.id === a.id)
+                return item ? (
+                  <FilaResultado key={i}
+                    label={`${item.nombre} ×${a.cantidad}`}
+                    valor={fmt(item.precio * a.cantidad)} muted />
+                ) : null
+              })}
+              {rec.acabados.map((a, i) => {
+                const item = config.acabados.find(x => x.id === a.id)
+                return item ? (
+                  <FilaResultado key={i}
+                    label={`${item.nombre} (${a.cantidad} ${item.unidad})`}
+                    valor={fmt(item.precio * a.cantidad)} muted />
+                ) : null
+              })}
               {calc.costoTiempo > 0 && (
-                <FilaResultado label={`Tiempo (${rec.tiempo_min}min)`} valor={fmt(calc.costoTiempo)} muted />
+                <FilaResultado label={`Tiempo (${rec.tiempo_min} min)`} valor={fmt(calc.costoTiempo)} muted />
               )}
               {cero && (
                 <p className="text-xs text-[#8a9ab0] text-center py-1">Ingresa los materiales de la izquierda</p>
@@ -377,23 +437,23 @@ export default function Calculadora() {
             </div>
 
             <FilaResultado label="Costo de produccion" valor={fmt(calc.costoXUnidad)} bold />
-
             <div className="my-2 border-t border-dashed border-[#e2e6ea]" />
-
             <FilaResultado label={`Precio sugerido (+${rec.margen}%)`} valor={fmt(calc.precioSugerido)} bold green />
             <FilaResultado label="Utilidad bruta" valor={fmt(calc.utilidadBruta)} muted />
             {rec.comision > 0 && (
-              <FilaResultado label={`Comision vendedor (${rec.comision}%)`} valor={`- ${fmt(calc.comisionXUnidad)}`} muted red />
+              <FilaResultado
+                label={`Comision vendedor (${rec.comision}%)`}
+                valor={`- ${fmt(calc.comisionXUnidad)}`}
+                muted red />
             )}
             <FilaResultado label="Utilidad neta / pieza" valor={fmt(calc.utilidadNeta)} bold green />
           </Card>
 
-          {/* Resultados para N unidades */}
-          <div className="rounded-xl p-4" style={{ backgroundColor: '#142236', border: '1px solid #142236' }}>
+          {/* Para N unidades */}
+          <div className="rounded-xl p-4" style={{ backgroundColor: '#142236' }}>
             <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#93c5fd' }}>
               Para {rec.cantidad || 1} unidad{(rec.cantidad || 1) !== 1 ? 'es' : ''}
             </p>
-
             <div className="flex flex-col gap-3">
               <div className="flex justify-between items-baseline">
                 <span className="text-sm" style={{ color: '#bfdbfe' }}>Costo total materiales</span>
@@ -406,7 +466,9 @@ export default function Calculadora() {
               {rec.comision > 0 && (
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm" style={{ color: '#bfdbfe' }}>Comision Andres ({rec.comision}%)</span>
-                  <span className="text-base font-bold" style={{ color: '#fcd34d' }}>- {fmt(calc.comisionXUnidad * (rec.cantidad || 1))}</span>
+                  <span className="text-base font-bold" style={{ color: '#fcd34d' }}>
+                    - {fmt(calc.comisionXUnidad * (rec.cantidad || 1))}
+                  </span>
                 </div>
               )}
               <div className="h-px my-1" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }} />
@@ -415,7 +477,6 @@ export default function Calculadora() {
                 <span className="text-xl font-bold" style={{ color: '#4ade80' }}>{fmt(calc.utilidadNetaTotal)}</span>
               </div>
             </div>
-
             {!cero && (
               <button
                 onClick={() => navigate('/cotizaciones?new=1')}
@@ -429,7 +490,7 @@ export default function Calculadora() {
             )}
           </div>
 
-          {/* Comision del vendedor */}
+          {/* Comision vendedor */}
           <Card>
             <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Comision vendedor</p>
             <div>
@@ -447,10 +508,11 @@ export default function Calculadora() {
               </div>
             </div>
           </Card>
+
         </div>
       </div>
 
-      {/* ── Configuracion de precios base (colapsable) ──────────────────────── */}
+      {/* ── Configurar precios base (colapsable) ─────────────────────────────── */}
       <div className="mt-5">
         <button
           onClick={() => setShowConfig(v => !v)}
@@ -463,21 +525,16 @@ export default function Calculadora() {
 
         {showConfig && (
           <Card className="mt-3">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-xs text-[#8a9ab0]">
-                Actualiza cuando cambien los precios de tu proveedor.
-              </p>
-              <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                ✓ Guardado automaticamente
-              </span>
+            <div className="flex items-center justify-between mb-5">
+              <p className="text-xs text-[#8a9ab0]">Actualiza cuando cambien los precios de tu proveedor.</p>
+              <span className="text-xs text-green-600 font-medium flex items-center gap-1">✓ Guardado automaticamente</span>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+
+            {/* Materiales base */}
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8a9ab0] mb-3">Materiales base</p>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               {[
                 ['filamento_rollo_precio', 'Rollo filamento 1 kg'],
-                ['anillo_12mm_precio',     'Anillo 12 mm · unidad'],
-                ['anillo_20mm_precio',     'Anillo 20 mm · unidad'],
-                ['anillo_cadena_precio',   'Anillo con cadenita · unidad'],
-                ['resina_litro_precio',    'Resina (A+B) · litro'],
                 ['tarifa_hora',            'Mano de obra · hora'],
               ].map(([key, label]) => (
                 <div key={key}>
@@ -491,6 +548,99 @@ export default function Calculadora() {
                 </div>
               ))}
             </div>
+
+            {/* Accesorios */}
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8a9ab0]">Accesorios</p>
+              <button
+                onClick={addAccCfg}
+                className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 font-medium transition-colors border border-accent/30 rounded-lg px-2.5 py-1"
+              >
+                <Plus size={11} /> Agregar
+              </button>
+            </div>
+            <div className="flex flex-col gap-2 mb-6">
+              {config.accesorios.length === 0 && (
+                <p className="text-xs text-[#8a9ab0]">Sin accesorios</p>
+              )}
+              {config.accesorios.map(a => (
+                <div key={a.id} className="flex items-center gap-2">
+                  <input
+                    type="text" value={a.nombre}
+                    onChange={e => updAccCfg(a.id, 'nombre', e.target.value)}
+                    placeholder="Nombre del accesorio"
+                    className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <div className="relative w-28 shrink-0">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                    <input
+                      type="number" min={0} value={a.precio}
+                      onChange={e => updAccCfg(a.id, 'precio', Number(e.target.value))}
+                      className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    />
+                  </div>
+                  <input
+                    type="text" value={a.unidad}
+                    onChange={e => updAccCfg(a.id, 'unidad', e.target.value)}
+                    placeholder="ud"
+                    className="w-14 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <button
+                    onClick={() => removeAccCfg(a.id)}
+                    className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Acabados */}
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8a9ab0]">Acabados</p>
+              <button
+                onClick={addAcbCfg}
+                className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 font-medium transition-colors border border-accent/30 rounded-lg px-2.5 py-1"
+              >
+                <Plus size={11} /> Agregar
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {config.acabados.length === 0 && (
+                <p className="text-xs text-[#8a9ab0]">Sin acabados</p>
+              )}
+              {config.acabados.map(a => (
+                <div key={a.id} className="flex items-center gap-2">
+                  <input
+                    type="text" value={a.nombre}
+                    onChange={e => updAcbCfg(a.id, 'nombre', e.target.value)}
+                    placeholder="Nombre del acabado"
+                    className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <div className="relative w-28 shrink-0">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                    <input
+                      type="number" min={0} value={a.precio}
+                      onChange={e => updAcbCfg(a.id, 'precio', Number(e.target.value))}
+                      className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    />
+                  </div>
+                  <input
+                    type="text" value={a.unidad}
+                    onChange={e => updAcbCfg(a.id, 'unidad', e.target.value)}
+                    placeholder="ml"
+                    className="w-14 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <button
+                    onClick={() => removeAcbCfg(a.id)}
+                    className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
           </Card>
         )}
       </div>
