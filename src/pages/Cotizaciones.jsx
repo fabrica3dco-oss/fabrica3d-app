@@ -146,6 +146,13 @@ export default function Cotizaciones() {
     return ok && (!filtroEstado || c.estado === filtroEstado)
   })
 
+  // Métricas de conversión y vencidas
+  const hace15 = new Date(Date.now() - 15 * 86400000).toISOString().split('T')[0]
+  const esVencida = (c) => c.estado === 'enviada' && c.fecha_emision && c.fecha_emision < hace15
+  const totalVencidas   = cotizaciones.filter(esVencida).length
+  const totalConvertidas = cotizaciones.filter(c => c.estado === 'aprobada' || cotConCobros.has(c.numero)).length
+  const convRate = cotizaciones.length > 0 ? Math.round((totalConvertidas / cotizaciones.length) * 100) : null
+
   // ── Líneas helpers ─────────────────────────────────────────────────────────
   function setLinea(i, campo, valor) {
     setForm(f => ({ ...f, lineas: f.lineas.map((l, idx) => idx === i ? { ...l, [campo]: valor } : l) }))
@@ -311,13 +318,34 @@ export default function Cotizaciones() {
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-navy-600">Cotizaciones</h1>
           <p className="text-sm text-[#8a9ab0] mt-0.5">{loading ? '...' : `${cotizaciones.length} cotizaciones`}</p>
         </div>
         <Button onClick={abrirCrear}><Plus size={16} /> Nueva cotización</Button>
       </div>
+
+      {/* Mini métricas */}
+      {!loading && cotizaciones.length > 0 && (
+        <div className="flex gap-3 mb-4 flex-wrap">
+          {convRate !== null && (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
+              <span className="text-xs font-semibold text-green-700">{convRate}% conversión</span>
+              <span className="text-xs text-green-600">{totalConvertidas}/{cotizaciones.length} aprobadas</span>
+            </div>
+          )}
+          {totalVencidas > 0 && (
+            <button
+              onClick={() => setFiltroEstado('enviada')}
+              className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 hover:border-amber-400 transition-colors"
+            >
+              <span className="text-xs font-semibold text-amber-700">{totalVencidas} sin respuesta</span>
+              <span className="text-xs text-amber-600">enviadas hace +15 días</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="flex gap-2 mb-4 flex-wrap">
@@ -364,18 +392,25 @@ export default function Cotizaciones() {
                       <td className="px-4 py-3 font-medium text-navy-600">{c.cliente_nombre || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-navy-600">{cop(c.total)}</td>
                       <td className="px-4 py-3">
-                        <div className="relative inline-flex items-center">
-                          <select
-                            value={c.estado}
-                            onClick={e => e.stopPropagation()}
-                            onChange={async e => {
-                              e.stopPropagation()
-                              await actualizarCotizacion(c.id, { estado: e.target.value })
-                            }}
-                            className={`text-xs font-semibold pl-2.5 pr-6 py-1 rounded-full cursor-pointer border-0 focus:outline-none focus:ring-2 focus:ring-accent transition-colors appearance-none ${ESTADO_SELECT[c.estado]}`}>
-                            {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
-                          </select>
-                          <ChevronDown size={10} className="absolute right-1.5 pointer-events-none opacity-60" />
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="relative inline-flex items-center">
+                            <select
+                              value={c.estado}
+                              onClick={e => e.stopPropagation()}
+                              onChange={async e => {
+                                e.stopPropagation()
+                                await actualizarCotizacion(c.id, { estado: e.target.value })
+                              }}
+                              className={`text-xs font-semibold pl-2.5 pr-6 py-1 rounded-full cursor-pointer border-0 focus:outline-none focus:ring-2 focus:ring-accent transition-colors appearance-none ${ESTADO_SELECT[c.estado]}`}>
+                              {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_LABEL[e]}</option>)}
+                            </select>
+                            <ChevronDown size={10} className="absolute right-1.5 pointer-events-none opacity-60" />
+                          </div>
+                          {esVencida(c) && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">
+                              Sin respuesta +15d
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-xs text-[#8a9ab0]">

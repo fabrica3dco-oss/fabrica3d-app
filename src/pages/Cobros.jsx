@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Plus, Search, Pencil, Trash2, Download, CheckCircle, AlertCircle, Clock, User, UserPlus, Eye, Share2, X, Minus } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -98,6 +99,7 @@ function Skeleton() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Cobros() {
+  const location = useLocation()
   const { cobros, loading, crearCobro, actualizarCobro, marcarPagado, eliminarCobro } = useCobros()
   const [clientes,     setClientes]    = useState([])
   const [busqueda,     setBusqueda]     = useState('')
@@ -115,6 +117,29 @@ export default function Cobros() {
   useEffect(() => {
     supabase.from('clientes').select('id, empresa').order('empresa').then(({ data }) => setClientes(data || []))
   }, [])
+
+  // Pre-fill desde Producción (cobro de saldo al terminar pedido)
+  useEffect(() => {
+    const fromProd = location.state?.fromProduccion
+    if (!fromProd) return
+    const precioTotal = fromProd.receta_json?.precio_total || 0
+    const saldoMonto  = precioTotal > 0 ? precioTotal * 0.5 : ''
+    setForm({
+      ...EMPTY,
+      cliente_nombre: fromProd.cliente_nombre || '',
+      concepto: 'Saldo 50%',
+      lineas: [{
+        descripcion: fromProd.receta_json?.producto || 'Saldo por pedido',
+        detalle:     fromProd.cobro_ref ? `Ref: ${fromProd.cobro_ref}` : '',
+        cantidad:    1,
+        precio_unitario: saldoMonto,
+      }],
+      fecha_emision: new Date().toISOString().split('T')[0],
+      receta_json: fromProd.receta_json || null,
+    })
+    setModal({ mode: 'crear' })
+    window.history.replaceState({}, document.title)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Marcar vencidos visualmente
   const hoy = new Date().toISOString().split('T')[0]

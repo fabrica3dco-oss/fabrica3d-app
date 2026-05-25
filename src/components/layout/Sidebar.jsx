@@ -1,46 +1,62 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Users, TrendingUp, Package,
   FileText, CreditCard, Archive, BarChart2,
   Share2, UsersRound, ClipboardList, Calculator
 } from 'lucide-react'
+import { supabase } from '../../services/supabase'
+
+// Badge de stock bajo — se carga una vez al montar el sidebar
+function useStockBajoCount() {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    supabase.from('inventario').select('id, stock_actual, stock_minimo')
+      .then(({ data }) => {
+        setCount((data || []).filter(i => Number(i.stock_actual) <= Number(i.stock_minimo)).length)
+      })
+  }, [])
+  return count
+}
 
 const groups = [
   {
     label: 'Operaciones',
     items: [
-      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/clientes', icon: Users, label: 'Clientes' },
-      { to: '/leads', icon: TrendingUp, label: 'Leads' },
-      { to: '/produccion', icon: Package, label: 'Producción' },
-      { to: '/pedidos', icon: ClipboardList, label: 'Pedidos' },
+      { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/clientes',   icon: Users,           label: 'Clientes' },
+      { to: '/leads',      icon: TrendingUp,      label: 'Leads' },
+      { to: '/produccion', icon: Package,         label: 'Producción' },
+      { to: '/pedidos',    icon: ClipboardList,   label: 'Pedidos' },
     ],
   },
   {
     label: 'Documentos',
     items: [
-      { to: '/cotizaciones', icon: FileText, label: 'Cotizaciones' },
-      { to: '/cobros', icon: CreditCard, label: 'Cuentas de cobro' },
+      { to: '/cotizaciones', icon: FileText,  label: 'Cotizaciones' },
+      { to: '/cobros',       icon: CreditCard, label: 'Cuentas de cobro' },
     ],
   },
   {
     label: 'Negocio',
     items: [
-      { to: '/inventario',   icon: Archive,     label: 'Inventario' },
-      { to: '/finanzas',     icon: BarChart2,   label: 'Finanzas' },
-      { to: '/calculadora',  icon: Calculator,  label: 'Calculadora' },
+      { to: '/inventario',  icon: Archive,    label: 'Inventario',  badge: 'stock' },
+      { to: '/finanzas',    icon: BarChart2,  label: 'Finanzas' },
+      { to: '/calculadora', icon: Calculator, label: 'Calculadora' },
     ],
   },
   {
     label: 'Contenido',
     items: [
-      { to: '/redes', icon: Share2, label: 'Redes Sociales' },
+      { to: '/redes',  icon: Share2,     label: 'Redes Sociales' },
       { to: '/equipo', icon: UsersRound, label: 'Equipo' },
     ],
   },
 ]
 
 export default function Sidebar() {
+  const stockBajoCount = useStockBajoCount()
+
   return (
     <aside className="hidden lg:flex flex-col w-56 min-h-screen bg-white border-r border-[#e2e6ea] py-6 px-4 shrink-0">
       <div className="mb-8 px-2">
@@ -63,7 +79,12 @@ export default function Sidebar() {
                   }
                 >
                   <item.icon size={16} />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {item.badge === 'stock' && stockBajoCount > 0 && (
+                    <span className="bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                      {stockBajoCount}
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </div>

@@ -1,7 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2, BookMarked, Save } from 'lucide-react'
 import Card from '../components/ui/Card'
+
+// ── Plantillas (localStorage) ─────────────────────────────────────────────────
+const PLANT_KEY = 'f3d_plantillas_v1'
+const getPlantillas = () => { try { return JSON.parse(localStorage.getItem(PLANT_KEY) || '[]') } catch { return [] } }
+const savePlantillas = (p) => localStorage.setItem(PLANT_KEY, JSON.stringify(p))
 
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -70,8 +75,11 @@ export default function Calculadora() {
 
   const navigate = useNavigate()
 
-  const [rec, setRec]               = useState(DEFAULT_RECETA)
-  const [showConfig, setShowConfig] = useState(false)
+  const [rec, setRec]                 = useState(DEFAULT_RECETA)
+  const [showConfig, setShowConfig]   = useState(false)
+  const [showPlant,  setShowPlant]    = useState(false)
+  const [plantillas, setPlantillas]   = useState(getPlantillas)
+  const [plantNombre, setPlantNombre] = useState('')
 
   // Auto-save config
   useEffect(() => {
@@ -119,6 +127,28 @@ export default function Calculadora() {
   const updAcbCfg    = (id, key, val) => setConfig(c => ({
     ...c, acabados: c.acabados.map(a => a.id === id ? { ...a, [key]: val } : a)
   }))
+
+  // ── Plantillas ────────────────────────────────────────────────────────────
+  function guardarPlantilla() {
+    const nombre = plantNombre.trim() || rec.nombre || 'Plantilla'
+    const nueva  = { id: Date.now(), nombre, rec: { ...rec } }
+    const lista  = [...plantillas, nueva]
+    setPlantillas(lista)
+    savePlantillas(lista)
+    setPlantNombre('')
+    setShowPlant(false)
+  }
+
+  function cargarPlantilla(p) {
+    setRec({ ...p.rec })
+    setShowPlant(false)
+  }
+
+  function eliminarPlantilla(id) {
+    const lista = plantillas.filter(p => p.id !== id)
+    setPlantillas(lista)
+    savePlantillas(lista)
+  }
 
   // ── Ir a cotización ───────────────────────────────────────────────────────
   function irACotizacion() {
@@ -230,18 +260,88 @@ export default function Calculadora() {
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-navy-600">Calculadora de precios</h1>
           <p className="text-sm text-[#8a9ab0] mt-0.5">Calcula el costo y precio sugerido de cualquier producto</p>
         </div>
-        <button
-          onClick={() => setRec(DEFAULT_RECETA)}
-          className="flex items-center gap-1.5 text-xs text-[#8a9ab0] hover:text-navy-600 transition-colors border border-[#e2e6ea] rounded-lg px-3 py-2"
-        >
-          <RotateCcw size={13} /> Reiniciar
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowPlant(v => !v)}
+            className={`flex items-center gap-1.5 text-xs transition-colors border rounded-lg px-3 py-2 ${
+              showPlant ? 'bg-accent text-white border-accent' : 'text-[#8a9ab0] hover:text-navy-600 border-[#e2e6ea]'
+            }`}
+          >
+            <BookMarked size={13} />
+            Plantillas {plantillas.length > 0 && `(${plantillas.length})`}
+          </button>
+          <button
+            onClick={() => setRec(DEFAULT_RECETA)}
+            className="flex items-center gap-1.5 text-xs text-[#8a9ab0] hover:text-navy-600 transition-colors border border-[#e2e6ea] rounded-lg px-3 py-2"
+          >
+            <RotateCcw size={13} /> Reiniciar
+          </button>
+        </div>
       </div>
+
+      {/* Panel plantillas */}
+      {showPlant && (
+        <Card className="mb-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Plantillas guardadas</p>
+
+          {/* Guardar actual */}
+          {!cero && (
+            <div className="flex gap-2 mb-4">
+              <input
+                value={plantNombre}
+                onChange={e => setPlantNombre(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && guardarPlantilla()}
+                placeholder={rec.nombre || 'Nombre de la plantilla'}
+                className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+              />
+              <button
+                onClick={guardarPlantilla}
+                className="flex items-center gap-1.5 text-xs font-semibold bg-accent text-white rounded-lg px-3 py-2 hover:opacity-90 transition-opacity"
+              >
+                <Save size={13} /> Guardar actual
+              </button>
+            </div>
+          )}
+
+          {/* Lista */}
+          {plantillas.length === 0 ? (
+            <p className="text-xs text-[#8a9ab0] text-center py-2">
+              {cero ? 'Configura un producto y guárdalo como plantilla.' : 'Aún no tienes plantillas guardadas.'}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {plantillas.map(p => (
+                <div key={p.id} className="flex items-center justify-between gap-2 p-2.5 border border-[#e2e6ea] rounded-lg hover:border-accent/40 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-navy-600 truncate">{p.nombre}</p>
+                    <p className="text-xs text-[#8a9ab0]">
+                      {p.rec.filamento_g > 0 && `${p.rec.filamento_g}g · `}
+                      {p.rec.tiempo_min > 0 && `${p.rec.tiempo_min}min · `}
+                      {p.rec.accesorios?.length > 0 && `${p.rec.accesorios.length} acc · `}
+                      Margen {p.rec.margen}%
+                    </p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => cargarPlantilla(p)}
+                      className="text-xs px-2.5 py-1.5 rounded-lg bg-accent/10 text-accent font-medium hover:bg-accent/20 transition-colors">
+                      Cargar
+                    </button>
+                    <button onClick={() => eliminarPlantilla(p.id)}
+                      className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-5">
 

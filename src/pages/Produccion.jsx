@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Search, UserPlus, Package, Link2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Search, UserPlus, Package, Link2, Clock, CreditCard } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -106,7 +107,22 @@ function BadgeFecha({ fecha }) {
   return <span className="text-xs text-[#8a9ab0]">{new Date(fecha + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</span>
 }
 
+// Tiempo en estado actual a partir del historial
+function tiempoEnEstado(pedido) {
+  const hist = pedido?.historial_estados
+  if (!hist?.length) return null
+  const ultimo = [...hist].reverse().find(h => h.estado === pedido.estado)
+  if (!ultimo) return null
+  const diffMs = Date.now() - new Date(ultimo.fecha).getTime()
+  const horas  = Math.floor(diffMs / 3600000)
+  const dias   = Math.floor(horas / 24)
+  if (dias >= 1) return `${dias}d`
+  if (horas >= 1) return `${horas}h`
+  return 'Recién'
+}
+
 export default function Produccion() {
+  const navigate = useNavigate()
   const { pedidos, loading, crearPedido, actualizarPedido, moverEstado, eliminarPedido } = usePedidos()
   const [clientes,    setClientes]    = useState([])
   const [modal,       setModal]       = useState(null)
@@ -129,14 +145,27 @@ export default function Produccion() {
   async function handleMoverEstado(pedido, nuevoEstado) {
     if (!pedido) return
     await moverEstado(pedido.id, nuevoEstado)
-    // Al marcar terminado, ofrecer descuento de inventario si tiene receta
-    if (nuevoEstado === 'terminado' && pedido.receta_json) {
+    if (nuevoEstado === 'terminado') {
+      // Siempre mostrar modal de terminado (para ofrecer saldo + inventario)
       const items = [
-        ...(pedido.receta_json.accesorios_usados || []),
-        ...(pedido.receta_json.acabados_usados   || []),
+        ...(pedido.receta_json?.accesorios_usados || []),
+        ...(pedido.receta_json?.acabados_usados   || []),
       ].filter(i => i.cantidad_total > 0)
-      if (items.length > 0) setInvModal(pedido)
+      if (items.length > 0 || pedido.cobro_ref) setInvModal(pedido)
     }
+  }
+
+  function irACobrarSaldo(pedido) {
+    setInvModal(null)
+    navigate('/cobros', {
+      state: {
+        fromProduccion: {
+          cliente_nombre: pedido.cliente_nombre,
+          cobro_ref:      pedido.cobro_ref,
+          receta_json:    pedido.receta_json,
+        },
+      },
+    })
   }
 
   async function deducirInventario() {
@@ -271,7 +300,12 @@ export default function Produccion() {
                     >
                       <div className="flex items-start justify-between gap-1 mb-1">
                         <p className="text-sm font-semibold text-navy-600 leading-tight">{p.descripcion}</p>
-                        <div className="flex shrink-0 gap-0.5">
+                        <div className="flex items-center shrink-0 gap-0.5">
+                          {tiempoEnEstado(p) && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-[#8a9ab0] mr-1">
+                              <Clock size={9} />{tiempoEnEstado(p)}
+                            </span>
+                          )}
                           <button onClick={() => abrirEditar(p)} className="p-1 rounded hover:bg-[#f0f2f5] text-[#8a9ab0] hover:text-navy-600"><Pencil size={12} /></button>
                           <button onClick={() => setConfirmId(p.id)} className="p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500"><Trash2 size={12} /></button>
                         </div>
@@ -366,7 +400,7 @@ export default function Produccion() {
         </div>
       </Modal>
 
-      {/* ── Modal descuento inventario (al marcar terminado) ───────────────── */}
+      {/* ── Modal terminado: inventario + saldo ────────────────────────────── */}
       {invModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) setInvModal(null) }}>
@@ -377,35 +411,81 @@ export default function Produccion() {
                 <h2 className="font-semibold text-navy-600">Pedido terminado</h2>
               </div>
               <p className="text-xs text-[#8a9ab0] mt-1">
-                Se usaron estos materiales. ¿Descontarlos del inventario ahora?
+                {invModal.cliente_nombre && <span className="font-medium">{invModal.cliente_nombre} · </span>}
+                {invModal.cobro_ref && <span>{invModal.cobro_ref}</span>}
               </p>
             </div>
-            <div className="px-5 py-4">
-              <ul className="flex flex-col gap-2.5">
-                {[
-                  ...(invModal.receta_json.accesorios_usados || []),
-                  ...(invModal.receta_json.acabados_usados   || []),
-                ].filter(i => i.cantidad_total > 0).map((item, i) => (
-                  <li key={i} className="flex items-center justify-between">
-                    <span className="text-sm text-navy-600 font-medium">{item.nombre}</span>
-                    <span className="text-sm font-semibold text-red-600 tabular-nums">
-                      −{item.cantidad_total} {item.unidad}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-[11px] text-[#8a9ab0] mt-3">
-                Los materiales se buscan por nombre en el inventario. Si no hay coincidencia, se omiten.
-              </p>
-            </div>
-            <div className="px-5 pb-5 flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setInvModal(null)} disabled={deduciendo}>
-                Omitir
-              </Button>
-              <Button className="flex-1" onClick={deducirInventario} disabled={deduciendo}>
-                {deduciendo ? 'Descontando...' : 'Descontar inventario'}
-              </Button>
-            </div>
+
+            {/* Materiales */}
+            {invModal.receta_json && [
+              ...(invModal.receta_json.accesorios_usados || []),
+              ...(invModal.receta_json.acabados_usados   || []),
+            ].filter(i => i.cantidad_total > 0).length > 0 && (
+              <div className="px-5 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-2">Materiales usados</p>
+                <ul className="flex flex-col gap-2">
+                  {[
+                    ...(invModal.receta_json.accesorios_usados || []),
+                    ...(invModal.receta_json.acabados_usados   || []),
+                  ].filter(i => i.cantidad_total > 0).map((item, i) => (
+                    <li key={i} className="flex items-center justify-between">
+                      <span className="text-sm text-navy-600 font-medium">{item.nombre}</span>
+                      <span className="text-sm font-semibold text-red-600 tabular-nums">
+                        −{item.cantidad_total} {item.unidad}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-[#8a9ab0] mt-2 mb-1">
+                  Los materiales se buscan por nombre exacto en inventario.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button variant="secondary" className="flex-1" onClick={() => setInvModal(null)} disabled={deduciendo}>Omitir</Button>
+                  <Button className="flex-1" onClick={deducirInventario} disabled={deduciendo}>
+                    {deduciendo ? 'Descontando...' : 'Descontar inventario'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Cobro saldo */}
+            {invModal.cobro_ref && invModal.receta_json?.precio_total > 0 && (
+              <div className="px-5 py-4 border-t border-[#f0f2f5] mt-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <CreditCard size={14} className="text-accent" />
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Cobro pendiente</p>
+                </div>
+                <p className="text-sm text-navy-600 mb-3">
+                  Si fue anticipo 50%, el saldo restante aún está pendiente de cobrar.
+                </p>
+                <button
+                  onClick={() => irACobrarSaldo(invModal)}
+                  className="w-full py-2 rounded-xl text-sm font-semibold border-2 border-accent text-accent hover:bg-accent/5 transition-colors flex items-center justify-center gap-2"
+                >
+                  <CreditCard size={14} /> Generar cobro de saldo →
+                </button>
+              </div>
+            )}
+
+            {/* Cerrar si no hay materiales ni saldo */}
+            {(!invModal.receta_json || [
+              ...(invModal.receta_json.accesorios_usados || []),
+              ...(invModal.receta_json.acabados_usados   || []),
+            ].filter(i => i.cantidad_total > 0).length === 0) && !invModal.cobro_ref && (
+              <div className="px-5 pb-5 pt-4">
+                <Button className="w-full" onClick={() => setInvModal(null)}>Cerrar</Button>
+              </div>
+            )}
+
+            {/* Botón cerrar solo si tiene saldo pero no materiales */}
+            {invModal.cobro_ref && (!invModal.receta_json || [
+              ...(invModal.receta_json?.accesorios_usados || []),
+              ...(invModal.receta_json?.acabados_usados   || []),
+            ].filter(i => i.cantidad_total > 0).length === 0) && (
+              <div className="px-5 pb-5">
+                <Button variant="secondary" className="w-full" onClick={() => setInvModal(null)}>Cerrar sin cobrar</Button>
+              </div>
+            )}
           </div>
         </div>
       )}

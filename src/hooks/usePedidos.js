@@ -36,9 +36,22 @@ export function usePedidos() {
   }
 
   async function moverEstado(id, estado) {
-    const { error } = await supabase.from('pedidos').update({ estado }).eq('id', id)
-    if (error) toast.error('Error al mover pedido')
-    else setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado } : p))
+    const pedido = pedidos.find(p => p.id === id)
+    // Agregar al historial de estados para tracking de tiempos
+    const historialActual = pedido?.historial_estados || []
+    const nuevoHistorial  = [...historialActual, { estado, fecha: new Date().toISOString() }]
+    const { error } = await supabase
+      .from('pedidos')
+      .update({ estado, historial_estados: nuevoHistorial })
+      .eq('id', id)
+    if (error) {
+      // Si falla por columna inexistente, intentar sin historial
+      const { error: e2 } = await supabase.from('pedidos').update({ estado }).eq('id', id)
+      if (e2) { toast.error('Error al mover pedido'); return }
+    }
+    setPedidos(prev => prev.map(p =>
+      p.id === id ? { ...p, estado, historial_estados: nuevoHistorial } : p
+    ))
   }
 
   async function eliminarPedido(id) {
