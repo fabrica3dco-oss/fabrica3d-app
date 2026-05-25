@@ -203,13 +203,27 @@ export default function Cobros() {
 
   async function guardar() {
     if (!form.cliente_nombre.trim() || form.lineas.length === 0) return
+
+    // Auto-guardar cliente nuevo si no está en la lista
+    let clienteId = form.cliente_id || null
+    if (!clienteId) {
+      const nombre = form.cliente_nombre.trim()
+      const { data: existe } = await supabase.from('clientes').select('id').ilike('empresa', nombre).limit(1)
+      if (existe?.length > 0) {
+        clienteId = existe[0].id
+      } else {
+        const { data: nuevo } = await supabase.from('clientes').insert([{ empresa: nombre }]).select('id').single()
+        if (nuevo) { clienteId = nuevo.id; toast.success(`"${nombre}" guardado en clientes`) }
+      }
+    }
+
     setSaving(true)
     const lineasValidas = form.lineas.map(l => ({
       descripcion: l.descripcion, detalle: l.detalle || null,
       cantidad: Number(l.cantidad) || 1, precio_unitario: Number(l.precio_unitario) || 0,
     }))
     const datos = {
-      cliente_id:     form.cliente_id || null,
+      cliente_id:     clienteId,
       cliente_nombre: form.cliente_nombre,
       concepto:       form.concepto,
       lineas:         lineasValidas,
