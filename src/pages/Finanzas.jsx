@@ -1,9 +1,8 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import {
-  TrendingUp, TrendingDown, DollarSign,
+  TrendingUp, TrendingDown, DollarSign, BarChart2,
   Plus, Upload, Edit2, Trash2, X, FileText,
-  CheckSquare, Square, AlertCircle, Loader2,
-  ChevronDown,
+  CheckSquare, Square, AlertCircle, Loader2, ChevronDown,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -37,14 +36,10 @@ const EMPTY_FORM = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = n =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
-  }).format(n || 0)
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
 
 const fmtFecha = d =>
-  new Date(d + 'T12:00:00').toLocaleDateString('es-CO', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  })
+  new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -55,35 +50,47 @@ function fileToBase64(file) {
   })
 }
 
+// ── Mini barra horizontal ─────────────────────────────────────────────────────
+function MiniBar({ valor, max, color }) {
+  const pct = max > 0 ? Math.min(100, Math.round((valor / max) * 100)) : 0
+  return (
+    <div className="w-full bg-[#f0f2f5] rounded-full h-1.5 overflow-hidden">
+      <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+    </div>
+  )
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function Finanzas() {
   const {
     loading,
+    anio, setAnio,
+    mes,  setMes,
     gastosMes, cobrosMes,
     totalGastos, totalIngresos, utilidad,
-    mesFiltro, setMesFiltro,
+    consolidado, totalAnual,
     crearGasto, actualizarGasto, eliminarGasto,
   } = useFinanzas()
 
-  // Año/Mes actuales desde mesFiltro ("2026-05")
-  const [anioStr, mesStr] = mesFiltro.split('-')
-  const anioActual = parseInt(anioStr, 10)
-  const mesActual  = parseInt(mesStr,  10)
-
   const currentYear = new Date().getFullYear()
-  const ANIOS = [currentYear - 1, currentYear, currentYear + 1]
+  const ANIOS = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1]
 
-  function setAnio(a) { setMesFiltro(`${a}-${mesStr}`) }
-  function setMes(m)  { setMesFiltro(`${anioStr}-${String(m).padStart(2, '0')}`) }
-
-  const [tab,       setTab]       = useState('gastos')
+  const [tab,       setTab]       = useState('resumen')
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
   const [busqueda,  setBusqueda]  = useState('')
   const [filtrocat, setFiltrocat] = useState('')
 
-  // ── Handlers modal gasto ────────────────────────────────────────────────────
+  const mesActual = mes
+
+  // Navegar a un mes desde el consolidado
+  function irAMes(mesNum, destTab = 'gastos') {
+    setMes(mesNum)
+    setTab(destTab)
+  }
+
+  // ── Handlers modal gasto ──────────────────────────────────────────────────
   function abrirCrear() {
     setForm({ ...EMPTY_FORM, fecha: new Date().toISOString().split('T')[0] })
     setModal({ mode: 'crear' })
@@ -104,7 +111,7 @@ export default function Finanzas() {
     if (ok) setModal(null)
   }
 
-  // ── Filtros gastos ──────────────────────────────────────────────────────────
+  // ── Filtros gastos ────────────────────────────────────────────────────────
   const gastosFiltrados = useMemo(() => {
     const q = busqueda.toLowerCase()
     return gastosMes.filter(g => {
@@ -120,77 +127,62 @@ export default function Finanzas() {
     [gastosMes]
   )
 
-  const margen = totalIngresos > 0 ? Math.round((utilidad / totalIngresos) * 100) : null
+  const margenMes = totalIngresos > 0 ? Math.round((utilidad / totalIngresos) * 100) : null
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // Máximo para escalar barras en la tabla
+  const maxIngreso = Math.max(...consolidado.map(m => m.ingresos), 1)
+
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
 
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-navy-600">Finanzas</h1>
-          <p className="text-sm text-[#8a9ab0] mt-0.5">Ingresos, gastos y extractos</p>
+          <p className="text-sm text-[#8a9ab0] mt-0.5">Ingresos, gastos y consolidado anual</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Selector mes */}
+
+          {/* Mes — solo visible en tabs de detalle */}
+          {(tab === 'ingresos' || tab === 'gastos' || tab === 'extracto') && (
+            <div className="relative">
+              <select
+                value={mesActual}
+                onChange={e => setMes(Number(e.target.value))}
+                className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
+              >
+                {MESES_LABEL.map((label, i) => (
+                  <option key={i + 1} value={i + 1}>{label}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
+            </div>
+          )}
+
+          {/* Año — siempre visible */}
           <div className="relative">
             <select
-              value={mesActual}
-              onChange={e => setMes(Number(e.target.value))}
-              className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
-            >
-              {MESES_LABEL.map((label, i) => (
-                <option key={i + 1} value={i + 1}>{label}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
-          </div>
-          {/* Selector año */}
-          <div className="relative">
-            <select
-              value={anioActual}
+              value={anio}
               onChange={e => setAnio(Number(e.target.value))}
               className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
             >
-              {ANIOS.map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
+              {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
             <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
           </div>
+
           <Button onClick={abrirCrear}><Plus size={16} /> Gasto</Button>
         </div>
       </div>
 
-      {/* Métricas */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-            <TrendingUp size={12} className="text-green-500" /> Ingresos
-          </p>
-          <p className="text-xl font-bold text-green-600">{fmt(totalIngresos)}</p>
-          <p className="text-xs text-[#8a9ab0] mt-0.5">{cobrosMes.length} cobro{cobrosMes.length !== 1 ? 's' : ''} pagado{cobrosMes.length !== 1 ? 's' : ''}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-            <TrendingDown size={12} className="text-red-500" /> Gastos
-          </p>
-          <p className="text-xl font-bold text-red-600">{fmt(totalGastos)}</p>
-          <p className="text-xs text-[#8a9ab0] mt-0.5">{gastosMes.length} registro{gastosMes.length !== 1 ? 's' : ''}</p>
-        </Card>
-        <Card className={`p-4 ${utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 mb-1 ${utilidad >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-            <DollarSign size={12} /> Utilidad neta
-          </p>
-          <p className={`text-xl font-bold ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>{fmt(utilidad)}</p>
-          <p className="text-xs text-[#8a9ab0] mt-0.5">{margen !== null ? `${margen}% de margen` : 'Sin ingresos aun'}</p>
-        </Card>
-      </div>
-
-      {/* Tabs */}
+      {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 mb-5 border-b border-[#e2e6ea]">
-        {[['gastos','Gastos'],['ingresos','Ingresos'],['extracto','Extracto bancario']].map(([key, label]) => (
+        {[
+          ['resumen',  'Resumen anual'],
+          ['ingresos', 'Ingresos'],
+          ['gastos',   'Gastos'],
+          ['extracto', 'Extracto bancario'],
+        ].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key ? 'border-accent text-accent' : 'border-transparent text-[#8a9ab0] hover:text-navy-600'
@@ -199,9 +191,240 @@ export default function Finanzas() {
         ))}
       </div>
 
-      {/* ── Tab Gastos ─────────────────────────────────────────────────────── */}
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB RESUMEN ANUAL
+      ══════════════════════════════════════════════════════════════════════ */}
+      {tab === 'resumen' && (
+        <div>
+          {/* Cards anuales */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <TrendingUp size={12} className="text-green-500" /> Ingresos {anio}
+              </p>
+              <p className="text-xl font-bold text-green-600">{fmt(totalAnual.ingresos)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <TrendingDown size={12} className="text-red-500" /> Gastos {anio}
+              </p>
+              <p className="text-xl font-bold text-red-600">{fmt(totalAnual.gastos)}</p>
+            </Card>
+            <Card className={`p-4 ${totalAnual.utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 mb-1 ${totalAnual.utilidad >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                <DollarSign size={12} /> Utilidad neta
+              </p>
+              <p className={`text-xl font-bold ${totalAnual.utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>{fmt(totalAnual.utilidad)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <BarChart2 size={12} /> Margen
+              </p>
+              <p className="text-xl font-bold text-navy-600">
+                {totalAnual.margen !== null ? `${totalAnual.margen}%` : '—'}
+              </p>
+            </Card>
+          </div>
+
+          {/* Tabla consolidado */}
+          {loading ? (
+            <div className="text-center py-10 text-[#8a9ab0] text-sm">Cargando...</div>
+          ) : (
+            <Card className="overflow-hidden p-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[110px]">Mes</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[140px]">Ingresos</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[140px]">Gastos</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[140px]">Utilidad</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[70px]">Margen</th>
+                    <th className="px-4 py-3 w-[120px]" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#e2e6ea]">
+                  {consolidado.map(m => (
+                    <tr
+                      key={m.mesNum}
+                      className={`transition-colors ${m.tieneData ? 'hover:bg-[#f8f9fb] cursor-pointer' : 'opacity-40'}`}
+                      onClick={() => m.tieneData && irAMes(m.mesNum, 'ingresos')}
+                    >
+                      <td className="px-4 py-3 font-medium text-navy-600">{m.nombre}</td>
+
+                      {/* Ingresos con barra */}
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-green-700 font-semibold tabular-nums">{m.ingresos > 0 ? fmt(m.ingresos) : '—'}</span>
+                          {m.ingresos > 0 && <MiniBar valor={m.ingresos} max={maxIngreso} color="bg-green-400" />}
+                        </div>
+                      </td>
+
+                      {/* Gastos */}
+                      <td className="px-4 py-3 text-right">
+                        <span className="text-red-600 font-semibold tabular-nums">{m.gastos > 0 ? fmt(m.gastos) : '—'}</span>
+                      </td>
+
+                      {/* Utilidad */}
+                      <td className="px-4 py-3 text-right">
+                        {m.tieneData ? (
+                          <span className={`font-bold tabular-nums ${m.utilidad >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                            {fmt(m.utilidad)}
+                          </span>
+                        ) : <span className="text-[#c0cad6]">—</span>}
+                      </td>
+
+                      {/* Margen */}
+                      <td className="px-4 py-3 text-right">
+                        {m.margen !== null
+                          ? <span className={`font-medium ${m.margen >= 0 ? 'text-green-600' : 'text-red-500'}`}>{m.margen}%</span>
+                          : <span className="text-[#c0cad6]">—</span>
+                        }
+                      </td>
+
+                      {/* Accion */}
+                      <td className="px-4 py-3 text-right">
+                        {m.tieneData && (
+                          <span className="text-xs text-accent font-medium opacity-0 group-hover:opacity-100">Ver detalle →</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-[#e2e6ea] bg-[#f8f9fb] font-bold">
+                    <td className="px-4 py-3 text-navy-600 text-sm">Total {anio}</td>
+                    <td className="px-4 py-3 text-right text-green-700 tabular-nums">{fmt(totalAnual.ingresos)}</td>
+                    <td className="px-4 py-3 text-right text-red-600 tabular-nums">{fmt(totalAnual.gastos)}</td>
+                    <td className={`px-4 py-3 text-right tabular-nums ${totalAnual.utilidad >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                      {fmt(totalAnual.utilidad)}
+                    </td>
+                    <td className={`px-4 py-3 text-right ${totalAnual.margen !== null && totalAnual.margen >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {totalAnual.margen !== null ? `${totalAnual.margen}%` : '—'}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </Card>
+          )}
+
+          {/* Nota */}
+          {!loading && totalAnual.ingresos === 0 && totalAnual.gastos === 0 && (
+            <div className="mt-6 text-center py-12">
+              <BarChart2 size={40} className="text-[#e2e6ea] mx-auto mb-3" />
+              <p className="text-sm font-medium text-navy-600">Sin datos para {anio}</p>
+              <p className="text-xs text-[#8a9ab0] mt-1">Registra gastos o marca cobros como pagados para ver el consolidado</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB INGRESOS
+      ══════════════════════════════════════════════════════════════════════ */}
+      {tab === 'ingresos' && (
+        <div>
+          {/* Cards mensuales */}
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <TrendingUp size={12} className="text-green-500" /> Ingresos
+              </p>
+              <p className="text-xl font-bold text-green-600">{fmt(totalIngresos)}</p>
+              <p className="text-xs text-[#8a9ab0] mt-0.5">{cobrosMes.length} cobro{cobrosMes.length !== 1 ? 's' : ''} pagado{cobrosMes.length !== 1 ? 's' : ''}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <TrendingDown size={12} className="text-red-500" /> Gastos
+              </p>
+              <p className="text-xl font-bold text-red-600">{fmt(totalGastos)}</p>
+              <p className="text-xs text-[#8a9ab0] mt-0.5">{gastosMes.length} registro{gastosMes.length !== 1 ? 's' : ''}</p>
+            </Card>
+            <Card className={`p-4 ${utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 mb-1 ${utilidad >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                <DollarSign size={12} /> Utilidad neta
+              </p>
+              <p className={`text-xl font-bold ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>{fmt(utilidad)}</p>
+              <p className="text-xs text-[#8a9ab0] mt-0.5">{margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aun'}</p>
+            </Card>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-10 text-[#8a9ab0] text-sm">Cargando...</div>
+          ) : cobrosMes.length === 0 ? (
+            <Card>
+              <div className="flex flex-col items-center py-12 gap-3">
+                <TrendingUp size={36} className="text-[#e2e6ea]" />
+                <p className="text-sm font-medium text-navy-600">Sin ingresos en {MESES_LABEL[mes - 1]} {anio}</p>
+                <p className="text-xs text-[#8a9ab0]">Los cobros marcados como pagados aparecen aqui</p>
+              </div>
+            </Card>
+          ) : (
+            <Card className="overflow-hidden p-0">
+              <table className="w-full text-sm table-fixed">
+                <colgroup>
+                  <col className="w-[105px]" />
+                  <col />
+                  <col className="w-[150px]" />
+                  <col className="w-[130px]" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Fecha</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cliente</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Concepto</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Monto</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#e2e6ea]">
+                  {cobrosMes.map(c => (
+                    <tr key={c.id} className="hover:bg-[#f8f9fb] transition-colors">
+                      <td className="px-4 py-3 text-[#8a9ab0] whitespace-nowrap text-xs">{fmtFecha(c.fecha_emision)}</td>
+                      <td className="px-4 py-3 text-navy-600 font-medium truncate">{c.cliente_nombre}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap">{c.concepto || 'Pago'}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-green-700 whitespace-nowrap">{fmt(c.monto)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB GASTOS
+      ══════════════════════════════════════════════════════════════════════ */}
       {tab === 'gastos' && (
         <div>
+          {/* Cards mensuales */}
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <TrendingUp size={12} className="text-green-500" /> Ingresos
+              </p>
+              <p className="text-xl font-bold text-green-600">{fmt(totalIngresos)}</p>
+              <p className="text-xs text-[#8a9ab0] mt-0.5">{cobrosMes.length} cobro{cobrosMes.length !== 1 ? 's' : ''}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <TrendingDown size={12} className="text-red-500" /> Gastos
+              </p>
+              <p className="text-xl font-bold text-red-600">{fmt(totalGastos)}</p>
+              <p className="text-xs text-[#8a9ab0] mt-0.5">{gastosMes.length} registro{gastosMes.length !== 1 ? 's' : ''}</p>
+            </Card>
+            <Card className={`p-4 ${utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 mb-1 ${utilidad >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                <DollarSign size={12} /> Utilidad neta
+              </p>
+              <p className={`text-xl font-bold ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>{fmt(utilidad)}</p>
+              <p className="text-xs text-[#8a9ab0] mt-0.5">{margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aun'}</p>
+            </Card>
+          </div>
+
+          {/* Chips de categoría */}
           {porCategoria.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-4">
               <button onClick={() => setFiltrocat('')}
@@ -216,18 +439,20 @@ export default function Finanzas() {
               ))}
             </div>
           )}
+
           <div className="mb-3">
             <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
               placeholder="Buscar gasto..." className="w-full px-4 py-2 text-sm border border-[#e2e6ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30" />
           </div>
+
           {loading ? (
             <div className="text-center py-10 text-[#8a9ab0] text-sm">Cargando...</div>
           ) : gastosFiltrados.length === 0 ? (
             <Card>
               <div className="flex flex-col items-center py-12 gap-3">
                 <TrendingDown size={36} className="text-[#e2e6ea]" />
-                <p className="text-sm font-medium text-navy-600">Sin gastos registrados</p>
-                <p className="text-xs text-[#8a9ab0]">Registra un gasto o importa desde el extracto</p>
+                <p className="text-sm font-medium text-navy-600">Sin gastos en {MESES_LABEL[mes - 1]} {anio}</p>
+                <p className="text-xs text-[#8a9ab0]">Registra un gasto o importa desde el extracto bancario</p>
                 <Button variant="secondary" onClick={abrirCrear}><Plus size={14} /> Registrar gasto</Button>
               </div>
             </Card>
@@ -280,55 +505,9 @@ export default function Finanzas() {
         </div>
       )}
 
-      {/* ── Tab Ingresos ───────────────────────────────────────────────────── */}
-      {tab === 'ingresos' && (
-        <div>
-          {loading ? (
-            <div className="text-center py-10 text-[#8a9ab0] text-sm">Cargando...</div>
-          ) : cobrosMes.length === 0 ? (
-            <Card>
-              <div className="flex flex-col items-center py-12 gap-3">
-                <TrendingUp size={36} className="text-[#e2e6ea]" />
-                <p className="text-sm font-medium text-navy-600">Sin ingresos este mes</p>
-                <p className="text-xs text-[#8a9ab0]">Los cobros marcados como pagados aparecen aqui</p>
-              </div>
-            </Card>
-          ) : (
-            <Card className="overflow-hidden p-0">
-              <table className="w-full text-sm table-fixed">
-                <colgroup>
-                  <col className="w-[105px]" />
-                  <col />
-                  <col className="w-[150px]" />
-                  <col className="w-[130px]" />
-                </colgroup>
-                <thead>
-                  <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Fecha</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cliente</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Tipo</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Monto</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#e2e6ea]">
-                  {cobrosMes.map(c => (
-                    <tr key={c.id} className="hover:bg-[#f8f9fb] transition-colors">
-                      <td className="px-4 py-3 text-[#8a9ab0] whitespace-nowrap text-xs">{fmtFecha(c.fecha_emision)}</td>
-                      <td className="px-4 py-3 text-navy-600 font-medium truncate">{c.cliente_nombre}</td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap">{c.concepto || 'Pago'}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-green-700 whitespace-nowrap">{fmt(c.monto)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* ── Tab Extracto ───────────────────────────────────────────────────── */}
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB EXTRACTO
+      ══════════════════════════════════════════════════════════════════════ */}
       {tab === 'extracto' && <ExtractoTab crearGasto={crearGasto} />}
 
       {/* ── Modal gasto ────────────────────────────────────────────────────── */}
@@ -393,28 +572,25 @@ function ExtractoTab({ crearGasto }) {
   const keyOk  = apiKey && apiKey !== 'tu_key_aqui' && apiKey.startsWith('sk-ant-')
 
   const fileRef = useRef(null)
-  const [archivo,      setArchivo]      = useState(null)
-  const [procesando,   setProcesando]   = useState(false)
-  const [transacciones,setTransacciones] = useState(null) // null = sin procesar
-  const [seleccionadas,setSeleccionadas] = useState(new Set())
-  const [catTxn,       setCatTxn]       = useState({})   // idx -> categoria
-  const [importando,   setImportando]   = useState(false)
+  const [archivo,       setArchivo]       = useState(null)
+  const [procesando,    setProcesando]    = useState(false)
+  const [transacciones, setTransacciones] = useState(null)
+  const [seleccionadas, setSeleccionadas] = useState(new Set())
+  const [catTxn,        setCatTxn]        = useState({})
+  const [importando,    setImportando]    = useState(false)
 
   function onFile(e) {
     const f = e.target.files?.[0]
     if (!f) return
     if (f.type !== 'application/pdf') { toast.error('Solo archivos PDF'); return }
-    setArchivo(f)
-    setTransacciones(null)
+    setArchivo(f); setTransacciones(null)
   }
-
   function onDrop(e) {
     e.preventDefault()
     const f = e.dataTransfer.files?.[0]
     if (!f) return
     if (f.type !== 'application/pdf') { toast.error('Solo archivos PDF'); return }
-    setArchivo(f)
-    setTransacciones(null)
+    setArchivo(f); setTransacciones(null)
   }
 
   async function analizar() {
@@ -425,251 +601,134 @@ function ExtractoTab({ crearGasto }) {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
-          'Content-Type':                 'application/json',
-          'x-api-key':                    apiKey,
-          'anthropic-version':            '2023-06-01',
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
           'anthropic-dangerous-allow-browser': 'true',
         },
         body: JSON.stringify({
-          model:      'claude-opus-4-5',
-          max_tokens: 4096,
+          model: 'claude-opus-4-5', max_tokens: 4096,
           messages: [{
             role: 'user',
             content: [
-              {
-                type:   'document',
-                source: { type: 'base64', media_type: 'application/pdf', data: base64 },
-              },
-              {
-                type: 'text',
-                text: `Eres un asistente contable. Analiza este extracto bancario Nu Colombia y extrae TODAS las transacciones.
-Devuelve UNICAMENTE un JSON array (sin markdown, sin explicacion, sin texto adicional) con este formato exacto:
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+              { type: 'text', text: `Eres un asistente contable. Analiza este extracto bancario Nu Colombia y extrae TODAS las transacciones.
+Devuelve UNICAMENTE un JSON array (sin markdown, sin explicacion) con este formato exacto:
 [{"fecha":"YYYY-MM-DD","descripcion":"descripcion concisa","monto":12345,"tipo":"debito"}]
-Reglas:
-- tipo "debito" = salida de dinero (pagos, compras, transferencias enviadas)
-- tipo "credito" = entrada de dinero (consignaciones, transferencias recibidas, reembolsos)
-- monto siempre numero positivo sin signos ni comas
-- fecha en formato YYYY-MM-DD
-- descripcion maxima 60 caracteres, sin mayusculas innecesarias`,
-              },
+Reglas: tipo "debito"=salida de dinero, tipo "credito"=entrada. monto siempre positivo. fecha YYYY-MM-DD. descripcion max 60 chars.` },
             ],
           }],
         }),
       })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error?.message || `Error ${res.status}`)
-      }
-
-      const data  = await res.json()
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || `Error ${res.status}`) }
+      const data = await res.json()
       const texto = data.content?.[0]?.text || ''
       const match = texto.match(/\[[\s\S]*\]/)
-      if (!match) throw new Error('No se encontraron transacciones en el extracto')
-
+      if (!match) throw new Error('No se encontraron transacciones')
       const txns = JSON.parse(match[0])
       if (!Array.isArray(txns) || txns.length === 0) throw new Error('El extracto no contiene transacciones legibles')
-
       setTransacciones(txns)
-      // Preseleccionar solo debitos
       setSeleccionadas(new Set(txns.map((t, i) => t.tipo === 'debito' ? i : -1).filter(i => i >= 0)))
-      // Categoria default
-      const map = {}
-      txns.forEach((_, i) => { map[i] = 'otros' })
-      setCatTxn(map)
+      const map = {}; txns.forEach((_, i) => { map[i] = 'otros' }); setCatTxn(map)
       toast.success(`${txns.length} transacciones encontradas`)
     } catch (err) {
       toast.error(err.message || 'Error al analizar el extracto')
-    } finally {
-      setProcesando(false)
-    }
+    } finally { setProcesando(false) }
   }
 
-  function toggleTxn(i) {
-    setSeleccionadas(prev => {
-      const s = new Set(prev)
-      s.has(i) ? s.delete(i) : s.add(i)
-      return s
-    })
-  }
-
+  function toggleTxn(i) { setSeleccionadas(prev => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s }) }
   function toggleTodos() {
     const debitos = (transacciones || []).map((t, i) => t.tipo === 'debito' ? i : -1).filter(i => i >= 0)
-    const todosSeleccionados = debitos.every(i => seleccionadas.has(i))
-    setSeleccionadas(todosSeleccionados ? new Set() : new Set(debitos))
+    const todos = debitos.every(i => seleccionadas.has(i))
+    setSeleccionadas(todos ? new Set() : new Set(debitos))
   }
 
   async function importarGastos() {
     const aImportar = (transacciones || [])
       .filter((t, i) => seleccionadas.has(i) && t.tipo === 'debito')
-      .map((t, i) => ({
-        fecha:       t.fecha,
-        categoria:   catTxn[transacciones.indexOf(t)] || 'otros',
-        descripcion: t.descripcion,
-        monto:       Number(t.monto),
-        notas:       'Importado desde extracto Nu Colombia',
-      }))
-
-    if (aImportar.length === 0) { toast.error('Selecciona al menos un gasto para importar'); return }
-
+      .map(t => ({ fecha: t.fecha, categoria: catTxn[transacciones.indexOf(t)] || 'otros', descripcion: t.descripcion, monto: Number(t.monto), notas: 'Importado desde extracto Nu Colombia' }))
+    if (aImportar.length === 0) { toast.error('Selecciona al menos un gasto'); return }
     setImportando(true)
     let ok = 0
-    for (const g of aImportar) {
-      const res = await crearGasto(g)
-      if (res) ok++
-    }
+    for (const g of aImportar) { if (await crearGasto(g)) ok++ }
     setImportando(false)
-
-    if (ok > 0) {
-      toast.success(`${ok} gasto${ok !== 1 ? 's' : ''} importado${ok !== 1 ? 's' : ''}`)
-      setTransacciones(null)
-      setArchivo(null)
-      setSeleccionadas(new Set())
-    }
+    if (ok > 0) { toast.success(`${ok} gasto${ok !== 1 ? 's' : ''} importado${ok !== 1 ? 's' : ''}`); setTransacciones(null); setArchivo(null); setSeleccionadas(new Set()) }
   }
 
-  // Sin API key configurada
-  if (!keyOk) {
-    return (
-      <Card>
-        <div className="flex flex-col items-center py-12 text-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center">
-            <AlertCircle size={26} className="text-amber-500" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-navy-600">API Key de Claude no configurada</p>
-            <p className="text-xs text-[#8a9ab0] max-w-xs mt-1.5 leading-relaxed">
-              Para usar el procesador de extractos, agrega tu API key de Anthropic en el archivo <code className="bg-[#f8f9fb] px-1 rounded">.env.local</code>
-            </p>
-          </div>
-          <div className="bg-[#f8f9fb] border border-[#e2e6ea] rounded-xl px-5 py-3 text-left w-full max-w-sm">
-            <p className="text-xs font-mono text-navy-600">VITE_ANTHROPIC_API_KEY=sk-ant-...</p>
-          </div>
-          <p className="text-xs text-[#8a9ab0]">Obtén tu key en <span className="text-accent">console.anthropic.com</span></p>
-        </div>
-      </Card>
-    )
-  }
-
-  // Sin archivo seleccionado
-  if (!archivo && !transacciones) {
-    return (
-      <div>
-        <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
-        <div
-          onDragOver={e => e.preventDefault()}
-          onDrop={onDrop}
-          onClick={() => fileRef.current?.click()}
-          className="border-2 border-dashed border-[#c0cad6] rounded-2xl p-12 flex flex-col items-center gap-4 cursor-pointer hover:border-accent hover:bg-accent/5 transition-all text-center"
-        >
-          <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center">
-            <FileText size={28} className="text-accent" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-navy-600">Sube tu extracto Nu Colombia</p>
-            <p className="text-xs text-[#8a9ab0] mt-1">Arrastra el PDF aqui o haz clic para seleccionarlo</p>
-          </div>
-          <Button variant="secondary" onClick={e => { e.stopPropagation(); fileRef.current?.click() }}>
-            <Upload size={14} /> Seleccionar PDF
-          </Button>
+  if (!keyOk) return (
+    <Card>
+      <div className="flex flex-col items-center py-12 text-center gap-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center"><AlertCircle size={26} className="text-amber-500" /></div>
+        <div>
+          <p className="text-sm font-semibold text-navy-600">API Key de Claude no configurada</p>
+          <p className="text-xs text-[#8a9ab0] max-w-xs mt-1.5 leading-relaxed">Agrega tu key en <code className="bg-[#f8f9fb] px-1 rounded">.env.local</code> como VITE_ANTHROPIC_API_KEY</p>
         </div>
       </div>
-    )
-  }
+    </Card>
+  )
 
-  // Archivo listo para analizar
-  if (archivo && !transacciones && !procesando) {
-    return (
-      <Card className="p-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
-            <FileText size={22} className="text-red-500" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-navy-600 truncate">{archivo.name}</p>
-            <p className="text-xs text-[#8a9ab0]">{(archivo.size / 1024).toFixed(0)} KB · PDF</p>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <Button variant="secondary" onClick={() => { setArchivo(null); fileRef.current && (fileRef.current.value = '') }}>
-              <X size={14} /> Quitar
-            </Button>
-            <Button onClick={analizar}>
-              <FileText size={14} /> Analizar con IA
-            </Button>
-          </div>
+  if (!archivo && !transacciones) return (
+    <div>
+      <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
+      <div onDragOver={e => e.preventDefault()} onDrop={onDrop} onClick={() => fileRef.current?.click()}
+        className="border-2 border-dashed border-[#c0cad6] rounded-2xl p-12 flex flex-col items-center gap-4 cursor-pointer hover:border-accent hover:bg-accent/5 transition-all text-center">
+        <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center"><FileText size={28} className="text-accent" /></div>
+        <div>
+          <p className="text-sm font-semibold text-navy-600">Sube tu extracto Nu Colombia</p>
+          <p className="text-xs text-[#8a9ab0] mt-1">Arrastra el PDF aqui o haz clic para seleccionarlo</p>
         </div>
-        <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
-      </Card>
-    )
-  }
+        <Button variant="secondary"><Upload size={14} /> Seleccionar PDF</Button>
+      </div>
+    </div>
+  )
 
-  // Procesando
-  if (procesando) {
-    return (
-      <Card>
-        <div className="flex flex-col items-center py-14 gap-4">
-          <Loader2 size={32} className="text-accent animate-spin" />
-          <div className="text-center">
-            <p className="text-sm font-semibold text-navy-600">Analizando extracto con Claude AI</p>
-            <p className="text-xs text-[#8a9ab0] mt-1">Esto puede tomar unos segundos...</p>
-          </div>
+  if (procesando) return (
+    <Card><div className="flex flex-col items-center py-14 gap-4"><Loader2 size={32} className="text-accent animate-spin" /><p className="text-sm font-semibold text-navy-600">Analizando extracto con Claude AI...</p></div></Card>
+  )
+
+  if (archivo && !transacciones) return (
+    <Card className="p-6">
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0"><FileText size={22} className="text-red-500" /></div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-navy-600 truncate">{archivo.name}</p>
+          <p className="text-xs text-[#8a9ab0]">{(archivo.size / 1024).toFixed(0)} KB · PDF</p>
         </div>
-      </Card>
-    )
-  }
+        <div className="flex gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setArchivo(null)}><X size={14} /> Quitar</Button>
+          <Button onClick={analizar}><FileText size={14} /> Analizar con IA</Button>
+        </div>
+      </div>
+      <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
+    </Card>
+  )
 
-  // Resultados — tabla de revisión
   if (transacciones) {
-    const debitos  = transacciones.filter(t => t.tipo === 'debito')
-    const creditos = transacciones.filter(t => t.tipo === 'credito')
+    const debitos = transacciones.filter(t => t.tipo === 'debito')
     const nSel = transacciones.filter((t, i) => seleccionadas.has(i) && t.tipo === 'debito').length
-    const totalSel = transacciones
-      .filter((t, i) => seleccionadas.has(i) && t.tipo === 'debito')
-      .reduce((s, t) => s + Number(t.monto), 0)
-
+    const totalSel = transacciones.filter((t, i) => seleccionadas.has(i) && t.tipo === 'debito').reduce((s, t) => s + Number(t.monto), 0)
     return (
       <div>
-        {/* Resumen rápido */}
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <Card className="p-3">
-            <p className="text-xs text-[#8a9ab0]">Transacciones</p>
-            <p className="text-lg font-bold text-navy-600">{transacciones.length}</p>
-          </Card>
-          <Card className="p-3">
-            <p className="text-xs text-red-500">Debitos (gastos)</p>
-            <p className="text-lg font-bold text-red-600">{debitos.length}</p>
-          </Card>
-          <Card className="p-3">
-            <p className="text-xs text-green-500">Creditos (ingresos)</p>
-            <p className="text-lg font-bold text-green-600">{creditos.length}</p>
-          </Card>
+          <Card className="p-3"><p className="text-xs text-[#8a9ab0]">Transacciones</p><p className="text-lg font-bold text-navy-600">{transacciones.length}</p></Card>
+          <Card className="p-3"><p className="text-xs text-red-500">Debitos</p><p className="text-lg font-bold text-red-600">{debitos.length}</p></Card>
+          <Card className="p-3"><p className="text-xs text-green-500">Creditos</p><p className="text-lg font-bold text-green-600">{transacciones.filter(t => t.tipo === 'credito').length}</p></Card>
         </div>
-
-        {/* Barra de accion */}
         <div className="flex items-center justify-between mb-3 px-1">
           <div className="flex items-center gap-3">
-            <button onClick={toggleTodos} className="flex items-center gap-1.5 text-xs text-[#8a9ab0] hover:text-navy-600 transition-colors">
-              {debitos.every((_, ii) => seleccionadas.has(transacciones.indexOf(debitos[ii])))
-                ? <CheckSquare size={16} className="text-accent" />
-                : <Square size={16} />
-              }
+            <button onClick={toggleTodos} className="flex items-center gap-1.5 text-xs text-[#8a9ab0] hover:text-navy-600">
+              {debitos.every((_, ii) => seleccionadas.has(transacciones.indexOf(debitos[ii]))) ? <CheckSquare size={16} className="text-accent" /> : <Square size={16} />}
               Seleccionar todos los gastos
             </button>
-            {nSel > 0 && (
-              <span className="text-xs text-[#8a9ab0]">{nSel} seleccionado{nSel !== 1 ? 's' : ''} · {fmt(totalSel)}</span>
-            )}
+            {nSel > 0 && <span className="text-xs text-[#8a9ab0]">{nSel} seleccionado{nSel !== 1 ? 's' : ''} · {fmt(totalSel)}</span>}
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => { setTransacciones(null); setArchivo(null) }}>
-              <X size={14} /> Nuevo extracto
-            </Button>
+            <Button variant="secondary" onClick={() => { setTransacciones(null); setArchivo(null) }}><X size={14} /> Nuevo extracto</Button>
             <Button onClick={importarGastos} disabled={importando || nSel === 0}>
-              {importando ? <><Loader2 size={14} className="animate-spin" /> Importando...</> : <><Upload size={14} /> Importar {nSel > 0 ? `${nSel} gasto${nSel !== 1 ? 's' : ''}` : 'gastos'}</>}
+              {importando ? <><Loader2 size={14} className="animate-spin" /> Importando...</> : <><Upload size={14} /> Importar {nSel > 0 ? `${nSel} gasto${nSel !== 1 ? 's' : ''}` : ''}</>}
             </Button>
           </div>
         </div>
-
-        {/* Tabla de transacciones */}
         <Card className="overflow-hidden p-0">
           <table className="w-full text-sm">
             <thead>
@@ -684,42 +743,15 @@ Reglas:
             </thead>
             <tbody className="divide-y divide-[#e2e6ea]">
               {transacciones.map((t, i) => {
-                const esDebito = t.tipo === 'debito'
-                const sel = seleccionadas.has(i)
+                const esDebito = t.tipo === 'debito'; const sel = seleccionadas.has(i)
                 return (
                   <tr key={i} className={`transition-colors ${esDebito ? (sel ? 'bg-blue-50/40' : 'hover:bg-[#f8f9fb]') : 'opacity-50 bg-[#f8f9fb]'}`}>
-                    <td className="px-3 py-3">
-                      {esDebito ? (
-                        <button onClick={() => toggleTxn(i)} className="text-accent">
-                          {sel ? <CheckSquare size={16} /> : <Square size={16} className="text-[#c0cad6]" />}
-                        </button>
-                      ) : (
-                        <span className="w-4 h-4 block" />
-                      )}
-                    </td>
+                    <td className="px-3 py-3">{esDebito ? <button onClick={() => toggleTxn(i)} className="text-accent">{sel ? <CheckSquare size={16} /> : <Square size={16} className="text-[#c0cad6]" />}</button> : <span className="w-4 h-4 block" />}</td>
                     <td className="px-4 py-3 text-[#8a9ab0] whitespace-nowrap text-xs">{t.fecha}</td>
                     <td className="px-4 py-3 text-navy-600 text-xs">{t.descripcion}</td>
-                    <td className="px-4 py-3">
-                      {esDebito ? (
-                        <select
-                          value={catTxn[i] || 'otros'}
-                          onChange={e => setCatTxn(prev => ({ ...prev, [i]: e.target.value }))}
-                          className="text-xs border border-[#e2e6ea] rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-accent/30 w-full"
-                        >
-                          {CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                        </select>
-                      ) : (
-                        <span className="text-xs text-[#c0cad6]">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${esDebito ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                        {esDebito ? 'Debito' : 'Credito'}
-                      </span>
-                    </td>
-                    <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap text-xs ${esDebito ? 'text-red-600' : 'text-green-600'}`}>
-                      {esDebito ? '-' : '+'}{fmt(t.monto)}
-                    </td>
+                    <td className="px-4 py-3">{esDebito ? <select value={catTxn[i] || 'otros'} onChange={e => setCatTxn(prev => ({ ...prev, [i]: e.target.value }))} className="text-xs border border-[#e2e6ea] rounded-lg px-2 py-1 bg-white focus:outline-none w-full">{CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select> : <span className="text-xs text-[#c0cad6]">—</span>}</td>
+                    <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${esDebito ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>{esDebito ? 'Debito' : 'Credito'}</span></td>
+                    <td className={`px-4 py-3 text-right font-semibold text-xs ${esDebito ? 'text-red-600' : 'text-green-600'}`}>{esDebito ? '-' : '+'}{fmt(t.monto)}</td>
                   </tr>
                 )
               })}
@@ -729,6 +761,5 @@ Reglas:
       </div>
     )
   }
-
   return null
 }
