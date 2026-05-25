@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Search, UserPlus } from 'lucide-react'
+import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Search, UserPlus, Package, Link2 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { usePedidos } from '../hooks/usePedidos'
 import { supabase } from '../services/supabase'
+import toast from 'react-hot-toast'
 
 const ESTADOS = [
   { id: 'en_cola',     label: 'En cola',        color: 'gray',  bg: 'bg-gray-400',   desc: 'Esperando turno' },
@@ -60,17 +61,6 @@ function ClienteAutocomplete({ clientes, value, clienteId, onChange }) {
 
   const hayExacto = clientes.some(c => c.empresa.toLowerCase() === query.trim().toLowerCase())
 
-  function seleccionar(c) {
-    onChange({ id: c.id, nombre: c.empresa })
-    setQuery(c.empresa)
-    setOpen(false)
-  }
-
-  function usarNuevo() {
-    onChange({ id: null, nombre: query.trim() })
-    setOpen(false)
-  }
-
   return (
     <div ref={ref} className="relative flex flex-col gap-1">
       <label className="text-sm font-medium text-navy-600">Cliente</label>
@@ -90,24 +80,15 @@ function ClienteAutocomplete({ clientes, value, clienteId, onChange }) {
             <p className="text-xs text-[#8a9ab0] px-3 py-2">Sin clientes guardados aún</p>
           )}
           {filtrados.map(c => (
-            <button
-              key={c.id}
-              type="button"
-              onMouseDown={() => seleccionar(c)}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-[#f8f9fb] flex items-center gap-2 ${clienteId === c.id ? 'bg-blue-50 text-accent font-medium' : 'text-navy-600'}`}
-            >
-              <User size={12} className="text-[#8a9ab0] shrink-0" />
-              {c.empresa}
+            <button key={c.id} type="button" onMouseDown={() => { onChange({ id: c.id, nombre: c.empresa }); setQuery(c.empresa); setOpen(false) }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-[#f8f9fb] flex items-center gap-2 ${clienteId === c.id ? 'bg-blue-50 text-accent font-medium' : 'text-navy-600'}`}>
+              <User size={12} className="text-[#8a9ab0] shrink-0" />{c.empresa}
             </button>
           ))}
           {query.trim() && !hayExacto && (
-            <button
-              type="button"
-              onMouseDown={usarNuevo}
-              className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-blue-50 flex items-center gap-2 border-t border-[#f0f2f5]"
-            >
-              <UserPlus size={12} className="shrink-0" />
-              Usar "<span className="font-medium">{query.trim()}</span>"
+            <button type="button" onMouseDown={() => { onChange({ id: null, nombre: query.trim() }); setOpen(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-blue-50 flex items-center gap-2 border-t border-[#f0f2f5]">
+              <UserPlus size={12} className="shrink-0" />Usar "<span className="font-medium">{query.trim()}</span>"
             </button>
           )}
         </div>
@@ -127,23 +108,63 @@ function BadgeFecha({ fecha }) {
 
 export default function Produccion() {
   const { pedidos, loading, crearPedido, actualizarPedido, moverEstado, eliminarPedido } = usePedidos()
-  const [clientes, setClientes] = useState([])
-  const [modal, setModal]           = useState(null)
-  const [confirmId, setConfirmId]   = useState(null)
-  const [form, setForm]             = useState(EMPTY)
-  const [saving, setSaving]         = useState(false)
-  const [draggingId, setDraggingId] = useState(null)
-  const [overCol, setOverCol]       = useState(null)
+  const [clientes,    setClientes]    = useState([])
+  const [modal,       setModal]       = useState(null)
+  const [confirmId,   setConfirmId]   = useState(null)
+  const [invModal,    setInvModal]    = useState(null) // pedido con receta_json al llegar a terminado
+  const [form,        setForm]        = useState(EMPTY)
+  const [saving,      setSaving]      = useState(false)
+  const [deduciendo,  setDeduciendo]  = useState(false)
+  const [draggingId,  setDraggingId]  = useState(null)
+  const [overCol,     setOverCol]     = useState(null)
 
   useEffect(() => {
-    supabase.from('clientes').select('id, empresa').order('empresa').then(({ data }) => {
-      setClientes(data || [])
-    })
+    supabase.from('clientes').select('id, empresa').order('empresa').then(({ data }) => setClientes(data || []))
   }, [])
 
   const porEstado = (estadoId) => pedidos.filter(p => (p.estado || 'en_cola') === estadoId)
   const activos   = pedidos.filter(p => p.estado !== 'entregado').length
 
+  // ── Mover estado con hook para inventario ─────────────────────────────────
+  async function handleMoverEstado(pedido, nuevoEstado) {
+    if (!pedido) return
+    await moverEstado(pedido.id, nuevoEstado)
+    // Al marcar terminado, ofrecer descuento de inventario si tiene receta
+    if (nuevoEstado === 'terminado' && pedido.receta_json) {
+      const items = [
+        ...(pedido.receta_json.accesorios_usados || []),
+        ...(pedido.receta_json.acabados_usados   || []),
+      ].filter(i => i.cantidad_total > 0)
+      if (items.length > 0) setInvModal(pedido)
+    }
+  }
+
+  async function deducirInventario() {
+    if (!invModal?.receta_json) return
+    setDeduciendo(true)
+    const items = [
+      ...(invModal.receta_json.accesorios_usados || []),
+      ...(invModal.receta_json.acabados_usados   || []),
+    ].filter(i => i.nombre && i.cantidad_total > 0)
+
+    let deducidos = 0
+    for (const item of items) {
+      const { data: inv } = await supabase
+        .from('inventario').select('id, stock_actual')
+        .ilike('nombre', item.nombre).limit(1)
+      if (inv?.length > 0) {
+        const nueva = Math.max(0, Number(inv[0].stock_actual) - item.cantidad_total)
+        await supabase.from('inventario').update({ stock_actual: nueva }).eq('id', inv[0].id)
+        deducidos++
+      }
+    }
+    setDeduciendo(false)
+    setInvModal(null)
+    if (deducidos > 0) toast.success(`${deducidos} material${deducidos !== 1 ? 'es' : ''} descontado${deducidos !== 1 ? 's' : ''} del inventario ✓`)
+    else toast('Sin coincidencias en inventario — verifica los nombres', { icon: 'ℹ️' })
+  }
+
+  // ── CRUD ──────────────────────────────────────────────────────────────────
   function abrirCrear(estadoId = 'en_cola') {
     setForm({ ...EMPTY, estado: estadoId })
     setModal({ mode: 'crear' })
@@ -172,9 +193,7 @@ export default function Produccion() {
       estado:         form.estado,
       fecha_entrega:  form.fecha_entrega || null,
     }
-    let ok
-    if (modal.mode === 'crear') ok = await crearPedido(datos)
-    else ok = await actualizarPedido(modal.id, datos)
+    const ok = modal.mode === 'crear' ? await crearPedido(datos) : await actualizarPedido(modal.id, datos)
     setSaving(false)
     if (ok) setModal(null)
   }
@@ -186,11 +205,15 @@ export default function Produccion() {
     setConfirmId(null)
   }
 
+  // ── Drag & drop ───────────────────────────────────────────────────────────
   function onDragStart(e, id) { setDraggingId(id); e.dataTransfer.effectAllowed = 'move' }
   function onDragOver(e, estadoId) { e.preventDefault(); setOverCol(estadoId) }
   function onDrop(e, estadoId) {
     e.preventDefault()
-    if (draggingId) moverEstado(draggingId, estadoId)
+    if (draggingId) {
+      const pedido = pedidos.find(p => p.id === draggingId)
+      handleMoverEstado(pedido, estadoId)
+    }
     setDraggingId(null); setOverCol(null)
   }
   function onDragEnd() { setDraggingId(null); setOverCol(null) }
@@ -220,7 +243,6 @@ export default function Produccion() {
               onDrop={e => onDrop(e, estado.id)}
               onDragLeave={() => setOverCol(null)}
             >
-              {/* Cabecera */}
               <div className="flex items-center justify-between px-3 pt-3 pb-1">
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${estado.bg}`} />
@@ -233,7 +255,6 @@ export default function Produccion() {
               </div>
               <p className="text-[10px] text-[#8a9ab0] px-3 pb-2">{estado.desc}</p>
 
-              {/* Tarjetas */}
               <div className="flex flex-col gap-2 px-2 pb-3 min-h-[80px]">
                 {loading ? (
                   <div className="animate-pulse bg-[#e2e6ea] rounded-lg h-20 w-full" />
@@ -257,6 +278,11 @@ export default function Produccion() {
                       </div>
 
                       <div className="flex flex-col gap-0.5 mb-2">
+                        {p.cobro_ref && (
+                          <span className="flex items-center gap-1.5 text-xs text-accent font-medium">
+                            <Link2 size={10} />{p.cobro_ref}
+                          </span>
+                        )}
                         {p.cliente_nombre && (
                           <span className="flex items-center gap-1.5 text-xs text-[#8a9ab0]"><User size={10} />{p.cliente_nombre}</span>
                         )}
@@ -266,12 +292,18 @@ export default function Produccion() {
                         {p.fecha_entrega && (
                           <span className="flex items-center gap-1.5"><Calendar size={10} className="text-[#8a9ab0]" /><BadgeFecha fecha={p.fecha_entrega} /></span>
                         )}
+                        {/* Indicador de materiales */}
+                        {p.receta_json && (
+                          <span className="flex items-center gap-1 text-[10px] text-[#8a9ab0] bg-[#f0f2f5] rounded px-1.5 py-0.5 w-fit mt-0.5">
+                            <Package size={9} /> materiales vinculados
+                          </span>
+                        )}
                       </div>
 
                       {SIGUIENTE[p.estado] && (
                         <div className="pt-2 border-t border-[#f0f2f5]">
                           <button
-                            onClick={() => moverEstado(p.id, SIGUIENTE[p.estado])}
+                            onClick={() => handleMoverEstado(p, SIGUIENTE[p.estado])}
                             className="flex items-center gap-1 text-[10px] font-medium text-accent hover:text-navy-600 transition-colors"
                           >
                             {LABEL_SIGUIENTE[p.estado]} <ArrowRight size={10} />
@@ -290,12 +322,9 @@ export default function Produccion() {
       {/* Modal crear/editar */}
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'crear' ? 'Nuevo pedido' : 'Editar pedido'}>
         <div className="flex flex-col gap-4">
-          <Input
-            label="Descripción *"
-            value={form.descripcion}
+          <Input label="Descripción *" value={form.descripcion}
             onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-            placeholder="Ej: Prótesis dental, soporte para drone, pieza personalizada..."
-          />
+            placeholder="Ej: Llavero personalizado, soporte para drone..." />
           <div className="grid grid-cols-2 gap-3">
             <ClienteAutocomplete
               clientes={clientes}
@@ -303,29 +332,18 @@ export default function Produccion() {
               clienteId={form.cliente_id}
               onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))}
             />
-            <Input
-              label="Cantidad"
-              type="number"
-              min="1"
+            <Input label="Cantidad" type="number" min="1"
               value={form.cantidad}
               onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
-              placeholder="1"
-            />
+              placeholder="1" />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Fecha de entrega"
-              type="date"
-              value={form.fecha_entrega}
-              onChange={e => setForm(f => ({ ...f, fecha_entrega: e.target.value }))}
-            />
+            <Input label="Fecha de entrega" type="date" value={form.fecha_entrega}
+              onChange={e => setForm(f => ({ ...f, fecha_entrega: e.target.value }))} />
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Estado</label>
-              <select
-                value={form.estado}
-                onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
-                className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
-              >
+              <select value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
+                className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent">
                 {ESTADOS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
               </select>
             </div>
@@ -347,6 +365,50 @@ export default function Produccion() {
           <Button variant="danger" onClick={confirmarEliminar} disabled={saving}>{saving ? 'Eliminando...' : 'Eliminar'}</Button>
         </div>
       </Modal>
+
+      {/* ── Modal descuento inventario (al marcar terminado) ───────────────── */}
+      {invModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
+          onClick={e => { if (e.target === e.currentTarget) setInvModal(null) }}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+            <div className="px-5 pt-5 pb-4 border-b border-[#e2e6ea]">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-lg">✅</span>
+                <h2 className="font-semibold text-navy-600">Pedido terminado</h2>
+              </div>
+              <p className="text-xs text-[#8a9ab0] mt-1">
+                Se usaron estos materiales. ¿Descontarlos del inventario ahora?
+              </p>
+            </div>
+            <div className="px-5 py-4">
+              <ul className="flex flex-col gap-2.5">
+                {[
+                  ...(invModal.receta_json.accesorios_usados || []),
+                  ...(invModal.receta_json.acabados_usados   || []),
+                ].filter(i => i.cantidad_total > 0).map((item, i) => (
+                  <li key={i} className="flex items-center justify-between">
+                    <span className="text-sm text-navy-600 font-medium">{item.nombre}</span>
+                    <span className="text-sm font-semibold text-red-600 tabular-nums">
+                      −{item.cantidad_total} {item.unidad}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-[#8a9ab0] mt-3">
+                Los materiales se buscan por nombre en el inventario. Si no hay coincidencia, se omiten.
+              </p>
+            </div>
+            <div className="px-5 pb-5 flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setInvModal(null)} disabled={deduciendo}>
+                Omitir
+              </Button>
+              <Button className="flex-1" onClick={deducirInventario} disabled={deduciendo}>
+                {deduciendo ? 'Descontando...' : 'Descontar inventario'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

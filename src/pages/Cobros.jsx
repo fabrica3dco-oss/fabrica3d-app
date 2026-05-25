@@ -108,7 +108,6 @@ export default function Cobros() {
   const [pagoModal,    setPagoModal]   = useState(null)
   const [metodoPago,   setMetodoPago]  = useState('')
   const [revertModal,  setRevertModal] = useState(null)
-  const [invModal,     setInvModal]    = useState(null) // receta_json para descuento inventario
   const [form,         setForm]        = useState(EMPTY)
   const [saving,       setSaving]      = useState(false)
   const [previewUrl,   setPreviewUrl]  = useState(null)
@@ -203,42 +202,34 @@ export default function Cobros() {
   }
 
   async function confirmarPago() {
-    // Guardar receta_json antes de que el estado se limpie
     const cobroPagando = cobros.find(c => c.id === pagoModal.id)
     setSaving(true)
     const ok = await marcarPagado(pagoModal.id, metodoPago)
     setSaving(false)
     setPagoModal(null)
     setMetodoPago('')
-    // Si el cobro tiene receta_json y hay materiales, ofrecer descuento de inventario
-    if (ok && cobroPagando?.receta_json) {
-      const items = [
-        ...(cobroPagando.receta_json.accesorios_usados || []),
-        ...(cobroPagando.receta_json.acabados_usados   || []),
-      ].filter(i => i.cantidad_total > 0)
-      if (items.length > 0) setInvModal(cobroPagando.receta_json)
-    }
-  }
 
-  async function deducirInventario(recetaJson) {
-    const items = [
-      ...(recetaJson.accesorios_usados || []),
-      ...(recetaJson.acabados_usados   || []),
-    ].filter(i => i.nombre && i.cantidad_total > 0)
-    let deducidos = 0
-    for (const item of items) {
-      const { data: inv } = await supabase
-        .from('inventario').select('id, stock_actual')
-        .ilike('nombre', item.nombre).limit(1)
-      if (inv?.length > 0) {
-        const nueva = Math.max(0, Number(inv[0].stock_actual) - item.cantidad_total)
-        await supabase.from('inventario').update({ stock_actual: nueva }).eq('id', inv[0].id)
-        deducidos++
+    // Si el cobro inicia producción (anticipo o pago total) → auto-crear pedido en cola
+    if (ok && cobroPagando?.receta_json) {
+      const esPrimerPago =
+        cobroPagando.concepto === 'Pago total' ||
+        cobroPagando.concepto === 'Anticipo 50%'
+      if (esPrimerPago) {
+        const receta   = cobroPagando.receta_json
+        const cobroNum = cobroPagando.numero ? `COB-${String(cobroPagando.numero).padStart(3, '0')}` : null
+        const { error } = await supabase.from('pedidos').insert([{
+          descripcion:    receta.producto || cobroPagando.cliente_nombre || 'Pedido 3D',
+          cliente_nombre: cobroPagando.cliente_nombre || null,
+          cantidad:       receta.cantidad || 1,
+          estado:         'en_cola',
+          receta_json:    receta,
+          cobro_ref:      cobroNum,
+        }])
+        if (!error) {
+          toast.success('¡Pago confirmado! Pedido enviado a producción 🏭', { duration: 4000 })
+        }
       }
     }
-    if (deducidos > 0) toast.success(`${deducidos} material${deducidos !== 1 ? 'es' : ''} descontado${deducidos !== 1 ? 's' : ''} del inventario`)
-    else toast('No se encontraron coincidencias en el inventario', { icon: 'ℹ️' })
-    setInvModal(null)
   }
 
   async function revertirAPendiente(c) {
@@ -635,36 +626,6 @@ export default function Cobros() {
           </Button>
         </div>
       </Modal>
-
-      {/* ── Descuento automático de inventario ─────────────────────────────── */}
-      {invModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
-          onClick={e => { if (e.target === e.currentTarget) setInvModal(null) }}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
-            <div className="px-5 pt-5 pb-4 border-b border-[#e2e6ea]">
-              <h2 className="font-semibold text-navy-600">¡Cobro confirmado!</h2>
-              <p className="text-xs text-[#8a9ab0] mt-1">Este pedido usó los siguientes materiales. ¿Descontarlos del inventario?</p>
-            </div>
-            <div className="px-5 py-4">
-              <ul className="flex flex-col gap-2">
-                {[
-                  ...(invModal.accesorios_usados || []),
-                  ...(invModal.acabados_usados   || []),
-                ].filter(i => i.cantidad_total > 0).map((item, i) => (
-                  <li key={i} className="flex items-center justify-between text-sm">
-                    <span className="text-navy-600 font-medium">{item.nombre}</span>
-                    <span className="text-[#8a9ab0]">−{item.cantidad_total} {item.unidad}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="px-5 pb-5 flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setInvModal(null)}>Omitir</Button>
-              <Button className="flex-1" onClick={() => deducirInventario(invModal)}>Descontar inventario</Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Confirmar eliminar ──────────────────────────────────────────────── */}
       <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar cuenta de cobro" size="sm">
