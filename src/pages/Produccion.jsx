@@ -412,8 +412,8 @@ export default function Produccion() {
       {invModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) setInvModal(null) }}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
-            <div className="px-5 pt-5 pb-4 border-b border-[#e2e6ea]">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl flex flex-col max-h-[90vh]">
+            <div className="px-5 pt-5 pb-4 border-b border-[#e2e6ea] shrink-0">
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="text-lg">✅</span>
                 <h2 className="font-semibold text-navy-600">Pedido terminado</h2>
@@ -424,55 +424,59 @@ export default function Produccion() {
               </p>
             </div>
 
-            {/* Materiales editables */}
-            {invItems.length > 0 && (
-              <div className="px-5 pt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Materiales usados</p>
-                  <span className="text-[11px] text-[#8a9ab0]">Edita si usaste más o menos</span>
-                </div>
-                <ul className="flex flex-col gap-2">
-                  {invItems.map((item, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <span className="text-sm text-navy-600 font-medium flex-1 truncate">{item.nombre}</span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-xs font-bold text-red-500">−</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          value={item.cantidad}
-                          onChange={e => setInvItems(prev =>
-                            prev.map((it, j) => j === i ? { ...it, cantidad: e.target.value } : it)
+            {/* Cuerpo scrollable */}
+            <div className="overflow-y-auto flex-1 px-5 pt-4">
+              {invItems.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Materiales usados</p>
+                    <span className="text-[11px] text-[#8a9ab0]">Edita si usaste más o menos</span>
+                  </div>
+                  <ul className="flex flex-col gap-2.5">
+                    {invItems.map((item, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <span className="text-sm text-navy-600 font-medium flex-1 truncate">{item.nombre}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-xs font-bold text-red-500">−</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={item.cantidad}
+                            onChange={e => setInvItems(prev =>
+                              prev.map((it, j) => j === i ? { ...it, cantidad: e.target.value } : it)
+                            )}
+                            className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-accent/30 tabular-nums"
+                          />
+                          {item.unidad && (
+                            <span className="text-xs text-[#8a9ab0] w-7 shrink-0">{item.unidad}</span>
                           )}
-                          className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-accent/30 tabular-nums"
-                        />
-                        {item.unidad && (
-                          <span className="text-xs text-[#8a9ab0] w-7 shrink-0">{item.unidad}</span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-[11px] text-[#8a9ab0] mt-2 mb-1">
-                  Se buscan por nombre en inventario. Pon 0 para omitir un ítem.
-                </p>
-                <div className="flex gap-2 mt-3">
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[11px] text-[#8a9ab0] mt-3 pb-2">
+                    Se buscan por nombre en inventario. Pon 0 para omitir un ítem.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-[#8a9ab0] pb-2">Sin materiales vinculados a este pedido.</p>
+              )}
+            </div>
+
+            {/* Botones fijos al pie */}
+            <div className="px-5 pt-3 pb-5 border-t border-[#e2e6ea] shrink-0 flex gap-2">
+              {invItems.length > 0 ? (
+                <>
                   <Button variant="secondary" className="flex-1" onClick={() => setInvModal(null)} disabled={deduciendo}>Omitir</Button>
                   <Button className="flex-1" onClick={deducirInventario} disabled={deduciendo}>
                     {deduciendo ? 'Descontando...' : 'Descontar inventario'}
                   </Button>
-                </div>
-              </div>
-            )}
-
-
-            {/* Cerrar si no hay materiales */}
-            {invItems.length === 0 && (
-              <div className="px-5 pb-5 pt-4">
-                <Button className="w-full" onClick={() => setInvModal(null)}>Cerrar</Button>
-              </div>
-            )}
+                </>
+              ) : (
+                <Button className="flex-1" onClick={() => setInvModal(null)}>Cerrar</Button>
+              )}
+            </div>
           </div>
         </div>
       )}
