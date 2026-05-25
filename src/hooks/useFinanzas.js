@@ -54,7 +54,6 @@ export function useFinanzas() {
   // ── Resumen tab (rango personalizado) ─────────────────────────────────────
   const [gastosRes,  setGastosRes]  = useState([])
   const [cobrosRes,  setCobrosRes]  = useState([])
-  const [trabajos,   setTrabajos]   = useState([])
   const [loadingRes, setLoadingRes] = useState(true)
   const [resDesde,   setResDesde]   = useState(`${curY}-01-01`)
   const [resHasta,   setResHasta]   = useState(`${curY}-12-31`)
@@ -74,19 +73,7 @@ export function useFinanzas() {
     setLoadingRes(false)
   }, [resFiltro])
 
-  const fetchTrabajos = useCallback(async () => {
-    const { data } = await supabase
-      .from('cotizaciones')
-      .select('id, numero, cliente_nombre, estado, fecha_emision, receta_json')
-      .not('receta_json', 'is', null)
-      .gte('fecha_emision', resFiltro.desde)
-      .lte('fecha_emision', resFiltro.hasta)
-      .order('fecha_emision', { ascending: false })
-    setTrabajos(data || [])
-  }, [resFiltro])
-
   useEffect(() => { fetchResumen() }, [fetchResumen])
-  useEffect(() => { fetchTrabajos() }, [fetchTrabajos])
 
   function aplicarFiltroResumen() {
     if (!resDesde || !resHasta) { toast.error('Selecciona las fechas'); return }
@@ -147,22 +134,6 @@ export function useFinanzas() {
     return { ingresos: ing, gastos: gas, utilidad: util, margen: ing > 0 ? Math.round((util / ing) * 100) : null }
   }, [consolidado])
 
-  // Totales por trabajo (desde cotizaciones con receta_json)
-  const trabajosTotales = useMemo(() => {
-    const valid = trabajos.filter(t => t.receta_json?.utilidad_total != null)
-    if (valid.length === 0) return null
-    return {
-      costo_total:    valid.reduce((s, t) => s + Number(t.receta_json.costo_total    || 0), 0),
-      precio_total:   valid.reduce((s, t) => s + Number(t.receta_json.precio_total   || 0), 0),
-      utilidad_total: valid.reduce((s, t) => s + Number(t.receta_json.utilidad_total || 0), 0),
-      parte_mayor:    valid.reduce((s, t) => s + Number(t.receta_json.parte_mayor    || 0), 0),
-      parte_menor:    valid.reduce((s, t) => s + Number(t.receta_json.parte_menor    || 0), 0),
-      pct_mayor: valid[0].receta_json.pct_mayor ?? 75,
-      pct_menor: valid[0].receta_json.pct_menor ?? 25,
-      count: valid.length,
-    }
-  }, [trabajos])
-
   // Desglose de utilidades (solo cobros generados desde calculadora con receta_json)
   const splitData = useMemo(() => {
     const conReceta = cobrosRes.filter(c => c.receta_json?.utilidad_total != null)
@@ -210,7 +181,6 @@ export function useFinanzas() {
     resFiltro, aplicarFiltroResumen,
     consolidado, totalPeriodo, splitData,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
-    trabajos, trabajosTotales,
     crearGasto, actualizarGasto, eliminarGasto,
   }
 }
