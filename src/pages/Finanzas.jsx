@@ -63,6 +63,7 @@ export default function Finanzas() {
     resFiltro, aplicarFiltroResumen,
     consolidado, totalPeriodo, splitData,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
+    trabajos, trabajosTotales,
     crearGasto, actualizarGasto, eliminarGasto,
   } = useFinanzas()
 
@@ -184,6 +185,7 @@ export default function Finanzas() {
       <div className="flex gap-1 mb-5 border-b border-[#e2e6ea]">
         {[
           ['resumen',  'Resumen'],
+          ['trabajos', 'Trabajos'],
           ['ingresos', 'Ingresos'],
           ['gastos',   'Gastos'],
           ['extracto', 'Extracto'],
@@ -392,6 +394,142 @@ export default function Finanzas() {
               <p className="text-sm font-medium text-navy-600">Sin datos para el período seleccionado</p>
               <p className="text-xs text-[#8a9ab0] mt-1">Registra gastos o marca cobros como pagados para ver el consolidado</p>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB TRABAJOS
+      ══════════════════════════════════════════════════════════════════════ */}
+      {tab === 'trabajos' && (
+        <div>
+          {/* Nota del período activo */}
+          <p className="text-xs text-[#8a9ab0] mb-4">
+            Cotizaciones generadas desde la calculadora · período {resFiltro.desde} → {resFiltro.hasta}.
+            Cambia el rango en la pestaña <button className="text-accent underline" onClick={() => setTab('resumen')}>Resumen</button>.
+          </p>
+
+          {trabajos.length === 0 ? (
+            <Card>
+              <div className="flex flex-col items-center py-12 gap-3">
+                <BarChart2 size={36} className="text-[#e2e6ea]" />
+                <p className="text-sm font-medium text-navy-600">Sin trabajos en el período</p>
+                <p className="text-xs text-[#8a9ab0]">Genera cotizaciones desde la calculadora y aparecerán aquí con su desglose financiero</p>
+              </div>
+            </Card>
+          ) : (
+            <>
+              {/* Tabla por trabajo */}
+              <Card className="overflow-hidden p-0 mb-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" style={{ minWidth: 780 }}>
+                    <thead>
+                      <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide whitespace-nowrap">Fecha</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cliente</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Producto</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Estado</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide whitespace-nowrap">Costo mat.</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide whitespace-nowrap">A cobrar</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Utilidad</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide whitespace-nowrap">
+                          {trabajosTotales?.pct_mayor ?? 75}%
+                        </th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-yellow-600 uppercase tracking-wide whitespace-nowrap">
+                          {trabajosTotales?.pct_menor ?? 25}%
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e2e6ea]">
+                      {trabajos.map(t => {
+                        const rj = t.receta_json || {}
+                        const ESTADO_CLR = {
+                          borrador:  'bg-gray-100 text-gray-600',
+                          enviada:   'bg-blue-100 text-blue-700',
+                          aprobada:  'bg-green-100 text-green-700',
+                          rechazada: 'bg-red-100 text-red-600',
+                        }
+                        return (
+                          <tr key={t.id} className="hover:bg-[#f8f9fb] transition-colors">
+                            <td className="px-4 py-3 text-[#8a9ab0] text-xs whitespace-nowrap">
+                              {t.fecha_emision ? fmtFecha(t.fecha_emision) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-navy-600 font-medium max-w-[110px] truncate">
+                              {t.cliente_nombre || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-navy-600 max-w-[110px] truncate">
+                              {rj.producto || '—'}
+                              {rj.cantidad > 1 && <span className="ml-1 text-xs text-[#8a9ab0]">×{rj.cantidad}</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${ESTADO_CLR[t.estado] || 'bg-gray-100 text-gray-600'}`}>
+                                {t.estado}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right text-[#8a9ab0] tabular-nums text-xs">
+                              {rj.costo_total ? fmt(rj.costo_total) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-navy-600 tabular-nums">
+                              {rj.precio_total ? fmt(rj.precio_total) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-green-700 tabular-nums">
+                              {rj.utilidad_total ? fmt(rj.utilidad_total) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-green-600 tabular-nums">
+                              {rj.parte_mayor ? fmt(rj.parte_mayor) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-yellow-600 tabular-nums">
+                              {rj.parte_menor ? fmt(rj.parte_menor) : '—'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    {trabajosTotales && (
+                      <tfoot>
+                        <tr className="border-t-2 border-[#e2e6ea] bg-[#f8f9fb] font-bold">
+                          <td colSpan={4} className="px-4 py-3 text-navy-600 text-sm">
+                            Total · {trabajosTotales.count} trabajo{trabajosTotales.count !== 1 ? 's' : ''}
+                          </td>
+                          <td className="px-4 py-3 text-right text-[#8a9ab0] tabular-nums text-xs">{fmt(trabajosTotales.costo_total)}</td>
+                          <td className="px-4 py-3 text-right text-navy-600 tabular-nums">{fmt(trabajosTotales.precio_total)}</td>
+                          <td className="px-4 py-3 text-right text-green-700 tabular-nums">{fmt(trabajosTotales.utilidad_total)}</td>
+                          <td className="px-4 py-3 text-right text-green-600 tabular-nums">{fmt(trabajosTotales.parte_mayor)}</td>
+                          <td className="px-4 py-3 text-right text-yellow-600 tabular-nums">{fmt(trabajosTotales.parte_menor)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </Card>
+
+              {/* Card distribución */}
+              {trabajosTotales && (
+                <Card className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Users size={15} className="text-accent" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">
+                      Distribución del período · {trabajosTotales.count} trabajo{trabajosTotales.count !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="flex flex-col justify-center">
+                      <p className="text-xs text-[#8a9ab0] mb-0.5">Utilidad bruta</p>
+                      <p className="text-xl font-bold text-navy-600">{fmt(trabajosTotales.utilidad_total)}</p>
+                      <p className="text-xs text-[#8a9ab0] mt-1">de {fmt(trabajosTotales.precio_total)} facturado</p>
+                    </div>
+                    <div className="bg-green-50 border border-green-100 rounded-xl p-3">
+                      <p className="text-xs text-green-600 font-semibold mb-0.5">{trabajosTotales.pct_mayor}% · Parte mayor</p>
+                      <p className="text-xl font-bold text-green-700">{fmt(trabajosTotales.parte_mayor)}</p>
+                    </div>
+                    <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3">
+                      <p className="text-xs text-yellow-600 font-semibold mb-0.5">{trabajosTotales.pct_menor}% · Comisión</p>
+                      <p className="text-xl font-bold text-yellow-700">{fmt(trabajosTotales.parte_menor)}</p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </>
           )}
         </div>
       )}
