@@ -128,6 +128,7 @@ export default function Produccion() {
   const [modal,       setModal]       = useState(null)
   const [confirmId,   setConfirmId]   = useState(null)
   const [invModal,    setInvModal]    = useState(null) // pedido con receta_json al llegar a terminado
+  const [invItems,    setInvItems]    = useState([])  // lista editable de materiales a descontar
   const [form,        setForm]        = useState(EMPTY)
   const [saving,      setSaving]      = useState(false)
   const [deduciendo,  setDeduciendo]  = useState(false)
@@ -137,6 +138,18 @@ export default function Produccion() {
   useEffect(() => {
     supabase.from('clientes').select('id, empresa').order('empresa').then(({ data }) => setClientes(data || []))
   }, [])
+
+  // Inicializar lista editable de materiales cuando se abre el modal de terminado
+  useEffect(() => {
+    if (!invModal) { setInvItems([]); return }
+    const items = [
+      ...(invModal.receta_json?.accesorios_usados || []),
+      ...(invModal.receta_json?.acabados_usados   || []),
+    ]
+      .filter(i => i.cantidad_total > 0)
+      .map(i => ({ nombre: i.nombre, unidad: i.unidad || '', cantidad: i.cantidad_total }))
+    setInvItems(items)
+  }, [invModal])
 
   const porEstado = (estadoId) => pedidos.filter(p => (p.estado || 'en_cola') === estadoId)
   const activos   = pedidos.filter(p => p.estado !== 'entregado').length
@@ -169,20 +182,15 @@ export default function Produccion() {
   }
 
   async function deducirInventario() {
-    if (!invModal?.receta_json) return
     setDeduciendo(true)
-    const items = [
-      ...(invModal.receta_json.accesorios_usados || []),
-      ...(invModal.receta_json.acabados_usados   || []),
-    ].filter(i => i.nombre && i.cantidad_total > 0)
-
+    const activos = invItems.filter(i => i.nombre && Number(i.cantidad) > 0)
     let deducidos = 0
-    for (const item of items) {
+    for (const item of activos) {
       const { data: inv } = await supabase
         .from('inventario').select('id, stock_actual')
         .ilike('nombre', item.nombre).limit(1)
       if (inv?.length > 0) {
-        const nueva = Math.max(0, Number(inv[0].stock_actual) - item.cantidad_total)
+        const nueva = Math.max(0, Number(inv[0].stock_actual) - Number(item.cantidad))
         await supabase.from('inventario').update({ stock_actual: nueva }).eq('id', inv[0].id)
         deducidos++
       }
@@ -416,28 +424,38 @@ export default function Produccion() {
               </p>
             </div>
 
-            {/* Materiales */}
-            {invModal.receta_json && [
-              ...(invModal.receta_json.accesorios_usados || []),
-              ...(invModal.receta_json.acabados_usados   || []),
-            ].filter(i => i.cantidad_total > 0).length > 0 && (
+            {/* Materiales editables */}
+            {invItems.length > 0 && (
               <div className="px-5 pt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-2">Materiales usados</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Materiales usados</p>
+                  <span className="text-[11px] text-[#8a9ab0]">Edita si usaste más o menos</span>
+                </div>
                 <ul className="flex flex-col gap-2">
-                  {[
-                    ...(invModal.receta_json.accesorios_usados || []),
-                    ...(invModal.receta_json.acabados_usados   || []),
-                  ].filter(i => i.cantidad_total > 0).map((item, i) => (
-                    <li key={i} className="flex items-center justify-between">
-                      <span className="text-sm text-navy-600 font-medium">{item.nombre}</span>
-                      <span className="text-sm font-semibold text-red-600 tabular-nums">
-                        −{item.cantidad_total} {item.unidad}
-                      </span>
+                  {invItems.map((item, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <span className="text-sm text-navy-600 font-medium flex-1 truncate">{item.nombre}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-xs font-bold text-red-500">−</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={item.cantidad}
+                          onChange={e => setInvItems(prev =>
+                            prev.map((it, j) => j === i ? { ...it, cantidad: e.target.value } : it)
+                          )}
+                          className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-accent/30 tabular-nums"
+                        />
+                        {item.unidad && (
+                          <span className="text-xs text-[#8a9ab0] w-7 shrink-0">{item.unidad}</span>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
                 <p className="text-[11px] text-[#8a9ab0] mt-2 mb-1">
-                  Los materiales se buscan por nombre exacto en inventario.
+                  Se buscan por nombre en inventario. Pon 0 para omitir un ítem.
                 </p>
                 <div className="flex gap-2 mt-3">
                   <Button variant="secondary" className="flex-1" onClick={() => setInvModal(null)} disabled={deduciendo}>Omitir</Button>
@@ -468,20 +486,14 @@ export default function Produccion() {
             )}
 
             {/* Cerrar si no hay materiales ni saldo */}
-            {(!invModal.receta_json || [
-              ...(invModal.receta_json.accesorios_usados || []),
-              ...(invModal.receta_json.acabados_usados   || []),
-            ].filter(i => i.cantidad_total > 0).length === 0) && !invModal.cobro_ref && (
+            {invItems.length === 0 && !invModal.cobro_ref && (
               <div className="px-5 pb-5 pt-4">
                 <Button className="w-full" onClick={() => setInvModal(null)}>Cerrar</Button>
               </div>
             )}
 
             {/* Botón cerrar solo si tiene saldo pero no materiales */}
-            {invModal.cobro_ref && (!invModal.receta_json || [
-              ...(invModal.receta_json?.accesorios_usados || []),
-              ...(invModal.receta_json?.acabados_usados   || []),
-            ].filter(i => i.cantidad_total > 0).length === 0) && (
+            {invModal.cobro_ref && invItems.length === 0 && (
               <div className="px-5 pb-5">
                 <Button variant="secondary" className="w-full" onClick={() => setInvModal(null)}>Cerrar sin cobrar</Button>
               </div>
