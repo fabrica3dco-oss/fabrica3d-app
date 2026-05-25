@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, BarChart2,
-  Plus, Edit2, Trash2, X, Calendar,
+  Plus, Edit2, Trash2, X, Calendar, Users,
   Loader2, ChevronDown,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
@@ -61,7 +61,7 @@ export default function Finanzas() {
     loadingRes,
     resDesde, setResDesde, resHasta, setResHasta,
     resFiltro, aplicarFiltroResumen,
-    consolidado, totalPeriodo,
+    consolidado, totalPeriodo, splitData,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
     crearGasto, actualizarGasto, eliminarGasto,
   } = useFinanzas()
@@ -356,6 +356,33 @@ export default function Finanzas() {
                   </tr>
                 </tfoot>
               </table>
+            </Card>
+          )}
+
+          {/* Tarjeta distribución de utilidades */}
+          {!loadingRes && splitData && (
+            <Card className="mt-4 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Users size={15} className="text-accent" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">
+                  Distribución de utilidades · {splitData.pedidos} pedido{splitData.pedidos !== 1 ? 's' : ''} con desglose
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-xs text-[#8a9ab0] mb-0.5">Utilidad bruta</p>
+                  <p className="text-lg font-bold text-navy-600">{fmt(splitData.utilidad_total)}</p>
+                </div>
+                <div className="bg-green-50 border border-green-100 rounded-xl p-3">
+                  <p className="text-xs text-green-600 font-semibold mb-0.5">{splitData.pct_mayor}%</p>
+                  <p className="text-lg font-bold text-green-700">{fmt(splitData.parte_mayor)}</p>
+                </div>
+                <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3">
+                  <p className="text-xs text-yellow-600 font-semibold mb-0.5">{splitData.pct_menor}%</p>
+                  <p className="text-lg font-bold text-yellow-700">{fmt(splitData.parte_menor)}</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-[#8a9ab0] mt-2">Solo incluye pedidos generados desde la calculadora de precios</p>
             </Card>
           )}
 

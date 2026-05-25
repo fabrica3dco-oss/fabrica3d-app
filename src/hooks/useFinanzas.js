@@ -64,7 +64,7 @@ export function useFinanzas() {
     const [{ data: g, error: eg }, { data: c, error: ec }] = await Promise.all([
       supabase.from('gastos').select('*')
         .gte('fecha', resFiltro.desde).lte('fecha', resFiltro.hasta),
-      supabase.from('cobros').select('id, monto, estado, fecha_emision, cliente_nombre, concepto')
+      supabase.from('cobros').select('id, monto, estado, fecha_emision, cliente_nombre, concepto, receta_json')
         .eq('estado', 'pagado')
         .gte('fecha_emision', resFiltro.desde).lte('fecha_emision', resFiltro.hasta),
     ])
@@ -134,6 +134,18 @@ export function useFinanzas() {
     return { ingresos: ing, gastos: gas, utilidad: util, margen: ing > 0 ? Math.round((util / ing) * 100) : null }
   }, [consolidado])
 
+  // Desglose de utilidades (solo cobros generados desde calculadora con receta_json)
+  const splitData = useMemo(() => {
+    const conReceta = cobrosRes.filter(c => c.receta_json?.utilidad_total != null)
+    if (conReceta.length === 0) return null
+    const utilidad_total = conReceta.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0)
+    const parte_mayor    = conReceta.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0)
+    const parte_menor    = conReceta.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0)
+    const pct_mayor = conReceta[0]?.receta_json?.pct_mayor ?? 75
+    const pct_menor = conReceta[0]?.receta_json?.pct_menor ?? 25
+    return { utilidad_total, parte_mayor, parte_menor, pct_mayor, pct_menor, pedidos: conReceta.length }
+  }, [cobrosRes])
+
   // ── Detail: mes seleccionado ──────────────────────────────────────────────
   const mesPad    = String(mes).padStart(2, '0')
   const mesFiltro = `${anio}-${mesPad}`
@@ -167,7 +179,7 @@ export function useFinanzas() {
     gastosRes, cobrosRes, loadingRes,
     resDesde, setResDesde, resHasta, setResHasta,
     resFiltro, aplicarFiltroResumen,
-    consolidado, totalPeriodo,
+    consolidado, totalPeriodo, splitData,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
     crearGasto, actualizarGasto, eliminarGasto,
   }

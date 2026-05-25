@@ -141,16 +141,17 @@ export default function Calculadora() {
     }
     accesoriosUsados.forEach(a => partes.push(`${a.nombre} ×${a.cantidad_por_unidad}`))
     acabadosUsados.forEach(a => partes.push(`${a.nombre} (${a.cantidad_por_unidad}${a.unidad})`))
-    // calc is available via closure from the component scope
-    const precio = Math.round(
-      (() => {
-        const costoFilamento = rec.filamento_g > 0 ? (rec.filamento_g / config.filamento_rollo_gramos) * config.filamento_rollo_precio : 0
-        const costoTiempo    = (rec.tiempo_min / 60) * config.tarifa_hora
-        const costoAcc = rec.accesorios.reduce((s, a) => { const it = config.accesorios.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
-        const costoAcb = rec.acabados.reduce((s, a) => { const it = config.acabados.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
-        return (costoFilamento + costoAcc + costoAcb + costoTiempo) * (1 + rec.margen / 100)
-      })()
-    )
+    // Recalculo inline para evitar closure stale
+    const _costoFil = rec.filamento_g > 0 ? (rec.filamento_g / config.filamento_rollo_gramos) * config.filamento_rollo_precio : 0
+    const _costoTmp = (rec.tiempo_min / 60) * config.tarifa_hora
+    const _costoAcc = rec.accesorios.reduce((s, a) => { const it = config.accesorios.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
+    const _costoAcb = rec.acabados.reduce((s, a) => { const it = config.acabados.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
+    const _costoXUd = _costoFil + _costoAcc + _costoAcb + _costoTmp
+    const precio = Math.ceil(_costoXUd * (1 + rec.margen / 100) / 1000) * 1000
+    const _utilXUd = precio - _costoXUd
+    const _utilTot = _utilXUd * cantidad
+    const _pctMayor = 100 - rec.comision
+    const _pctMenor = rec.comision
     navigate('/cotizaciones', {
       state: {
         fromCalculadora: {
@@ -164,6 +165,16 @@ export default function Calculadora() {
             precio_unitario: precio,
             accesorios_usados: accesoriosUsados,
             acabados_usados: acabadosUsados,
+            // Desglose financiero para reporte de utilidades
+            costo_unitario:    Math.round(_costoXUd),
+            costo_total:       Math.round(_costoXUd * cantidad),
+            precio_total:      precio * cantidad,
+            utilidad_unitaria: Math.round(_utilXUd),
+            utilidad_total:    Math.round(_utilTot),
+            pct_mayor:         _pctMayor,
+            pct_menor:         _pctMenor,
+            parte_mayor:       Math.round(_utilTot * (_pctMayor / 100)),
+            parte_menor:       Math.round(_utilTot * (_pctMenor / 100)),
           },
         },
       },
@@ -189,7 +200,7 @@ export default function Calculadora() {
 
     const costoXUnidad   = costoFilamento + costoAccesorios + costoAcabados + costoTiempo
     const costoTotal     = costoXUnidad * (rec.cantidad || 1)
-    const precioSugerido = costoXUnidad * (1 + rec.margen / 100)
+    const precioSugerido = Math.ceil(costoXUnidad * (1 + rec.margen / 100) / 1000) * 1000
     const precioTotal    = precioSugerido * (rec.cantidad || 1)
     const utilidad       = precioSugerido - costoXUnidad
     const utilidadTotal  = utilidad * (rec.cantidad || 1)
