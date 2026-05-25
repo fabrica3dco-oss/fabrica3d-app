@@ -213,7 +213,7 @@ export default function Calculadora() {
     const _costoAcb = rec.acabados.reduce((s, a) => { const it = config.acabados.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
     const _costoXUd = _costoFil + _costoAcc + _costoAcb + _costoTmp
     const precioExacto  = _costoXUd * (1 + rec.margen / 100)
-    const precioCerrado = Math.ceil(precioExacto / 1000) * 1000
+    const precioCerrado = Math.ceil(precioExacto / 100) * 100
     const ctx = {
       nombre:           rec.nombre || 'Producto 3D',
       cantidad,
