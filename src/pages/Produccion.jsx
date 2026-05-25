@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Search, UserPlus, Package, Link2, Clock, CreditCard } from 'lucide-react'
+import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Search, UserPlus, Package, Link2, Clock } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -466,36 +466,11 @@ export default function Produccion() {
               </div>
             )}
 
-            {/* Cobro saldo */}
-            {invModal.cobro_ref && invModal.receta_json?.precio_total > 0 && (
-              <div className="px-5 py-4 border-t border-[#f0f2f5] mt-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <CreditCard size={14} className="text-accent" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Cobro pendiente</p>
-                </div>
-                <p className="text-sm text-navy-600 mb-3">
-                  Si fue anticipo 50%, el saldo restante aún está pendiente de cobrar.
-                </p>
-                <button
-                  onClick={() => irACobrarSaldo(invModal)}
-                  className="w-full py-2 rounded-xl text-sm font-semibold border-2 border-accent text-accent hover:bg-accent/5 transition-colors flex items-center justify-center gap-2"
-                >
-                  <CreditCard size={14} /> Generar cobro de saldo →
-                </button>
-              </div>
-            )}
 
-            {/* Cerrar si no hay materiales ni saldo */}
-            {invItems.length === 0 && !invModal.cobro_ref && (
+            {/* Cerrar si no hay materiales */}
+            {invItems.length === 0 && (
               <div className="px-5 pb-5 pt-4">
                 <Button className="w-full" onClick={() => setInvModal(null)}>Cerrar</Button>
-              </div>
-            )}
-
-            {/* Botón cerrar solo si tiene saldo pero no materiales */}
-            {invModal.cobro_ref && invItems.length === 0 && (
-              <div className="px-5 pb-5">
-                <Button variant="secondary" className="w-full" onClick={() => setInvModal(null)}>Cerrar sin cobrar</Button>
               </div>
             )}
           </div>
