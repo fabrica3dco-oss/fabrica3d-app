@@ -80,6 +80,7 @@ export default function Calculadora() {
   const [showPlant,  setShowPlant]    = useState(false)
   const [plantillas, setPlantillas]   = useState(getPlantillas)
   const [plantNombre, setPlantNombre] = useState('')
+  const [roundModal,  setRoundModal]  = useState(null) // { precioExacto, precioCerrado, ctx }
 
   // Auto-save config
   useEffect(() => {
@@ -150,6 +151,40 @@ export default function Calculadora() {
     savePlantillas(lista)
   }
 
+  // ── Navegar a cotización con precio elegido ───────────────────────────────
+  function navegarConPrecio(precio, ctx) {
+    setRoundModal(null)
+    const { cantidad, accesoriosUsados, acabadosUsados, costoXUd, pctMayor, pctMenor, nombre, detalle } = ctx
+    const _utilXUd = precio - costoXUd
+    const _utilTot = _utilXUd * cantidad
+    navigate('/cotizaciones', {
+      state: {
+        fromCalculadora: {
+          nombre,
+          cantidad,
+          precioSugerido: precio,
+          detalle,
+          receta_json: {
+            producto: nombre,
+            cantidad,
+            precio_unitario: precio,
+            accesorios_usados: accesoriosUsados,
+            acabados_usados: acabadosUsados,
+            costo_unitario:    Math.round(costoXUd),
+            costo_total:       Math.round(costoXUd * cantidad),
+            precio_total:      Math.round(precio * cantidad),
+            utilidad_unitaria: Math.round(_utilXUd),
+            utilidad_total:    Math.round(_utilTot),
+            pct_mayor:         pctMayor,
+            pct_menor:         pctMenor,
+            parte_mayor:       Math.round(_utilTot * (pctMayor / 100)),
+            parte_menor:       Math.round(_utilTot * (pctMenor / 100)),
+          },
+        },
+      },
+    })
+  }
+
   // ── Ir a cotización ───────────────────────────────────────────────────────
   function irACotizacion() {
     const cantidad = rec.cantidad || 1
@@ -177,38 +212,24 @@ export default function Calculadora() {
     const _costoAcc = rec.accesorios.reduce((s, a) => { const it = config.accesorios.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
     const _costoAcb = rec.acabados.reduce((s, a) => { const it = config.acabados.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
     const _costoXUd = _costoFil + _costoAcc + _costoAcb + _costoTmp
-    const precio = Math.ceil(_costoXUd * (1 + rec.margen / 100) / 1000) * 1000
-    const _utilXUd = precio - _costoXUd
-    const _utilTot = _utilXUd * cantidad
-    const _pctMayor = 100 - rec.comision
-    const _pctMenor = rec.comision
-    navigate('/cotizaciones', {
-      state: {
-        fromCalculadora: {
-          nombre: rec.nombre || 'Producto 3D',
-          cantidad,
-          precioSugerido: precio,
-          detalle: partes.join(' · '),
-          receta_json: {
-            producto: rec.nombre || 'Producto 3D',
-            cantidad,
-            precio_unitario: precio,
-            accesorios_usados: accesoriosUsados,
-            acabados_usados: acabadosUsados,
-            // Desglose financiero para reporte de utilidades
-            costo_unitario:    Math.round(_costoXUd),
-            costo_total:       Math.round(_costoXUd * cantidad),
-            precio_total:      precio * cantidad,
-            utilidad_unitaria: Math.round(_utilXUd),
-            utilidad_total:    Math.round(_utilTot),
-            pct_mayor:         _pctMayor,
-            pct_menor:         _pctMenor,
-            parte_mayor:       Math.round(_utilTot * (_pctMayor / 100)),
-            parte_menor:       Math.round(_utilTot * (_pctMenor / 100)),
-          },
-        },
-      },
-    })
+    const precioExacto  = _costoXUd * (1 + rec.margen / 100)
+    const precioCerrado = Math.ceil(precioExacto / 1000) * 1000
+    const ctx = {
+      nombre:           rec.nombre || 'Producto 3D',
+      cantidad,
+      detalle:          partes.join(' · '),
+      accesoriosUsados,
+      acabadosUsados,
+      costoXUd:         _costoXUd,
+      pctMayor:         100 - rec.comision,
+      pctMenor:         rec.comision,
+    }
+    // Si ya es múltiplo de 1000 exacto → ir directo sin modal
+    if (precioCerrado === Math.round(precioExacto)) {
+      navegarConPrecio(precioExacto, ctx)
+    } else {
+      setRoundModal({ precioExacto, precioCerrado, ctx })
+    }
   }
 
   // ── Calculos ──────────────────────────────────────────────────────────────
@@ -230,7 +251,7 @@ export default function Calculadora() {
 
     const costoXUnidad   = costoFilamento + costoAccesorios + costoAcabados + costoTiempo
     const costoTotal     = costoXUnidad * (rec.cantidad || 1)
-    const precioSugerido = Math.ceil(costoXUnidad * (1 + rec.margen / 100) / 1000) * 1000
+    const precioSugerido = costoXUnidad * (1 + rec.margen / 100)
     const precioTotal    = precioSugerido * (rec.cantidad || 1)
     const utilidad       = precioSugerido - costoXUnidad
     const utilidadTotal  = utilidad * (rec.cantidad || 1)
@@ -686,6 +707,63 @@ export default function Calculadora() {
 
         </div>
       </div>
+
+      {/* ── Modal: cerrar precio a miles ─────────────────────────────────────── */}
+      {roundModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setRoundModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Título */}
+            <p className="text-base font-bold text-navy-600 mb-1">¿Cerrar el precio?</p>
+            <p className="text-xs text-[#8a9ab0] mb-5">
+              Elige con cuál precio generas la cotización.
+            </p>
+
+            {/* Comparativa */}
+            <div className="flex flex-col gap-3 mb-5">
+              {/* Precio cerrado (sugerido) */}
+              <button
+                onClick={() => navegarConPrecio(roundModal.precioCerrado, roundModal.ctx)}
+                className="flex items-center justify-between gap-3 w-full rounded-xl border-2 border-accent bg-accent/5 px-4 py-3 hover:bg-accent/10 transition-colors text-left"
+              >
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-accent mb-0.5">Precio cerrado</p>
+                  <p className="text-2xl font-bold text-navy-600">{fmt(roundModal.precioCerrado)}</p>
+                  <p className="text-[11px] text-[#8a9ab0] mt-0.5">
+                    +{fmt(roundModal.precioCerrado - roundModal.precioExacto)} sobre el exacto
+                  </p>
+                </div>
+                <div className="shrink-0 w-6 h-6 rounded-full bg-accent flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">✓</span>
+                </div>
+              </button>
+
+              {/* Precio exacto */}
+              <button
+                onClick={() => navegarConPrecio(roundModal.precioExacto, roundModal.ctx)}
+                className="flex items-center justify-between gap-3 w-full rounded-xl border border-[#e2e6ea] bg-[#f8f9fb] px-4 py-3 hover:border-[#c8cdd5] transition-colors text-left"
+              >
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8a9ab0] mb-0.5">Precio exacto</p>
+                  <p className="text-xl font-bold text-navy-600">{fmt(roundModal.precioExacto)}</p>
+                </div>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setRoundModal(null)}
+              className="w-full text-xs text-[#8a9ab0] hover:text-navy-600 transition-colors py-1"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Configurar precios base (colapsable) ─────────────────────────────── */}
       <div className="mt-5">
