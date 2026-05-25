@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2, BookMarked, Save } from 'lucide-react'
+import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2, BookMarked, Save, Pencil, Check } from 'lucide-react'
 import Card from '../components/ui/Card'
 
 // ── Plantillas (localStorage) ─────────────────────────────────────────────────
@@ -80,7 +80,9 @@ export default function Calculadora() {
   const [showPlant,  setShowPlant]    = useState(false)
   const [plantillas, setPlantillas]   = useState(getPlantillas)
   const [plantNombre, setPlantNombre] = useState('')
-  const [roundModal,  setRoundModal]  = useState(null) // { precioExacto, precioCerrado, ctx }
+  const [saveModal,   setSaveModal]   = useState(false) // modal guardar plantilla
+  const [editPlant,   setEditPlant]   = useState(null)  // { id, nombre } renombrar inline
+  const [roundModal,  setRoundModal]  = useState(null)  // { precioExacto, precioCerrado, ctx }
 
   // Auto-save config
   useEffect(() => {
@@ -137,7 +139,7 @@ export default function Calculadora() {
     setPlantillas(lista)
     savePlantillas(lista)
     setPlantNombre('')
-    setShowPlant(false)
+    setSaveModal(false)
   }
 
   function cargarPlantilla(p) {
@@ -149,6 +151,15 @@ export default function Calculadora() {
     const lista = plantillas.filter(p => p.id !== id)
     setPlantillas(lista)
     savePlantillas(lista)
+  }
+
+  function renombrarPlantilla(id) {
+    const nombre = (editPlant?.nombre || '').trim()
+    if (!nombre) { setEditPlant(null); return }
+    const lista = plantillas.map(p => p.id === id ? { ...p, nombre } : p)
+    setPlantillas(lista)
+    savePlantillas(lista)
+    setEditPlant(null)
   }
 
   // ── Navegar a cotización con precio elegido ───────────────────────────────
@@ -308,55 +319,78 @@ export default function Calculadora() {
       {/* Panel plantillas */}
       {showPlant && (
         <Card className="mb-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">Plantillas guardadas</p>
-
-          {/* Guardar actual */}
-          {!cero && (
-            <div className="flex gap-2 mb-4">
-              <input
-                value={plantNombre}
-                onChange={e => setPlantNombre(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && guardarPlantilla()}
-                placeholder={rec.nombre || 'Nombre de la plantilla'}
-                className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">Mis plantillas</p>
+            {!cero && (
               <button
-                onClick={guardarPlantilla}
-                className="flex items-center gap-1.5 text-xs font-semibold bg-accent text-white rounded-lg px-3 py-2 hover:opacity-90 transition-opacity"
+                onClick={() => { setPlantNombre(rec.nombre || ''); setSaveModal(true) }}
+                className="flex items-center gap-1.5 text-xs font-semibold bg-accent text-white rounded-lg px-3 py-1.5 hover:opacity-90 transition-opacity"
               >
-                <Save size={13} /> Guardar actual
+                <Save size={12} /> Guardar actual
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Lista */}
           {plantillas.length === 0 ? (
-            <p className="text-xs text-[#8a9ab0] text-center py-2">
+            <p className="text-xs text-[#8a9ab0] text-center py-4">
               {cero ? 'Configura un producto y guárdalo como plantilla.' : 'Aún no tienes plantillas guardadas.'}
             </p>
           ) : (
             <div className="flex flex-col gap-2">
               {plantillas.map(p => (
-                <div key={p.id} className="flex items-center justify-between gap-2 p-2.5 border border-[#e2e6ea] rounded-lg hover:border-accent/40 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-navy-600 truncate">{p.nombre}</p>
-                    <p className="text-xs text-[#8a9ab0]">
-                      {p.rec.filamento_g > 0 && `${p.rec.filamento_g}g · `}
-                      {p.rec.tiempo_min > 0 && `${p.rec.tiempo_min}min · `}
-                      {p.rec.accesorios?.length > 0 && `${p.rec.accesorios.length} acc · `}
-                      Margen {p.rec.margen}%
-                    </p>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <button onClick={() => cargarPlantilla(p)}
-                      className="text-xs px-2.5 py-1.5 rounded-lg bg-accent/10 text-accent font-medium hover:bg-accent/20 transition-colors">
-                      Cargar
-                    </button>
-                    <button onClick={() => eliminarPlantilla(p.id)}
-                      className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors">
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
+                <div key={p.id} className="border border-[#e2e6ea] rounded-lg hover:border-accent/40 transition-colors">
+                  {editPlant?.id === p.id ? (
+                    /* ── Modo renombrar ── */
+                    <div className="flex items-center gap-2 p-2.5">
+                      <input
+                        autoFocus
+                        value={editPlant.nombre}
+                        onChange={e => setEditPlant(ep => ({ ...ep, nombre: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter')  renombrarPlantilla(p.id)
+                          if (e.key === 'Escape') setEditPlant(null)
+                        }}
+                        className="flex-1 border border-accent/50 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      />
+                      <button onClick={() => renombrarPlantilla(p.id)}
+                        className="p-1.5 rounded-lg bg-accent text-white hover:opacity-90 transition-opacity shrink-0">
+                        <Check size={13} />
+                      </button>
+                      <button onClick={() => setEditPlant(null)}
+                        className="p-1.5 rounded-lg text-[#8a9ab0] hover:bg-[#f0f2f5] transition-colors shrink-0">
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    /* ── Vista normal ── */
+                    <div className="flex items-center justify-between gap-2 p-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-navy-600 truncate">{p.nombre}</p>
+                        <p className="text-xs text-[#8a9ab0]">
+                          {p.rec.filamento_g > 0 && `${p.rec.filamento_g}g · `}
+                          {p.rec.tiempo_min > 0 && `${p.rec.tiempo_min}min · `}
+                          {p.rec.accesorios?.length > 0 && `${p.rec.accesorios.length} acc · `}
+                          Margen {p.rec.margen}%
+                        </p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => cargarPlantilla(p)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg bg-accent/10 text-accent font-medium hover:bg-accent/20 transition-colors">
+                          Cargar
+                        </button>
+                        <button onClick={() => setEditPlant({ id: p.id, nombre: p.nombre })}
+                          className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-navy-600 hover:bg-[#f0f2f5] transition-colors"
+                          title="Renombrar">
+                          <Pencil size={13} />
+                        </button>
+                        <button onClick={() => eliminarPlantilla(p.id)}
+                          className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors"
+                          title="Eliminar">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -693,20 +727,72 @@ export default function Calculadora() {
                 </div>
               )}
             </div>
-            {/* Botón generar cotización */}
+            {/* Botones acción */}
             {!cero && (
-              <button
-                onClick={irACotizacion}
-                className="mt-4 w-full py-2.5 text-sm font-semibold rounded-xl transition-all hover:opacity-90"
-                style={{ backgroundColor: '#3b82f6', color: '#ffffff' }}
-              >
-                Generar cotización →
-              </button>
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  onClick={irACotizacion}
+                  className="w-full py-2.5 text-sm font-semibold rounded-xl transition-all hover:opacity-90"
+                  style={{ backgroundColor: '#3b82f6', color: '#ffffff' }}
+                >
+                  Generar cotización →
+                </button>
+                <button
+                  onClick={() => { setPlantNombre(rec.nombre || ''); setSaveModal(true) }}
+                  className="w-full py-2 text-xs font-medium rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                  style={{ color: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.2)' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  <Save size={12} /> Guardar como plantilla
+                </button>
+              </div>
             )}
           </div>
 
         </div>
       </div>
+
+      {/* ── Modal: guardar plantilla ─────────────────────────────────────────── */}
+      {saveModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setSaveModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="text-base font-bold text-navy-600 mb-1">Guardar como plantilla</p>
+            <p className="text-xs text-[#8a9ab0] mb-4">
+              Ponle un nombre para identificarla fácilmente.
+            </p>
+            <input
+              autoFocus
+              value={plantNombre}
+              onChange={e => setPlantNombre(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && guardarPlantilla()}
+              placeholder={rec.nombre || 'Ej: Llavero estándar 15g'}
+              className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 mb-4"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setSaveModal(false)}
+                className="flex-1 py-2.5 text-sm text-[#8a9ab0] border border-[#e2e6ea] rounded-xl hover:border-[#c8cdd5] transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarPlantilla}
+                className="flex-1 py-2.5 text-sm font-semibold bg-accent text-white rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
+              >
+                <Save size={14} /> Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal: cerrar precio a miles ─────────────────────────────────────── */}
       {roundModal && (
