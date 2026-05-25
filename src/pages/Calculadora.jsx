@@ -165,7 +165,7 @@ export default function Calculadora() {
   // ── Navegar a cotización con precio elegido ───────────────────────────────
   function navegarConPrecio(precio, ctx) {
     setRoundModal(null)
-    const { cantidad, accesoriosUsados, acabadosUsados, costoXUd, pctMayor, pctMenor, nombre, detalle } = ctx
+    const { cantidad, accesoriosUsados, acabadosUsados, costoXUd, pctMayor, pctMenor, nombre } = ctx
     const _utilXUd = precio - costoXUd
     const _utilTot = _utilXUd * cantidad
     navigate('/cotizaciones', {
@@ -174,7 +174,7 @@ export default function Calculadora() {
           nombre,
           cantidad,
           precioSugerido: precio,
-          detalle,
+          detalle: '',
           receta_json: {
             producto: nombre,
             cantidad,
