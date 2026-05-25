@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, User, UserPlus, X, ChevronDown, Receipt } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -34,6 +35,7 @@ const FORM_EMPTY  = {
   lineas: [{ ...LINEA_EMPTY }],
   descuento: '', estado: 'borrador',
   valida_hasta: '', tiempo_entrega: '', notas: DEFAULT_NOTAS,
+  receta_json: null,
 }
 
 // ── Cliente autocomplete ──────────────────────────────────────────────────────
@@ -89,6 +91,7 @@ function Skeleton() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Cotizaciones() {
   const { cotizaciones, loading, crearCotizacion, actualizarCotizacion, eliminarCotizacion } = useCotizaciones()
+  const location = useLocation()
   const [clientes,     setClientes]     = useState([])
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
@@ -104,6 +107,25 @@ export default function Cotizaciones() {
   const [cotConCobros,    setCotConCobros]    = useState(new Set()) // Set de números de COT que ya tienen cobros
   const [warnCobrosModal, setWarnCobrosModal] = useState(false)   // advertencia al editar COT con cobros
   const [pendingGuardar,  setPendingGuardar]  = useState(null)    // { datos, cotNum } en espera de confirmación
+
+  // Pre-llenar desde calculadora
+  useEffect(() => {
+    const fromCalc = location.state?.fromCalculadora
+    if (fromCalc) {
+      setForm({
+        ...FORM_EMPTY,
+        lineas: [{
+          descripcion: fromCalc.nombre || 'Producto 3D',
+          detalle:     fromCalc.detalle || '',
+          cantidad:    fromCalc.cantidad || 1,
+          precio_unitario: fromCalc.precioSugerido || '',
+        }],
+        receta_json: fromCalc.receta_json || null,
+      })
+      setModal({ mode: 'crear' })
+      window.history.replaceState({}, document.title)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     supabase.from('clientes').select('*').order('empresa').then(({ data }) => setClientes(data || []))
@@ -164,6 +186,7 @@ export default function Cotizaciones() {
       valida_hasta:   form.valida_hasta || null,
       tiempo_entrega: form.tiempo_entrega || null,
       notas:          form.notas || null,
+      receta_json:    form.receta_json || null,
     }
     // Si es edición y ya tiene cobros generados → advertir antes de guardar
     if (modal.mode === 'editar') {
@@ -247,6 +270,7 @@ export default function Cotizaciones() {
             monto: total * 0.5, estado: 'pendiente',
             fecha_emision: hoy,
             notas: `Anticipo para iniciar producción.\nRef: COT-${num}`,
+            receta_json: c.receta_json || null,
           },
           {
             cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
@@ -254,6 +278,7 @@ export default function Cotizaciones() {
             monto: total * 0.5, estado: 'pendiente',
             fecha_emision: hoy,
             notas: `Saldo contra entrega del pedido.\nRef: COT-${num}`,
+            receta_json: c.receta_json || null,
           },
         ]
       : [
@@ -263,6 +288,7 @@ export default function Cotizaciones() {
             monto: total, estado: 'pendiente',
             fecha_emision: hoy,
             notas: `Pago total del pedido.\nRef: COT-${num}`,
+            receta_json: c.receta_json || null,
           },
         ]
 

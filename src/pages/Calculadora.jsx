@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2 } from 'lucide-react'
 import Card from '../components/ui/Card'
 
@@ -67,6 +68,8 @@ export default function Calculadora() {
     } catch { return DEFAULT_CONFIG }
   })
 
+  const navigate = useNavigate()
+
   const [rec, setRec]               = useState(DEFAULT_RECETA)
   const [showConfig, setShowConfig] = useState(false)
 
@@ -116,6 +119,56 @@ export default function Calculadora() {
   const updAcbCfg    = (id, key, val) => setConfig(c => ({
     ...c, acabados: c.acabados.map(a => a.id === id ? { ...a, [key]: val } : a)
   }))
+
+  // ── Ir a cotización ───────────────────────────────────────────────────────
+  function irACotizacion() {
+    const cantidad = rec.cantidad || 1
+    const accesoriosUsados = rec.accesorios.map(a => {
+      const item = config.accesorios.find(x => x.id === a.id)
+      if (!item) return null
+      return { nombre: item.nombre, unidad: item.unidad, cantidad_por_unidad: a.cantidad, cantidad_total: a.cantidad * cantidad }
+    }).filter(Boolean)
+    const acabadosUsados = rec.acabados.map(a => {
+      const item = config.acabados.find(x => x.id === a.id)
+      if (!item) return null
+      return { nombre: item.nombre, unidad: item.unidad, cantidad_por_unidad: a.cantidad, cantidad_total: a.cantidad * cantidad }
+    }).filter(Boolean)
+    const partes = []
+    if (rec.filamento_g > 0) partes.push(`${rec.filamento_g}g filamento`)
+    if (rec.tiempo_min > 0) {
+      const h = Math.floor(rec.tiempo_min / 60), m = rec.tiempo_min % 60
+      partes.push(`${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'min' : ''}`.trim() + ' impresión')
+    }
+    accesoriosUsados.forEach(a => partes.push(`${a.nombre} ×${a.cantidad_por_unidad}`))
+    acabadosUsados.forEach(a => partes.push(`${a.nombre} (${a.cantidad_por_unidad}${a.unidad})`))
+    // calc is available via closure from the component scope
+    const precio = Math.round(
+      (() => {
+        const costoFilamento = rec.filamento_g > 0 ? (rec.filamento_g / config.filamento_rollo_gramos) * config.filamento_rollo_precio : 0
+        const costoTiempo    = (rec.tiempo_min / 60) * config.tarifa_hora
+        const costoAcc = rec.accesorios.reduce((s, a) => { const it = config.accesorios.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
+        const costoAcb = rec.acabados.reduce((s, a) => { const it = config.acabados.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
+        return (costoFilamento + costoAcc + costoAcb + costoTiempo) * (1 + rec.margen / 100)
+      })()
+    )
+    navigate('/cotizaciones', {
+      state: {
+        fromCalculadora: {
+          nombre: rec.nombre || 'Producto 3D',
+          cantidad,
+          precioSugerido: precio,
+          detalle: partes.join(' · '),
+          receta_json: {
+            producto: rec.nombre || 'Producto 3D',
+            cantidad,
+            precio_unitario: precio,
+            accesorios_usados: accesoriosUsados,
+            acabados_usados: acabadosUsados,
+          },
+        },
+      },
+    })
+  }
 
   // ── Calculos ──────────────────────────────────────────────────────────────
   const calc = useMemo(() => {
@@ -508,6 +561,16 @@ export default function Calculadora() {
                 </div>
               )}
             </div>
+            {/* Botón generar cotización */}
+            {!cero && (
+              <button
+                onClick={irACotizacion}
+                className="mt-4 w-full py-2.5 text-sm font-semibold rounded-xl transition-all hover:opacity-90"
+                style={{ backgroundColor: '#3b82f6', color: '#ffffff' }}
+              >
+                Generar cotización →
+              </button>
+            )}
           </div>
 
         </div>
