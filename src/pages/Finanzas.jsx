@@ -8,7 +8,6 @@ import Button from '../components/ui/Button'
 import { useFinanzas } from '../hooks/useFinanzas'
 import toast from 'react-hot-toast'
 
-// ── Constantes ────────────────────────────────────────────────────────────────
 const CATEGORIAS = [
   { id: 'materiales',   label: 'Materiales',   color: 'bg-blue-100 text-blue-700' },
   { id: 'servicios',    label: 'Servicios',     color: 'bg-purple-100 text-purple-700' },
@@ -19,47 +18,24 @@ const CATEGORIAS = [
   { id: 'otros',        label: 'Otros',         color: 'bg-gray-100 text-gray-600' },
 ]
 const CAT_MAP = Object.fromEntries(CATEGORIAS.map(c => [c.id, c]))
-
-const MESES_LABEL = [
-  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
-  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
-]
-
+const MESES_LABEL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const EMPTY_FORM = {
-  fecha:       new Date().toISOString().split('T')[0],
-  categoria:   'materiales',
-  descripcion: '',
-  monto:       '',
-  notas:       '',
+  fecha: new Date().toISOString().split('T')[0],
+  categoria: 'materiales', descripcion: '', monto: '', notas: '',
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = n =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
-
 const fmtFecha = d =>
   new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-// ── Tarjeta KPI ───────────────────────────────────────────────────────────────
-function KpiCard({ icon, label, value, sub, valueColor = 'text-navy-600', bg = '' }) {
-  return (
-    <Card className={`p-4 ${bg}`}>
-      <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-        {icon} {label}
-      </p>
-      <p className={`text-xl font-bold ${valueColor}`}>{value}</p>
-      {sub && <p className="text-xs text-[#8a9ab0] mt-0.5">{sub}</p>}
-    </Card>
-  )
-}
-
-// ── Strip de desglose por cobro (usado en Ingresos) ──────────────────────────
 function RecetaStrip({ rj }) {
   return (
     <div className="mt-2 bg-[#f0f4f8] rounded-xl px-3 py-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
       {rj.costo_total > 0 && (
         <div>
-          <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0] mb-0.5">Costo mat.</p>
+          <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0] mb-0.5">Costo venta</p>
           <p className="text-xs font-semibold text-[#8a9ab0]">{fmt(rj.costo_total)}</p>
         </div>
       )}
@@ -79,75 +55,84 @@ function RecetaStrip({ rj }) {
   )
 }
 
-// ── Componente principal ──────────────────────────────────────────────────────
 export default function Finanzas() {
   const {
-    cobros, loading,
+    cobros, gastos, loading,
     anio, setAnio, mes, setMes,
     gastosMes, cobrosMes,
-    totalGastos, totalIngresos, utilidad,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
     crearGasto, actualizarGasto, eliminarGasto,
   } = useFinanzas()
 
   const curYear = new Date().getFullYear()
-  const ANIOS = [curYear - 2, curYear - 1, curYear, curYear + 1]
+  const ANIOS   = [curYear - 2, curYear - 1, curYear, curYear + 1]
 
-  const [tab,       setTab]       = useState('resumen')
+  const [tab,       setTab]       = useState('resultado')
+  const [granul,    setGranul]    = useState('mes')   // 'mes' | 'anio'
   const [modal,     setModal]     = useState(null)
   const [form,      setForm]      = useState(EMPTY_FORM)
   const [saving,    setSaving]    = useState(false)
   const [busqueda,  setBusqueda]  = useState('')
   const [filtrocat, setFiltrocat] = useState('')
 
-  // ── Cálculo anual por mes (para la tabla del Resumen) ─────────────────────
+  // Datos del periodo activo
+  const periodoCobros = granul === 'mes' ? cobrosMes : cobros
+  const periodoGastos = granul === 'mes' ? gastosMes : gastos
+
+  // P&L del periodo
+  const cobrosConReceta = periodoCobros.filter(c => c.receta_json?.utilidad_total != null)
+  const sinReceta       = periodoCobros.length - cobrosConReceta.length
+  const ventas          = periodoCobros.reduce((s, c) => s + Number(c.monto),                               0)
+  const costoVenta      = cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0)
+  const utilidadBruta   = cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0)
+  const parteM          = cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0)
+  const partem          = cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0)
+  const pctMayor        = cobrosConReceta[0]?.receta_json?.pct_mayor ?? 75
+  const pctMenor        = cobrosConReceta[0]?.receta_json?.pct_menor ?? 25
+  const gastosOp        = periodoGastos.reduce((s, g) => s + Number(g.monto), 0)
+  const resultadoNeto   = utilidadBruta - gastosOp
+
+  // Tabla mensual (solo cuando granul === 'anio')
   const anuales = useMemo(() => {
+    if (granul !== 'anio') return []
     return Array.from({ length: 12 }, (_, i) => {
       const m      = i + 1
       const prefix = `${anio}-${String(m).padStart(2, '0')}`
-      const mCobros = cobros.filter(c => c.fecha_emision?.startsWith(prefix))
-      const mReceta = mCobros.filter(c => c.receta_json?.utilidad_total != null)
-      const totalCobrado   = mCobros.reduce((s, c) => s + Number(c.monto),                           0)
-      const costoMat       = mReceta.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0)
-      const utilidadBruta  = mReceta.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0)
-      const parteM         = mReceta.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0)
-      const partem         = mReceta.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0)
+      const mCob   = cobros.filter(c => c.fecha_emision?.startsWith(prefix))
+      const mGas   = gastos.filter(g => g.fecha?.startsWith(prefix))
+      const mRec   = mCob.filter(c => c.receta_json?.utilidad_total != null)
+      const mVen   = mCob.reduce((s, c) => s + Number(c.monto),                               0)
+      const mCost  = mRec.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0)
+      const mUtil  = mRec.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0)
+      const mGOp   = mGas.reduce((s, g) => s + Number(g.monto),                               0)
       return {
         nombre: MESES_LABEL[i], mesNum: m,
-        tieneData: totalCobrado > 0,
-        totalCobrado, costoMat, utilidadBruta, parteM, partem,
-        jobs: mReceta.length,
-        pctMayor: mReceta[0]?.receta_json?.pct_mayor ?? 75,
-        pctMenor: mReceta[0]?.receta_json?.pct_menor ?? 25,
+        ventas: mVen, costoVenta: mCost, utilidad: mUtil,
+        gastosOp: mGOp, resultado: mUtil - mGOp,
+        tieneData: mCob.length > 0 || mGas.length > 0,
       }
     })
-  }, [cobros, anio])
+  }, [cobros, gastos, anio, granul])
 
-  const pctMayorGlobal = cobros.find(c => c.receta_json?.pct_mayor != null)?.receta_json?.pct_mayor ?? 75
-  const pctMenorGlobal = cobros.find(c => c.receta_json?.pct_menor != null)?.receta_json?.pct_menor ?? 25
+  // Filtro gastos
+  const gastosFiltrados = useMemo(() => {
+    const q = busqueda.toLowerCase()
+    return periodoGastos.filter(g => {
+      const matchQ = !q || g.descripcion?.toLowerCase().includes(q) || g.notas?.toLowerCase().includes(q)
+      return matchQ && (!filtrocat || g.categoria === filtrocat)
+    })
+  }, [periodoGastos, busqueda, filtrocat])
 
-  const totAnual = useMemo(() => ({
-    totalCobrado:  anuales.reduce((s, m) => s + m.totalCobrado,  0),
-    costoMat:      anuales.reduce((s, m) => s + m.costoMat,      0),
-    utilidadBruta: anuales.reduce((s, m) => s + m.utilidadBruta, 0),
-    parteM:        anuales.reduce((s, m) => s + m.parteM,        0),
-    partem:        anuales.reduce((s, m) => s + m.partem,        0),
-    jobs:          anuales.reduce((s, m) => s + m.jobs,          0),
-  }), [anuales])
-
-  // Jobs del año con receta (para desglose individual)
-  const jobsAnio = useMemo(() =>
-    cobros
-      .filter(c => c.receta_json?.utilidad_total != null)
-      .sort((a, b) => (a.fecha_emision || '').localeCompare(b.fecha_emision || '')),
-    [cobros]
+  const porCategoria = useMemo(() =>
+    CATEGORIAS
+      .map(cat => ({ ...cat, total: periodoGastos.filter(g => g.categoria === cat.id).reduce((s, g) => s + Number(g.monto), 0) }))
+      .filter(c => c.total > 0),
+    [periodoGastos]
   )
 
-  // ── Handlers modal gasto ──────────────────────────────────────────────────
-  function abrirCrear() {
-    setForm({ ...EMPTY_FORM, fecha: new Date().toISOString().split('T')[0] })
-    setModal({ mode: 'crear' })
-  }
+  const periodoLabel = granul === 'mes' ? `${MESES_LABEL[mes - 1]} ${anio}` : `Año ${anio}`
+
+  function abrirCrear() { setForm({ ...EMPTY_FORM, fecha: new Date().toISOString().split('T')[0] }); setModal({ mode: 'crear' }) }
   function abrirEditar(g) {
     setForm({ fecha: g.fecha, categoria: g.categoria, descripcion: g.descripcion, monto: String(g.monto), notas: g.notas || '' })
     setModal({ mode: 'editar', id: g.id })
@@ -157,90 +142,48 @@ export default function Finanzas() {
     if (!form.monto || Number(form.monto) <= 0) { toast.error('Monto invalido'); return }
     setSaving(true)
     const datos = { ...form, monto: Number(form.monto) }
-    const ok = modal.mode === 'crear'
-      ? await crearGasto(datos)
-      : await actualizarGasto(modal.id, datos)
+    const ok = modal.mode === 'crear' ? await crearGasto(datos) : await actualizarGasto(modal.id, datos)
     setSaving(false)
     if (ok) setModal(null)
   }
 
-  // ── Filtros gastos ────────────────────────────────────────────────────────
-  const gastosFiltrados = useMemo(() => {
-    const q = busqueda.toLowerCase()
-    return gastosMes.filter(g => {
-      const matchQ = !q || g.descripcion?.toLowerCase().includes(q) || g.notas?.toLowerCase().includes(q)
-      return matchQ && (!filtrocat || g.categoria === filtrocat)
-    })
-  }, [gastosMes, busqueda, filtrocat])
-
-  const porCategoria = useMemo(() =>
-    CATEGORIAS
-      .map(cat => ({ ...cat, total: gastosMes.filter(g => g.categoria === cat.id).reduce((s, g) => s + Number(g.monto), 0) }))
-      .filter(c => c.total > 0),
-    [gastosMes]
-  )
-
-  // Cobros con receta del mes seleccionado (Ingresos tab)
-  const cobrosConRecetaMes = useMemo(() =>
-    cobrosMes.filter(c => c.receta_json?.utilidad_total != null),
-    [cobrosMes]
-  )
-  const totRecetaMes = useMemo(() => {
-    if (cobrosConRecetaMes.length === 0) return null
-    return {
-      costo:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0),
-      util:     cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0),
-      mayor:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0),
-      menor:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0),
-      pctMayor: cobrosConRecetaMes[0]?.receta_json?.pct_mayor ?? 75,
-      pctMenor: cobrosConRecetaMes[0]?.receta_json?.pct_menor ?? 25,
-    }
-  }, [cobrosConRecetaMes])
-
-  const margenMes = totalIngresos > 0 ? Math.round((utilidad / totalIngresos) * 100) : null
-  const mesLabel = `${MESES_LABEL[mes - 1]} ${anio}`
-
-  // Navegar a mes en tab ingresos
-  function irAMesIngresos(mesNum) {
-    setMes(mesNum)
-    setTab('ingresos')
-  }
+  function irAMes(mesNum) { setMes(mesNum); setGranul('mes'); setTab('resultado') }
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-navy-600">Finanzas</h1>
-          <p className="text-sm text-[#8a9ab0] mt-0.5">
-            {tab === 'resumen' ? `Resumen ${anio}` : tab === 'extracto' ? 'Saldo bancario' : mesLabel}
-          </p>
+          <p className="text-sm text-[#8a9ab0] mt-0.5">{periodoLabel}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Mes — solo en Ingresos y Gastos */}
-          {(tab === 'ingresos' || tab === 'gastos') && (
+          {tab !== 'extracto' && (
+            <div className="flex rounded-lg border border-[#e2e6ea] overflow-hidden text-sm">
+              <button onClick={() => setGranul('mes')}
+                className={`px-3 py-1.5 font-medium transition-colors ${granul === 'mes' ? 'bg-navy-600 text-white' : 'bg-white text-[#8a9ab0] hover:bg-[#f8f9fb]'}`}>
+                Mes
+              </button>
+              <button onClick={() => setGranul('anio')}
+                className={`px-3 py-1.5 font-medium transition-colors ${granul === 'anio' ? 'bg-navy-600 text-white' : 'bg-white text-[#8a9ab0] hover:bg-[#f8f9fb]'}`}>
+                Año
+              </button>
+            </div>
+          )}
+          {granul === 'mes' && tab !== 'extracto' && (
             <div className="relative">
-              <select
-                value={mes}
-                onChange={e => setMes(Number(e.target.value))}
-                className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
-              >
-                {MESES_LABEL.map((label, i) => (
-                  <option key={i + 1} value={i + 1}>{label}</option>
-                ))}
+              <select value={mes} onChange={e => setMes(Number(e.target.value))}
+                className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer">
+                {MESES_LABEL.map((label, i) => <option key={i + 1} value={i + 1}>{label}</option>)}
               </select>
               <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
             </div>
           )}
-          {/* Año — en Resumen, Ingresos y Gastos */}
           {tab !== 'extracto' && (
             <div className="relative">
-              <select
-                value={anio}
-                onChange={e => setAnio(Number(e.target.value))}
-                className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
-              >
+              <select value={anio} onChange={e => setAnio(Number(e.target.value))}
+                className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer">
                 {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
               <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
@@ -250,174 +193,157 @@ export default function Finanzas() {
         </div>
       </div>
 
-      {/* ── Tabs ───────────────────────────────────────────────────────────── */}
+      {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-[#e2e6ea]">
-        {[
-          ['resumen',  'Resumen anual'],
-          ['ingresos', 'Ingresos'],
-          ['gastos',   'Gastos'],
-          ['extracto', 'Extracto'],
-        ].map(([key, label]) => (
+        {[['resultado','Resultado'],['ventas','Ventas'],['gastos','Gastos op.'],['extracto','Extracto']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === key ? 'border-accent text-accent' : 'border-transparent text-[#8a9ab0] hover:text-navy-600'
-            }`}
-          >{label}</button>
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === key ? 'border-accent text-accent' : 'border-transparent text-[#8a9ab0] hover:text-navy-600'}`}>
+            {label}
+          </button>
         ))}
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB RESUMEN ANUAL
-      ══════════════════════════════════════════════════════════════════════ */}
-      {tab === 'resumen' && (
+      {/* ══ TAB RESULTADO ══ */}
+      {tab === 'resultado' && (
         <div>
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-[#8a9ab0] text-sm">
-              <Loader2 size={16} className="animate-spin" /> Cargando {anio}...
+              <Loader2 size={16} className="animate-spin" /> Cargando {periodoLabel}...
             </div>
           ) : (
             <>
-              {/* KPI anuales */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                <KpiCard
-                  icon={<TrendingUp size={12} className="text-green-500" />}
-                  label="Total vendido"
-                  value={fmt(totAnual.totalCobrado)}
-                  sub={`${cobros.length} cobro${cobros.length !== 1 ? 's' : ''} pagado${cobros.length !== 1 ? 's' : ''}`}
-                  valueColor="text-green-600"
-                />
-                <KpiCard
-                  icon={<BarChart2 size={12} />}
-                  label="Costo materiales"
-                  value={fmt(totAnual.costoMat)}
-                  sub={totAnual.jobs > 0 ? `${totAnual.jobs} trabajo${totAnual.jobs !== 1 ? 's' : ''} con datos` : 'Sin datos de calculadora'}
-                  valueColor="text-[#8a9ab0]"
-                />
-                <KpiCard
-                  icon={<DollarSign size={12} />}
-                  label="Utilidad bruta"
-                  value={fmt(totAnual.utilidadBruta)}
-                  sub={totAnual.totalCobrado > 0 ? `${Math.round((totAnual.utilidadBruta / totAnual.totalCobrado) * 100)}% de margen` : ''}
-                  valueColor={totAnual.utilidadBruta >= 0 ? 'text-green-700' : 'text-red-700'}
-                  bg={totAnual.utilidadBruta > 0 ? 'bg-green-50 border-green-200' : ''}
-                />
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 flex-1">
-                    <span className="text-xs font-semibold text-green-600">{pctMayorGlobal}%</span>
-                    <span className="text-lg font-bold text-green-700">{fmt(totAnual.parteM)}</span>
+              {/* P&L card */}
+              <Card className="p-5 mb-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-4">
+                  Estado de resultados · {periodoLabel}
+                </p>
+
+                {/* Ventas */}
+                <div className="flex items-start justify-between py-2.5 border-b border-[#f0f4f8]">
+                  <div>
+                    <p className="text-sm text-navy-600 font-medium">Ventas</p>
+                    <p className="text-xs text-[#8a9ab0] mt-0.5">{periodoCobros.length} cobro{periodoCobros.length !== 1 ? 's' : ''} pagado{periodoCobros.length !== 1 ? 's' : ''}</p>
                   </div>
-                  <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5 flex-1">
-                    <span className="text-xs font-semibold text-yellow-600">{pctMenorGlobal}%</span>
-                    <span className="text-lg font-bold text-yellow-700">{fmt(totAnual.partem)}</span>
+                  <span className="text-sm font-bold text-navy-600 tabular-nums">{fmt(ventas)}</span>
+                </div>
+
+                {/* Costo de venta */}
+                <div className="flex items-start justify-between py-2.5 border-b border-[#f0f4f8]">
+                  <div>
+                    <p className="text-sm text-[#8a9ab0]">Costo de venta</p>
+                    {sinReceta > 0 && (
+                      <p className="text-xs text-[#8a9ab0] mt-0.5">{sinReceta} cobro{sinReceta > 1 ? 's' : ''} sin datos de calculadora</p>
+                    )}
+                  </div>
+                  <span className="text-sm text-[#8a9ab0] tabular-nums">{costoVenta > 0 ? `(${fmt(costoVenta)})` : '—'}</span>
+                </div>
+
+                {/* Utilidad bruta */}
+                <div className="flex items-center justify-between py-3 border-b border-[#e2e6ea]">
+                  <p className="text-sm font-semibold text-navy-600">Utilidad bruta</p>
+                  <div className="flex items-center gap-3 flex-wrap justify-end">
+                    {cobrosConReceta.length > 0 && (
+                      <div className="flex gap-2">
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold whitespace-nowrap">
+                          {pctMayor}% → {fmt(parteM)}
+                        </span>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-semibold whitespace-nowrap">
+                          {pctMenor}% → {fmt(partem)}
+                        </span>
+                      </div>
+                    )}
+                    <span className={`text-sm font-bold tabular-nums ${utilidadBruta >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                      {fmt(utilidadBruta)}
+                    </span>
                   </div>
                 </div>
-              </div>
 
-              {/* Tabla mes a mes */}
-              <Card className="overflow-hidden p-0 mb-5">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm" style={{ minWidth: 620 }}>
-                    <thead>
-                      <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[110px]">Mes</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cobrado</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Costo mat.</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Utilidad</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">{pctMayorGlobal}%</th>
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-yellow-600 uppercase tracking-wide">{pctMenorGlobal}%</th>
-                        <th className="px-3 py-3 w-[60px]" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#e2e6ea]">
-                      {anuales.map(m => (
-                        <tr
-                          key={m.mesNum}
-                          className={`transition-colors ${m.tieneData ? 'hover:bg-[#f8f9fb] cursor-pointer' : 'opacity-40'}`}
-                          onClick={() => m.tieneData && irAMesIngresos(m.mesNum)}
-                        >
-                          <td className="px-4 py-3 font-medium text-navy-600">{m.nombre}</td>
-                          <td className="px-4 py-3 text-right font-semibold text-navy-600 tabular-nums">
-                            {m.totalCobrado > 0 ? fmt(m.totalCobrado) : <span className="text-[#c0cad6]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-[#8a9ab0]">
-                            {m.costoMat > 0 ? fmt(m.costoMat) : <span className="text-[#c0cad6]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">
-                            {m.utilidadBruta > 0
-                              ? <span className="font-bold text-green-700">{fmt(m.utilidadBruta)}</span>
-                              : <span className="text-[#c0cad6]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">
-                            {m.parteM > 0
-                              ? <span className="font-semibold text-green-600">{fmt(m.parteM)}</span>
-                              : <span className="text-[#c0cad6]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">
-                            {m.partem > 0
-                              ? <span className="font-semibold text-yellow-600">{fmt(m.partem)}</span>
-                              : <span className="text-[#c0cad6]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {m.tieneData && <span className="text-xs text-accent font-medium">Ver →</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-[#e2e6ea] bg-[#f8f9fb] font-bold">
-                        <td className="px-4 py-3 text-navy-600">Total {anio}</td>
-                        <td className="px-4 py-3 text-right text-navy-600 tabular-nums">{fmt(totAnual.totalCobrado)}</td>
-                        <td className="px-4 py-3 text-right text-[#8a9ab0] tabular-nums">{fmt(totAnual.costoMat)}</td>
-                        <td className="px-4 py-3 text-right text-green-700 tabular-nums">{fmt(totAnual.utilidadBruta)}</td>
-                        <td className="px-4 py-3 text-right text-green-600 tabular-nums">{fmt(totAnual.parteM)}</td>
-                        <td className="px-4 py-3 text-right text-yellow-600 tabular-nums">{fmt(totAnual.partem)}</td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
+                {/* Gastos operativos */}
+                <div className="flex items-start justify-between py-2.5 border-b border-[#f0f4f8]">
+                  <div>
+                    <p className="text-sm text-[#8a9ab0]">Gastos operativos</p>
+                    <p className="text-xs text-[#8a9ab0] mt-0.5">{periodoGastos.length} registro{periodoGastos.length !== 1 ? 's' : ''} — filamento, servicios, etc.</p>
+                  </div>
+                  <span className="text-sm text-red-500 tabular-nums">{gastosOp > 0 ? `(${fmt(gastosOp)})` : '—'}</span>
+                </div>
+
+                {/* Resultado neto */}
+                <div className="flex items-center justify-between pt-4 mt-1">
+                  <p className="text-base font-bold text-navy-600">Resultado neto</p>
+                  <span className={`text-xl font-bold tabular-nums ${resultadoNeto >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                    {fmt(resultadoNeto)}
+                  </span>
                 </div>
               </Card>
 
-              {/* Desglose individual por trabajo */}
-              {jobsAnio.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">
-                    Trabajos {anio} · {jobsAnio.length} con desglose de calculadora
-                  </p>
-                  <Card className="overflow-hidden p-0">
-                    <div className="divide-y divide-[#e2e6ea]">
-                      {jobsAnio.map(c => {
-                        const rj = c.receta_json
-                        return (
-                          <div key={c.id} className="px-4 py-3.5 hover:bg-[#f8f9fb] transition-colors">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">{fmtFecha(c.fecha_emision)}</span>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-navy-600 text-sm truncate">{c.cliente_nombre || '—'}</p>
-                                {rj.producto && (
-                                  <p className="text-xs text-[#8a9ab0] truncate">
-                                    {rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}
-                                  </p>
-                                )}
-                              </div>
-                              <span className="font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
-                            </div>
-                            <div className="ml-[84px]">
-                              <RecetaStrip rj={rj} />
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </Card>
-                </div>
+              {/* Tabla mes a mes (solo año) */}
+              {granul === 'anio' && (
+                <Card className="overflow-hidden p-0 mb-5">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm" style={{ minWidth: 580 }}>
+                      <thead>
+                        <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[110px]">Mes</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Ventas</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Costo venta</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Util. bruta</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Gastos op.</th>
+                          <th className="text-right px-4 py-3 text-xs font-semibold text-navy-600 uppercase tracking-wide">Resultado</th>
+                          <th className="w-[48px]" />
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#e2e6ea]">
+                        {anuales.map(m => (
+                          <tr key={m.mesNum}
+                            className={`transition-colors ${m.tieneData ? 'hover:bg-[#f8f9fb] cursor-pointer' : 'opacity-30'}`}
+                            onClick={() => m.tieneData && irAMes(m.mesNum)}>
+                            <td className="px-4 py-2.5 font-medium text-navy-600">{m.nombre}</td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-navy-600">
+                              {m.ventas > 0 ? fmt(m.ventas) : <span className="text-[#c0cad6]">—</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-[#8a9ab0]">
+                              {m.costoVenta > 0 ? `(${fmt(m.costoVenta)})` : <span className="text-[#c0cad6]">—</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">
+                              {m.utilidad > 0
+                                ? <span className="font-semibold text-green-700">{fmt(m.utilidad)}</span>
+                                : <span className="text-[#c0cad6]">—</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums text-red-500">
+                              {m.gastosOp > 0 ? `(${fmt(m.gastosOp)})` : <span className="text-[#c0cad6]">—</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">
+                              {m.tieneData
+                                ? <span className={`font-bold ${m.resultado >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmt(m.resultado)}</span>
+                                : <span className="text-[#c0cad6]">—</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-right">
+                              {m.tieneData && <span className="text-xs text-accent font-medium">Ver →</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-[#e2e6ea] bg-[#f8f9fb] font-bold">
+                          <td className="px-4 py-3 text-navy-600">Total {anio}</td>
+                          <td className="px-4 py-3 text-right text-navy-600 tabular-nums">{fmt(ventas)}</td>
+                          <td className="px-4 py-3 text-right text-[#8a9ab0] tabular-nums">({fmt(costoVenta)})</td>
+                          <td className="px-4 py-3 text-right text-green-700 tabular-nums">{fmt(utilidadBruta)}</td>
+                          <td className="px-4 py-3 text-right text-red-500 tabular-nums">({fmt(gastosOp)})</td>
+                          <td className={`px-4 py-3 text-right tabular-nums ${resultadoNeto >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmt(resultadoNeto)}</td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </Card>
               )}
 
-              {cobros.length === 0 && (
+              {periodoCobros.length === 0 && periodoGastos.length === 0 && (
                 <div className="text-center py-16">
                   <BarChart2 size={40} className="text-[#e2e6ea] mx-auto mb-3" />
-                  <p className="text-sm font-medium text-navy-600">Sin cobros pagados en {anio}</p>
-                  <p className="text-xs text-[#8a9ab0] mt-1">Los cobros marcados como pagados aparecerán aquí</p>
+                  <p className="text-sm font-medium text-navy-600">Sin movimientos en {periodoLabel}</p>
+                  <p className="text-xs text-[#8a9ab0] mt-1">Los cobros pagados y gastos registrados aparecen aquí</p>
                 </div>
               )}
             </>
@@ -425,64 +351,46 @@ export default function Finanzas() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB INGRESOS
-      ══════════════════════════════════════════════════════════════════════ */}
-      {tab === 'ingresos' && (
+      {/* ══ TAB VENTAS ══ */}
+      {tab === 'ventas' && (
         <div>
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <KpiCard
-              icon={<TrendingUp size={12} className="text-green-500" />}
-              label="Ingresos"
-              value={fmt(totalIngresos)}
-              sub={`${cobrosMes.length} cobro${cobrosMes.length !== 1 ? 's' : ''} pagado${cobrosMes.length !== 1 ? 's' : ''}`}
-              valueColor="text-green-600"
-            />
-            <KpiCard
-              icon={<DollarSign size={12} />}
-              label="Utilidad bruta"
-              value={fmt(totRecetaMes?.util ?? 0)}
-              sub={totRecetaMes ? `${cobrosConRecetaMes.length} trabajo${cobrosConRecetaMes.length !== 1 ? 's' : ''} con desglose` : 'Sin datos de calculadora'}
-              valueColor="text-green-700"
-            />
-            <KpiCard
-              icon={<BarChart2 size={12} />}
-              label="Costo materiales"
-              value={fmt(totRecetaMes?.costo ?? 0)}
-              valueColor="text-[#8a9ab0]"
-            />
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <TrendingUp size={12} className="text-green-500" /> Ventas
+              </p>
+              <p className="text-xl font-bold text-green-600">{fmt(ventas)}</p>
+              <p className="text-xs text-[#8a9ab0] mt-0.5">{periodoCobros.length} cobro{periodoCobros.length !== 1 ? 's' : ''} pagado{periodoCobros.length !== 1 ? 's' : ''}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <DollarSign size={12} /> Utilidad bruta
+              </p>
+              <p className="text-xl font-bold text-green-700">{fmt(utilidadBruta)}</p>
+              {cobrosConReceta.length > 0 && (
+                <div className="flex gap-2 mt-1 flex-wrap">
+                  <span className="text-xs text-green-600 font-semibold">{pctMayor}% → {fmt(parteM)}</span>
+                  <span className="text-xs text-yellow-600 font-semibold">{pctMenor}% → {fmt(partem)}</span>
+                </div>
+              )}
+            </Card>
           </div>
-
-          {/* Split del mes */}
-          {totRecetaMes && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
-                <span className="text-xs font-semibold text-green-600">{totRecetaMes.pctMayor}%</span>
-                <span className="text-base font-bold text-green-700">{fmt(totRecetaMes.mayor)}</span>
-              </div>
-              <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5">
-                <span className="text-xs font-semibold text-yellow-600">{totRecetaMes.pctMenor}%</span>
-                <span className="text-base font-bold text-yellow-700">{fmt(totRecetaMes.menor)}</span>
-              </div>
-            </div>
-          )}
-
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-[#8a9ab0] text-sm">
               <Loader2 size={16} className="animate-spin" /> Cargando...
             </div>
-          ) : cobrosMes.length === 0 ? (
+          ) : periodoCobros.length === 0 ? (
             <Card>
               <div className="flex flex-col items-center py-12 gap-3">
                 <TrendingUp size={36} className="text-[#e2e6ea]" />
-                <p className="text-sm font-medium text-navy-600">Sin ingresos en {mesLabel}</p>
+                <p className="text-sm font-medium text-navy-600">Sin ventas en {periodoLabel}</p>
                 <p className="text-xs text-[#8a9ab0]">Los cobros marcados como pagados aparecen aquí</p>
               </div>
             </Card>
           ) : (
             <Card className="overflow-hidden p-0">
               <div className="divide-y divide-[#e2e6ea]">
-                {cobrosMes.map(c => {
+                {periodoCobros.map(c => {
                   const rj = c.receta_json
                   const tieneReceta = rj?.utilidad_total != null
                   return (
@@ -492,9 +400,7 @@ export default function Finanzas() {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-navy-600 text-sm truncate">{c.cliente_nombre || '—'}</p>
                           {tieneReceta && rj.producto && (
-                            <p className="text-xs text-[#8a9ab0] truncate">
-                              {rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}
-                            </p>
+                            <p className="text-xs text-[#8a9ab0] truncate">{rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}</p>
                           )}
                         </div>
                         <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap shrink-0">
@@ -502,46 +408,38 @@ export default function Finanzas() {
                         </span>
                         <span className="font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
                       </div>
-                      {tieneReceta && (
-                        <div className="ml-[84px]">
-                          <RecetaStrip rj={rj} />
-                        </div>
-                      )}
+                      {tieneReceta && <div className="ml-[84px]"><RecetaStrip rj={rj} /></div>}
                     </div>
                   )
                 })}
               </div>
               <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
-                <span className="text-sm font-semibold text-navy-600">{mesLabel}</span>
-                <span className="text-base font-bold text-green-700 tabular-nums">{fmt(totalIngresos)}</span>
+                <span className="text-sm font-semibold text-navy-600">{periodoLabel}</span>
+                <span className="text-base font-bold text-green-700 tabular-nums">{fmt(ventas)}</span>
               </div>
             </Card>
           )}
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB GASTOS
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ══ TAB GASTOS ══ */}
       {tab === 'gastos' && (
         <div>
           <div className="grid grid-cols-2 gap-3 mb-5">
-            <KpiCard
-              icon={<TrendingDown size={12} className="text-red-500" />}
-              label="Gastos"
-              value={fmt(totalGastos)}
-              sub={`${gastosMes.length} registro${gastosMes.length !== 1 ? 's' : ''}`}
-              valueColor="text-red-600"
-            />
-            <KpiCard
-              icon={<TrendingUp size={12} className="text-green-500" />}
-              label="Ingresos del mes"
-              value={fmt(totalIngresos)}
-              sub={margenMes !== null ? `Margen bruto ${margenMes}%` : ''}
-              valueColor="text-navy-600"
-            />
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <TrendingDown size={12} className="text-red-500" /> Gastos operativos
+              </p>
+              <p className="text-xl font-bold text-red-600">{fmt(gastosOp)}</p>
+              <p className="text-xs text-[#8a9ab0] mt-0.5">{periodoGastos.length} registro{periodoGastos.length !== 1 ? 's' : ''}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+                <TrendingUp size={12} className="text-green-500" /> Ventas del periodo
+              </p>
+              <p className="text-xl font-bold text-navy-600">{fmt(ventas)}</p>
+            </Card>
           </div>
-
           {porCategoria.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-4">
               <button onClick={() => setFiltrocat('')}
@@ -556,13 +454,11 @@ export default function Finanzas() {
               ))}
             </div>
           )}
-
           <div className="mb-3">
             <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
               placeholder="Buscar gasto..."
               className="w-full px-4 py-2 text-sm border border-[#e2e6ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30" />
           </div>
-
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-[#8a9ab0] text-sm">
               <Loader2 size={16} className="animate-spin" /> Cargando...
@@ -571,8 +467,8 @@ export default function Finanzas() {
             <Card>
               <div className="flex flex-col items-center py-12 gap-3">
                 <TrendingDown size={36} className="text-[#e2e6ea]" />
-                <p className="text-sm font-medium text-navy-600">Sin gastos en {mesLabel}</p>
-                <p className="text-xs text-[#8a9ab0]">Registra los gastos operativos del mes</p>
+                <p className="text-sm font-medium text-navy-600">Sin gastos en {periodoLabel}</p>
+                <p className="text-xs text-[#8a9ab0]">Registra compras de materiales, servicios y gastos externos</p>
                 <Button variant="secondary" onClick={abrirCrear}><Plus size={14} /> Registrar gasto</Button>
               </div>
             </Card>
@@ -580,11 +476,7 @@ export default function Finanzas() {
             <Card className="overflow-hidden p-0">
               <table className="w-full text-sm table-fixed">
                 <colgroup>
-                  <col className="w-[105px]" />
-                  <col className="w-[120px]" />
-                  <col />
-                  <col className="w-[130px]" />
-                  <col className="w-[76px]" />
+                  <col className="w-[105px]" /><col className="w-[120px]" /><col /><col className="w-[130px]" /><col className="w-[76px]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
@@ -625,25 +517,18 @@ export default function Finanzas() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB EXTRACTO
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ══ TAB EXTRACTO ══ */}
       {tab === 'extracto' && (
-        <ExtractoTab
-          saldos={saldos}
-          loadingSald={loadingSald}
-          guardarSaldo={guardarSaldo}
-          eliminarSaldo={eliminarSaldo}
-        />
+        <ExtractoTab saldos={saldos} loadingSald={loadingSald} guardarSaldo={guardarSaldo} eliminarSaldo={eliminarSaldo} />
       )}
 
-      {/* ── Modal gasto ────────────────────────────────────────────────────── */}
+      {/* Modal gasto */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) setModal(null) }}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#e2e6ea]">
-              <h2 className="font-semibold text-navy-600">{modal.mode === 'crear' ? 'Registrar gasto' : 'Editar gasto'}</h2>
+              <h2 className="font-semibold text-navy-600">{modal.mode === 'crear' ? 'Registrar gasto operativo' : 'Editar gasto'}</h2>
               <button onClick={() => setModal(null)} className="p-1.5 rounded-lg hover:bg-[#f8f9fb]"><X size={18} /></button>
             </div>
             <div className="p-5 flex flex-col gap-4">
@@ -693,26 +578,22 @@ export default function Finanzas() {
   )
 }
 
-// ── Subcomponente: Tab Extracto ───────────────────────────────────────────────
+// ── Extracto ──────────────────────────────────────────────────────────────────
 function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
   const [modal,  setModal]  = useState(null)
   const [form,   setForm]   = useState({ mes: '', saldo: '', notas: '' })
   const [saving, setSaving] = useState(false)
-
   const fmt = n =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
-
   function mesLabel(mesStr) {
     if (!mesStr) return '—'
     const [y, m] = mesStr.split('-')
     return `${MESES_LABEL[parseInt(m) - 1]} ${y}`
   }
-
   function variacion(index) {
     if (index >= saldos.length - 1) return null
     return saldos[index].saldo - saldos[index + 1].saldo
   }
-
   function abrirCrear() {
     const now = new Date()
     setForm({ mes: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, saldo: '', notas: '' })
@@ -733,7 +614,6 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
     setSaving(false)
     if (ok) setModal(null)
   }
-
   const saldoActual = saldos.length > 0 ? saldos[0].saldo : null
   const variActual  = saldos.length > 1 ? saldos[0].saldo - saldos[1].saldo : null
 
@@ -746,7 +626,6 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
         </div>
         <Button onClick={abrirCrear}><Plus size={16} /> Registrar saldo</Button>
       </div>
-
       {saldoActual !== null && (
         <div className="grid grid-cols-2 gap-3 mb-5">
           <Card className="p-4">
@@ -769,7 +648,6 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
           )}
         </div>
       )}
-
       {loadingSald ? (
         <div className="flex items-center justify-center gap-2 py-10 text-[#8a9ab0] text-sm">
           <Loader2 size={16} className="animate-spin" /> Cargando...
@@ -804,9 +682,7 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
                     <td className="px-4 py-3 text-right font-semibold text-navy-600 tabular-nums">{fmt(s.saldo)}</td>
                     <td className="px-4 py-3 text-right">
                       {v !== null
-                        ? <span className={`font-medium tabular-nums text-sm ${v >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            {v >= 0 ? '+' : ''}{fmt(v)}
-                          </span>
+                        ? <span className={`font-medium tabular-nums text-sm ${v >= 0 ? 'text-green-600' : 'text-red-500'}`}>{v >= 0 ? '+' : ''}{fmt(v)}</span>
                         : <span className="text-[#c0cad6]">—</span>}
                     </td>
                     <td className="px-4 py-3 text-[#8a9ab0] text-xs max-w-[180px] truncate">{s.notas || '—'}</td>
@@ -823,7 +699,6 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
           </table>
         </Card>
       )}
-
       {modal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) setModal(null) }}>
@@ -839,7 +714,7 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
                   className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Saldo al cierre del mes (COP) *</label>
+                <label className="block text-xs font-medium text-navy-600 mb-1">Saldo al cierre (COP) *</label>
                 <input type="number" value={form.saldo} onChange={e => setForm(f => ({ ...f, saldo: e.target.value }))}
                   placeholder="0" min="0"
                   className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
@@ -853,9 +728,7 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
             </div>
             <div className="px-5 pb-5 flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Cancelar</Button>
-              <Button className="flex-1" onClick={guardar} disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar'}
-              </Button>
+              <Button className="flex-1" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</Button>
             </div>
           </div>
         </div>
