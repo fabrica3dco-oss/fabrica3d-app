@@ -1,14 +1,17 @@
 import { useState, useMemo } from 'react'
 import { BarChart2, Loader2, ChevronDown, ChevronRight, Plus, Edit2, X } from 'lucide-react'
 import Card from '../components/ui/Card'
-import Button from '../components/ui/Button'
 import { useFinanzas } from '../hooks/useFinanzas'
 
 const EMPTY_COBRO = {
   fecha_emision: new Date().toISOString().split('T')[0],
   cliente_nombre: '',
   concepto: 'Pago total',
+  producto: '',
+  cantidad: 1,
   monto: '',
+  costo_total: '',
+  pct_mayor: 75,
 }
 
 const MESES_LABEL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -18,6 +21,10 @@ const fmt = n =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
 const fmtFecha = d =>
   new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+// Clases reutilizables para el formulario del modal
+const LBL = 'block text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide mb-1.5'
+const INP = 'w-full text-sm border border-[#e2e6ea] rounded-xl px-3 py-2.5 text-navy-600 placeholder:text-[#c0cad6] focus:outline-none focus:ring-2 focus:ring-navy-600/20'
 
 // ── KPI card ──────────────────────────────────────────────────────────────────
 function KpiCard({ label, value, sub, theme = 'default' }) {
@@ -128,11 +135,16 @@ export default function Finanzas() {
     setModalV({ mode: 'crear' })
   }
   function abrirEditar(c) {
+    const rj = c.receta_json || {}
     setFormV({
       fecha_emision: c.fecha_emision || '',
       cliente_nombre: c.cliente_nombre || '',
       concepto: c.concepto || 'Pago total',
+      producto: rj.producto || '',
+      cantidad: rj.cantidad ?? 1,
       monto: c.monto ?? '',
+      costo_total: rj.costo_total != null ? rj.costo_total : '',
+      pct_mayor: rj.pct_mayor ?? 75,
     })
     setModalV({ mode: 'editar', id: c.id })
   }
@@ -140,11 +152,30 @@ export default function Finanzas() {
     e.preventDefault()
     if (!formV.monto || Number(formV.monto) <= 0) return
     setSavingV(true)
+    const monto   = Number(formV.monto)
+    const hasCost = formV.costo_total !== '' && formV.costo_total !== null
+    const costo   = hasCost ? Number(formV.costo_total) : null
+    const pctM    = Number(formV.pct_mayor)
+    const pctm    = 100 - pctM
+    const utilidad = costo !== null ? monto - costo : null
+    const parteM   = utilidad !== null ? Math.round(utilidad * pctM / 100) : null
+    const partem   = utilidad !== null ? Math.round(utilidad * pctm / 100) : null
+    const receta_json = costo !== null ? {
+      producto:      formV.producto.trim() || null,
+      cantidad:      Number(formV.cantidad) || 1,
+      costo_total:   costo,
+      utilidad_total: utilidad,
+      pct_mayor:     pctM,
+      pct_menor:     pctm,
+      parte_mayor:   parteM,
+      parte_menor:   partem,
+    } : null
     const payload = {
-      fecha_emision: formV.fecha_emision,
+      fecha_emision:  formV.fecha_emision,
       cliente_nombre: formV.cliente_nombre.trim() || null,
-      concepto: formV.concepto.trim() || 'Pago total',
-      monto: Number(formV.monto),
+      concepto:       formV.concepto.trim() || 'Pago total',
+      monto,
+      receta_json,
     }
     const ok = modalV.mode === 'crear'
       ? await crearCobro(payload)
@@ -166,7 +197,7 @@ export default function Finanzas() {
         {/* Filtro de periodo + botón */}
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <button onClick={abrirCrear}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold bg-accent text-white px-3.5 py-2 rounded-lg hover:bg-accent/90 transition-colors">
+            className="inline-flex items-center gap-1.5 text-sm font-semibold bg-navy-600 text-white px-3.5 py-2 rounded-lg hover:bg-navy-700 transition-colors">
             <Plus size={15} /> Registrar venta
           </button>
           <div className="flex rounded-lg border border-[#e2e6ea] overflow-hidden text-sm">
@@ -344,10 +375,12 @@ export default function Finanzas() {
 
       {/* ── Modal registrar / editar venta ─────────────────────────────────── */}
       {modalV && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-6 bg-black/40 backdrop-blur-sm"
           onClick={e => { if (e.target === e.currentTarget) setModalV(null) }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <div className="flex items-center justify-between mb-5">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#e2e6ea] shrink-0">
               <h2 className="text-base font-bold text-navy-600">
                 {modalV.mode === 'crear' ? 'Registrar venta' : 'Editar venta'}
               </h2>
@@ -357,39 +390,125 @@ export default function Finanzas() {
               </button>
             </div>
 
-            <form onSubmit={guardarV} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide mb-1.5">Fecha</label>
-                <input type="date" required value={formV.fecha_emision}
-                  onChange={e => setFormV(v => ({ ...v, fecha_emision: e.target.value }))}
-                  className="w-full text-sm border border-[#e2e6ea] rounded-xl px-3 py-2.5 text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide mb-1.5">Cliente</label>
-                <input type="text" placeholder="Nombre del cliente" value={formV.cliente_nombre}
-                  onChange={e => setFormV(v => ({ ...v, cliente_nombre: e.target.value }))}
-                  className="w-full text-sm border border-[#e2e6ea] rounded-xl px-3 py-2.5 text-navy-600 placeholder:text-[#c0cad6] focus:outline-none focus:ring-2 focus:ring-accent/30" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide mb-1.5">Concepto</label>
-                <input type="text" placeholder="Pago total" value={formV.concepto}
-                  onChange={e => setFormV(v => ({ ...v, concepto: e.target.value }))}
-                  className="w-full text-sm border border-[#e2e6ea] rounded-xl px-3 py-2.5 text-navy-600 placeholder:text-[#c0cad6] focus:outline-none focus:ring-2 focus:ring-accent/30" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide mb-1.5">Monto (COP)</label>
-                <input type="number" required min="1" placeholder="0" value={formV.monto}
-                  onChange={e => setFormV(v => ({ ...v, monto: e.target.value }))}
-                  className="w-full text-sm border border-[#e2e6ea] rounded-xl px-3 py-2.5 text-navy-600 placeholder:text-[#c0cad6] focus:outline-none focus:ring-2 focus:ring-accent/30" />
+            <form onSubmit={guardarV} className="flex flex-col flex-1 overflow-hidden">
+              {/* Scrollable body */}
+              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+
+                {/* Fecha */}
+                <div>
+                  <label className={LBL}>Fecha</label>
+                  <input type="date" required value={formV.fecha_emision}
+                    onChange={e => setFormV(v => ({ ...v, fecha_emision: e.target.value }))}
+                    className={INP} />
+                </div>
+
+                {/* Cliente + Concepto */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={LBL}>Cliente</label>
+                    <input type="text" placeholder="Nombre" value={formV.cliente_nombre}
+                      onChange={e => setFormV(v => ({ ...v, cliente_nombre: e.target.value }))}
+                      className={INP} />
+                  </div>
+                  <div>
+                    <label className={LBL}>Concepto</label>
+                    <input type="text" placeholder="Pago total" value={formV.concepto}
+                      onChange={e => setFormV(v => ({ ...v, concepto: e.target.value }))}
+                      className={INP} />
+                  </div>
+                </div>
+
+                {/* Producto + Cantidad */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className={LBL}>Producto</label>
+                    <input type="text" placeholder="Nombre del producto" value={formV.producto}
+                      onChange={e => setFormV(v => ({ ...v, producto: e.target.value }))}
+                      className={INP} />
+                  </div>
+                  <div>
+                    <label className={LBL}>Cantidad</label>
+                    <input type="number" min="1" step="1" value={formV.cantidad}
+                      onChange={e => setFormV(v => ({ ...v, cantidad: e.target.value }))}
+                      className={INP} />
+                  </div>
+                </div>
+
+                {/* Cifras */}
+                <div className="border-t border-[#e2e6ea] pt-4 space-y-3">
+                  <p className="text-xs font-bold text-[#8a9ab0] uppercase tracking-wide">Cifras</p>
+
+                  <div>
+                    <label className={LBL}>Venta total (COP) <span className="text-red-400 normal-case">*</span></label>
+                    <input type="number" required min="1" placeholder="0" value={formV.monto}
+                      onChange={e => setFormV(v => ({ ...v, monto: e.target.value }))}
+                      className={INP} />
+                  </div>
+
+                  <div>
+                    <label className={LBL}>Costo de material (COP) <span className="text-[#c0cad6] normal-case font-normal">opcional</span></label>
+                    <input type="number" min="0" placeholder="0" value={formV.costo_total}
+                      onChange={e => setFormV(v => ({ ...v, costo_total: e.target.value }))}
+                      className={INP} />
+                  </div>
+                </div>
+
+                {/* Reparto — solo si hay costo ingresado */}
+                {formV.costo_total !== '' && (
+                  <div className="bg-[#f8f9fb] rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-bold text-[#8a9ab0] uppercase tracking-wide">% Reparto de utilidad</p>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-green-600 mb-1.5">Principal (%)</label>
+                        <input type="number" min="1" max="99" value={formV.pct_mayor}
+                          onChange={e => setFormV(v => ({ ...v, pct_mayor: Math.min(99, Math.max(1, Number(e.target.value) || 1)) }))}
+                          className="w-full text-sm border border-green-200 bg-green-50 rounded-xl px-3 py-2.5 text-green-700 font-bold focus:outline-none focus:ring-2 focus:ring-green-200" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-yellow-600 mb-1.5">Resto (%)</label>
+                        <div className="w-full text-sm border border-yellow-200 bg-yellow-50 rounded-xl px-3 py-2.5 text-yellow-700 font-bold select-none">
+                          {100 - Number(formV.pct_mayor)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Preview en vivo */}
+                    {formV.monto && Number(formV.monto) > 0 && (() => {
+                      const mont = Number(formV.monto)
+                      const cost = Number(formV.costo_total) || 0
+                      const util = mont - cost
+                      const pM   = Number(formV.pct_mayor)
+                      const pm   = 100 - pM
+                      return (
+                        <div className="grid grid-cols-3 gap-2 pt-1 border-t border-[#e2e6ea]">
+                          <div className="text-center py-1">
+                            <p className="text-[10px] text-[#8a9ab0] uppercase tracking-wide mb-1">Utilidad</p>
+                            <p className="text-sm font-bold text-teal-700 tabular-nums">{fmt(util)}</p>
+                          </div>
+                          <div className="text-center py-1">
+                            <p className="text-[10px] text-green-600 uppercase tracking-wide mb-1">{pM}%</p>
+                            <p className="text-sm font-bold text-green-700 tabular-nums">{fmt(Math.round(util * pM / 100))}</p>
+                          </div>
+                          <div className="text-center py-1">
+                            <p className="text-[10px] text-yellow-600 uppercase tracking-wide mb-1">{pm}%</p>
+                            <p className="text-sm font-bold text-yellow-700 tabular-nums">{fmt(Math.round(util * pm / 100))}</p>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
               </div>
 
-              <div className="flex gap-2 pt-1">
+              {/* Botones fijos abajo */}
+              <div className="flex gap-2 px-6 py-4 border-t border-[#e2e6ea] shrink-0">
                 <button type="button" onClick={() => setModalV(null)}
                   className="flex-1 text-sm font-semibold border border-[#e2e6ea] rounded-xl py-2.5 text-[#8a9ab0] hover:bg-[#f8f9fb] transition-colors">
                   Cancelar
                 </button>
                 <button type="submit" disabled={savingV}
-                  className="flex-1 text-sm font-semibold bg-accent text-white rounded-xl py-2.5 hover:bg-accent/90 disabled:opacity-60 transition-colors">
+                  className="flex-1 text-sm font-semibold bg-navy-600 text-white rounded-xl py-2.5 hover:bg-navy-700 disabled:opacity-60 transition-colors">
                   {savingV ? 'Guardando…' : modalV.mode === 'crear' ? 'Registrar' : 'Guardar'}
                 </button>
               </div>
