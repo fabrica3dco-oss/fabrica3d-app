@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, BarChart2,
-  Plus, Edit2, Trash2, X, Users,
-  Loader2, ChevronDown,
+  Plus, Edit2, Trash2, X, Users, Loader2, ChevronDown,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -64,7 +63,7 @@ function KpiCard({ icon, label, value, sub, valueColor = 'text-navy-600', bg = '
   )
 }
 
-// ── Strip de desglose por receta ──────────────────────────────────────────────
+// ── Strip de desglose financiero por cobro ────────────────────────────────────
 function RecetaStrip({ rj }) {
   return (
     <div className="mt-2 bg-[#f0f4f8] rounded-xl px-3 py-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
@@ -97,10 +96,6 @@ export default function Finanzas() {
     anio, setAnio, mes, setMes,
     gastosMes, cobrosMes,
     totalGastos, totalIngresos, utilidad,
-    cobrosRes, loadingRes,
-    resDesde, setResDesde, resHasta, setResHasta,
-    resFiltro, aplicarFiltroResumen, aplicarFiltroDirecto,
-    consolidado, totalPeriodo,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
     crearGasto, actualizarGasto, eliminarGasto,
   } = useFinanzas()
@@ -114,13 +109,6 @@ export default function Finanzas() {
   const [saving,    setSaving]    = useState(false)
   const [busqueda,  setBusqueda]  = useState('')
   const [filtrocat, setFiltrocat] = useState('')
-
-  // Navegar a un mes desde el consolidado
-  function irAMes(mesNum, anioNum, destTab = 'ingresos') {
-    setAnio(anioNum)
-    setMes(mesNum)
-    setTab(destTab)
-  }
 
   // ── Handlers modal gasto ──────────────────────────────────────────────────
   function abrirCrear() {
@@ -160,37 +148,25 @@ export default function Finanzas() {
   )
 
   const margenMes = totalIngresos > 0 ? Math.round((utilidad / totalIngresos) * 100) : null
-  const maxIngreso = Math.max(...consolidado.map(m => m.ingresos), 1)
-  const multiAnio = resFiltro.desde.split('-')[0] !== resFiltro.hasta.split('-')[0]
 
-  // Shortcuts con auto-apply
-  function setAtajo(tipo) {
-    const y = curYear
-    const map = {
-      este: [`${y}-01-01`,   `${y}-12-31`],
-      ant:  [`${y-1}-01-01`, `${y-1}-12-31`],
-      h1:   [`${y}-01-01`,   `${y}-06-30`],
-      h2:   [`${y}-07-01`,   `${y}-12-31`],
-    }
-    if (map[tipo]) aplicarFiltroDirecto(map[tipo][0], map[tipo][1])
-  }
-
-  // Datos de receta para el mes seleccionado (Ingresos tab)
-  const cobrosConRecetaMes = useMemo(() =>
+  // Cobros con receta del mes (para Resumen e Ingresos)
+  const cobrosConReceta = useMemo(() =>
     cobrosMes.filter(c => c.receta_json?.utilidad_total != null),
     [cobrosMes]
   )
-  const totMes = useMemo(() => {
-    if (cobrosConRecetaMes.length === 0) return null
+  const totReceta = useMemo(() => {
+    if (cobrosConReceta.length === 0) return null
     return {
-      costo:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0),
-      util:     cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0),
-      mayor:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0),
-      menor:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0),
-      pctMayor: cobrosConRecetaMes[0]?.receta_json?.pct_mayor ?? 75,
-      pctMenor: cobrosConRecetaMes[0]?.receta_json?.pct_menor ?? 25,
+      costo:    cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0),
+      util:     cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0),
+      mayor:    cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0),
+      menor:    cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0),
+      pctMayor: cobrosConReceta[0]?.receta_json?.pct_mayor ?? 75,
+      pctMenor: cobrosConReceta[0]?.receta_json?.pct_menor ?? 25,
     }
-  }, [cobrosConRecetaMes])
+  }, [cobrosConReceta])
+
+  const mesLabel = `${MESES_LABEL[mes - 1]} ${anio}`
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
@@ -199,25 +175,24 @@ export default function Finanzas() {
       <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-navy-600">Finanzas</h1>
-          <p className="text-sm text-[#8a9ab0] mt-0.5">Ingresos, gastos y consolidado</p>
+          <p className="text-sm text-[#8a9ab0] mt-0.5">Ingresos, gastos y utilidades</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {tab !== 'resumen' && (
+          {/* Selectores mes/año — siempre visibles */}
+          {(tab === 'resumen' || tab === 'ingresos' || tab === 'gastos') && (
             <>
-              {(tab === 'ingresos' || tab === 'gastos') && (
-                <div className="relative">
-                  <select
-                    value={mes}
-                    onChange={e => setMes(Number(e.target.value))}
-                    className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
-                  >
-                    {MESES_LABEL.map((label, i) => (
-                      <option key={i + 1} value={i + 1}>{label}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
-                </div>
-              )}
+              <div className="relative">
+                <select
+                  value={mes}
+                  onChange={e => setMes(Number(e.target.value))}
+                  className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
+                >
+                  {MESES_LABEL.map((label, i) => (
+                    <option key={i + 1} value={i + 1}>{label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
+              </div>
               <div className="relative">
                 <select
                   value={anio}
@@ -255,250 +230,160 @@ export default function Finanzas() {
       ══════════════════════════════════════════════════════════════════════ */}
       {tab === 'resumen' && (
         <div>
-
-          {/* Filtro de período — barra limpia sin card */}
-          <div className="flex flex-wrap items-center gap-3 mb-6 pb-5 border-b border-[#e2e6ea]">
-            {/* Atajos */}
-            <div className="flex gap-1.5 flex-wrap">
-              {[
-                ['este', 'Este año'],
-                ['ant',  'Año anterior'],
-                ['h1',   'Ene – Jun'],
-                ['h2',   'Jul – Dic'],
-              ].map(([tipo, label]) => (
-                <button
-                  key={tipo}
-                  onClick={() => setAtajo(tipo)}
-                  className="text-xs px-3 py-1.5 rounded-full border font-medium text-[#8a9ab0] border-[#e2e6ea] hover:border-accent hover:text-accent transition-colors"
-                >{label}</button>
-              ))}
-            </div>
-            {/* Separador */}
-            <div className="hidden sm:block w-px h-5 bg-[#e2e6ea]" />
-            {/* Rango personalizado */}
-            <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
-              <input
-                type="date"
-                value={resDesde}
-                onChange={e => setResDesde(e.target.value)}
-                className="text-sm border border-[#e2e6ea] rounded-lg px-3 py-1.5 text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
-              <span className="text-[#8a9ab0] font-medium text-sm">–</span>
-              <input
-                type="date"
-                value={resHasta}
-                onChange={e => setResHasta(e.target.value)}
-                className="text-sm border border-[#e2e6ea] rounded-lg px-3 py-1.5 text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
-              <Button onClick={aplicarFiltroResumen} className="shrink-0">Aplicar</Button>
-            </div>
-          </div>
-
-          {/* KPI cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+          {/* KPI del mes */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <KpiCard
               icon={<TrendingUp size={12} className="text-green-500" />}
               label="Ingresos"
-              value={fmt(totalPeriodo.ingresos)}
+              value={fmt(totalIngresos)}
+              sub={`${cobrosMes.length} cobro${cobrosMes.length !== 1 ? 's' : ''} pagado${cobrosMes.length !== 1 ? 's' : ''}`}
               valueColor="text-green-600"
             />
             <KpiCard
               icon={<TrendingDown size={12} className="text-red-500" />}
               label="Gastos"
-              value={fmt(totalPeriodo.gastos)}
+              value={fmt(totalGastos)}
+              sub={`${gastosMes.length} registro${gastosMes.length !== 1 ? 's' : ''}`}
               valueColor="text-red-600"
             />
             <KpiCard
               icon={<DollarSign size={12} />}
               label="Utilidad neta"
-              value={fmt(totalPeriodo.utilidad)}
-              valueColor={totalPeriodo.utilidad >= 0 ? 'text-green-700' : 'text-red-700'}
-              bg={totalPeriodo.utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}
+              value={fmt(utilidad)}
+              sub={margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aún'}
+              valueColor={utilidad >= 0 ? 'text-green-700' : 'text-red-700'}
+              bg={utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}
             />
             <KpiCard
               icon={<BarChart2 size={12} />}
               label="Margen"
-              value={totalPeriodo.margen !== null ? `${totalPeriodo.margen}%` : '—'}
+              value={margenMes !== null ? `${margenMes}%` : '—'}
               valueColor="text-navy-600"
             />
           </div>
 
-          {/* Tabla mensual */}
-          {loadingRes ? (
+          {loading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-[#8a9ab0] text-sm">
-              <Loader2 size={16} className="animate-spin" /> Cargando...
+              <Loader2 size={16} className="animate-spin" /> Cargando {mesLabel}...
+            </div>
+          ) : (cobrosMes.length === 0 && gastosMes.length === 0) ? (
+            <div className="text-center py-16">
+              <BarChart2 size={40} className="text-[#e2e6ea] mx-auto mb-3" />
+              <p className="text-sm font-medium text-navy-600">Sin datos en {mesLabel}</p>
+              <p className="text-xs text-[#8a9ab0] mt-1">Registra gastos o marca cobros como pagados</p>
             </div>
           ) : (
-            <Card className="overflow-hidden p-0 mb-5">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[130px]">Mes</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Ingresos</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[140px]">Gastos</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[140px]">Utilidad</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[70px]">Margen</th>
-                    <th className="px-4 py-3 w-[80px]" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#e2e6ea]">
-                  {consolidado.map(m => (
-                    <tr
-                      key={m.prefix}
-                      className={`transition-colors ${m.tieneData ? 'hover:bg-[#f8f9fb] cursor-pointer' : 'opacity-40'}`}
-                      onClick={() => m.tieneData && irAMes(m.mesNum, m.anio, 'ingresos')}
-                    >
-                      <td className="px-4 py-3 font-medium text-navy-600">
-                        {m.nombre}{multiAnio && <span className="text-xs text-[#8a9ab0] ml-1">{m.anio}</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="text-green-700 font-semibold tabular-nums">{m.ingresos > 0 ? fmt(m.ingresos) : '—'}</span>
-                          {m.ingresos > 0 && <MiniBar valor={m.ingresos} max={maxIngreso} color="bg-green-400" />}
+            <div className="flex flex-col gap-5">
+
+              {/* ── Ventas del mes ─────────────────────────────────────────── */}
+              {cobrosMes.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">
+                      Ventas · {mesLabel}
+                    </p>
+                    {totReceta && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1">
+                          <span className="text-[10px] font-semibold text-green-600">{totReceta.pctMayor}%</span>
+                          <span className="text-sm font-bold text-green-700">{fmt(totReceta.mayor)}</span>
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="text-red-600 font-semibold tabular-nums">{m.gastos > 0 ? fmt(m.gastos) : '—'}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {m.tieneData
-                          ? <span className={`font-bold tabular-nums ${m.utilidad >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmt(m.utilidad)}</span>
-                          : <span className="text-[#c0cad6]">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {m.margen !== null
-                          ? <span className={`font-medium ${m.margen >= 0 ? 'text-green-600' : 'text-red-500'}`}>{m.margen}%</span>
-                          : <span className="text-[#c0cad6]">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {m.tieneData && <span className="text-xs text-accent font-medium">Ver →</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-[#e2e6ea] bg-[#f8f9fb] font-bold">
-                    <td className="px-4 py-3 text-navy-600 text-sm">Total período</td>
-                    <td className="px-4 py-3 text-right text-green-700 tabular-nums">{fmt(totalPeriodo.ingresos)}</td>
-                    <td className="px-4 py-3 text-right text-red-600 tabular-nums">{fmt(totalPeriodo.gastos)}</td>
-                    <td className={`px-4 py-3 text-right tabular-nums ${totalPeriodo.utilidad >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                      {fmt(totalPeriodo.utilidad)}
-                    </td>
-                    <td className={`px-4 py-3 text-right ${totalPeriodo.margen !== null && totalPeriodo.margen >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                      {totalPeriodo.margen !== null ? `${totalPeriodo.margen}%` : '—'}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
-            </Card>
-          )}
-
-          {/* Desglose por trabajo */}
-          {!loadingRes && (() => {
-            const jobs = cobrosRes.filter(c => c.receta_json?.utilidad_total != null)
-            if (jobs.length === 0) return null
-            const pctMayor = jobs[0].receta_json.pct_mayor ?? 75
-            const pctMenor = jobs[0].receta_json.pct_menor ?? 25
-            const totCosto  = jobs.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0)
-            const totPrecio = jobs.reduce((s, c) => s + Number(c.receta_json.precio_total   || 0), 0)
-            const totUtil   = jobs.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0)
-            const totMayor  = jobs.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0)
-            const totMenor  = jobs.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0)
-            return (
-              <Card className="overflow-hidden p-0">
-                {/* Encabezado */}
-                <div className="px-4 py-4 border-b border-[#e2e6ea]">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                        <Users size={15} className="text-accent" />
+                        <div className="flex items-center gap-1.5 bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-1">
+                          <span className="text-[10px] font-semibold text-yellow-600">{totReceta.pctMenor}%</span>
+                          <span className="text-sm font-bold text-yellow-700">{fmt(totReceta.menor)}</span>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-navy-600">Desglose por trabajo</p>
-                        <p className="text-xs text-[#8a9ab0]">
-                          {jobs.length} cobro{jobs.length !== 1 ? 's' : ''} con datos de calculadora · solo pagados
-                        </p>
-                      </div>
-                    </div>
-                    {/* Split totals */}
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-center min-w-[90px]">
-                        <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wide mb-0.5">{pctMayor}%</p>
-                        <p className="text-sm font-bold text-green-700">{fmt(totMayor)}</p>
-                      </div>
-                      <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-center min-w-[90px]">
-                        <p className="text-[10px] font-semibold text-yellow-600 uppercase tracking-wide mb-0.5">{pctMenor}%</p>
-                        <p className="text-sm font-bold text-yellow-700">{fmt(totMenor)}</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
-                </div>
 
-                {/* Filas */}
-                <div className="divide-y divide-[#e2e6ea]">
-                  {jobs.map(c => {
-                    const rj = c.receta_json
-                    return (
-                      <div key={c.id} className="px-4 py-3.5 hover:bg-[#f8f9fb] transition-colors">
-                        {/* Fila principal */}
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">
-                            {c.fecha_emision ? fmtFecha(c.fecha_emision) : '—'}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-navy-600 truncate">{c.cliente_nombre || '—'}</p>
-                            {rj.producto && (
-                              <p className="text-xs text-[#8a9ab0]">
-                                {rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}
-                              </p>
+                  <Card className="overflow-hidden p-0">
+                    <div className="divide-y divide-[#e2e6ea]">
+                      {cobrosMes.map(c => {
+                        const rj = c.receta_json
+                        const tieneReceta = rj?.utilidad_total != null
+                        return (
+                          <div key={c.id} className="px-4 py-3.5 hover:bg-[#f8f9fb] transition-colors">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">{fmtFecha(c.fecha_emision)}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-navy-600 text-sm truncate">{c.cliente_nombre || '—'}</p>
+                                {tieneReceta && rj.producto && (
+                                  <p className="text-xs text-[#8a9ab0] truncate">
+                                    {rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap shrink-0">
+                                {c.concepto || 'Pago'}
+                              </span>
+                              <span className="font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
+                            </div>
+                            {tieneReceta && (
+                              <div className="ml-[84px]">
+                                <RecetaStrip rj={rj} />
+                              </div>
                             )}
                           </div>
-                          <span className="text-sm font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
-                        </div>
-                        {/* Strip de breakdown */}
-                        <div className="ml-[84px]">
-                          <RecetaStrip rj={rj} />
-                        </div>
-                      </div>
-                    )
-                  })}
+                        )
+                      })}
+                    </div>
+                    {/* Total ventas */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
+                      <span className="text-sm font-semibold text-navy-600">Total ventas</span>
+                      <span className="text-base font-bold text-green-700 tabular-nums">{fmt(totalIngresos)}</span>
+                    </div>
+                  </Card>
                 </div>
+              )}
 
-                {/* Footer totales */}
-                <div className="px-4 py-3.5 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 ml-[84px]">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0]">Total costo mat.</p>
-                      <p className="text-sm font-semibold text-[#8a9ab0]">{fmt(totCosto)}</p>
+              {/* ── Gastos del mes ─────────────────────────────────────────── */}
+              {gastosMes.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">
+                    Gastos · {mesLabel}
+                  </p>
+
+                  {/* Por categoría */}
+                  {porCategoria.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {porCategoria.map(cat => (
+                        <div key={cat.id} className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${cat.color}`}>
+                          {cat.label}
+                          <span className="font-bold">{fmt(cat.total)}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0]">Total cobrado</p>
-                      <p className="text-sm font-bold text-navy-600">{fmt(totPrecio)}</p>
+                  )}
+
+                  <Card className="overflow-hidden p-0">
+                    <div className="divide-y divide-[#e2e6ea]">
+                      {gastosMes.map(g => {
+                        const cat = CAT_MAP[g.categoria] || CAT_MAP['otros']
+                        return (
+                          <div key={g.id} className="flex items-center gap-3 px-4 py-3 hover:bg-[#f8f9fb] transition-colors">
+                            <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">{fmtFecha(g.fecha)}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-navy-600 truncate">{g.descripcion}</p>
+                              {g.notas && <p className="text-xs text-[#8a9ab0] truncate">{g.notas}</p>}
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap shrink-0 ${cat.color}`}>{cat.label}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="font-semibold text-navy-600 tabular-nums text-sm">{fmt(g.monto)}</span>
+                              <button onClick={() => abrirEditar(g)} className="p-1 rounded hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors"><Edit2 size={13} /></button>
+                              <button onClick={() => { if (confirm('Eliminar este gasto?')) eliminarGasto(g.id) }} className="p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0]">Utilidad total</p>
-                      <p className="text-sm font-bold text-green-700">{fmt(totUtil)}</p>
+                    <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
+                      <span className="text-sm font-semibold text-navy-600">Total gastos</span>
+                      <span className="text-base font-bold text-red-600 tabular-nums">{fmt(totalGastos)}</span>
                     </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-green-600">{pctMayor}%</p>
-                      <p className="text-sm font-bold text-green-600">{fmt(totMayor)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-yellow-600">{pctMenor}%</p>
-                      <p className="text-sm font-bold text-yellow-600">{fmt(totMenor)}</p>
-                    </div>
-                  </div>
+                  </Card>
                 </div>
-              </Card>
-            )
-          })()}
+              )}
 
-          {!loadingRes && totalPeriodo.ingresos === 0 && totalPeriodo.gastos === 0 && (
-            <div className="mt-6 text-center py-12">
-              <BarChart2 size={40} className="text-[#e2e6ea] mx-auto mb-3" />
-              <p className="text-sm font-medium text-navy-600">Sin datos para el período seleccionado</p>
-              <p className="text-xs text-[#8a9ab0] mt-1">Registra gastos o marca cobros como pagados para ver el consolidado</p>
             </div>
           )}
         </div>
@@ -509,7 +394,6 @@ export default function Finanzas() {
       ══════════════════════════════════════════════════════════════════════ */}
       {tab === 'ingresos' && (
         <div>
-          {/* KPI cards */}
           <div className="grid grid-cols-3 gap-3 mb-5">
             <KpiCard
               icon={<TrendingUp size={12} className="text-green-500" />}
@@ -535,20 +419,20 @@ export default function Finanzas() {
             />
           </div>
 
-          {/* Resumen split del mes (si hay cobros con receta) */}
-          {totMes && (
+          {/* Resumen split del mes */}
+          {totReceta && (
             <div className="flex flex-wrap gap-2 mb-4">
               <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
-                <span className="text-xs font-semibold text-green-600">{totMes.pctMayor}%</span>
-                <span className="text-base font-bold text-green-700">{fmt(totMes.mayor)}</span>
+                <span className="text-xs font-semibold text-green-600">{totReceta.pctMayor}%</span>
+                <span className="text-base font-bold text-green-700">{fmt(totReceta.mayor)}</span>
               </div>
               <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5">
-                <span className="text-xs font-semibold text-yellow-600">{totMes.pctMenor}%</span>
-                <span className="text-base font-bold text-yellow-700">{fmt(totMes.menor)}</span>
+                <span className="text-xs font-semibold text-yellow-600">{totReceta.pctMenor}%</span>
+                <span className="text-base font-bold text-yellow-700">{fmt(totReceta.menor)}</span>
               </div>
               <div className="flex items-center gap-2 bg-[#f8f9fb] border border-[#e2e6ea] rounded-xl px-4 py-2.5">
                 <span className="text-xs text-[#8a9ab0]">Costo materiales</span>
-                <span className="text-base font-bold text-navy-600">{fmt(totMes.costo)}</span>
+                <span className="text-base font-bold text-navy-600">{fmt(totReceta.costo)}</span>
               </div>
             </div>
           )}
@@ -561,7 +445,7 @@ export default function Finanzas() {
             <Card>
               <div className="flex flex-col items-center py-12 gap-3">
                 <TrendingUp size={36} className="text-[#e2e6ea]" />
-                <p className="text-sm font-medium text-navy-600">Sin ingresos en {MESES_LABEL[mes - 1]} {anio}</p>
+                <p className="text-sm font-medium text-navy-600">Sin ingresos en {mesLabel}</p>
                 <p className="text-xs text-[#8a9ab0]">Los cobros marcados como pagados aparecen aquí</p>
               </div>
             </Card>
@@ -573,7 +457,6 @@ export default function Finanzas() {
                   const tieneReceta = rj?.utilidad_total != null
                   return (
                     <div key={c.id} className="px-4 py-3.5 hover:bg-[#f8f9fb] transition-colors">
-                      {/* Fila principal */}
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">{fmtFecha(c.fecha_emision)}</span>
                         <div className="flex-1 min-w-0">
@@ -587,9 +470,8 @@ export default function Finanzas() {
                         <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap shrink-0">
                           {c.concepto || 'Pago'}
                         </span>
-                        <span className="font-bold text-navy-600 tabular-nums shrink-0 text-sm">{fmt(c.monto)}</span>
+                        <span className="font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
                       </div>
-                      {/* Strip de breakdown si tiene receta */}
                       {tieneReceta && (
                         <div className="ml-[84px]">
                           <RecetaStrip rj={rj} />
@@ -599,9 +481,8 @@ export default function Finanzas() {
                   )
                 })}
               </div>
-              {/* Footer total del mes */}
               <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
-                <span className="text-sm font-semibold text-navy-600">{MESES_LABEL[mes - 1]} {anio}</span>
+                <span className="text-sm font-semibold text-navy-600">{mesLabel}</span>
                 <span className="text-base font-bold text-green-700 tabular-nums">{fmt(totalIngresos)}</span>
               </div>
             </Card>
@@ -668,7 +549,7 @@ export default function Finanzas() {
             <Card>
               <div className="flex flex-col items-center py-12 gap-3">
                 <TrendingDown size={36} className="text-[#e2e6ea]" />
-                <p className="text-sm font-medium text-navy-600">Sin gastos en {MESES_LABEL[mes - 1]} {anio}</p>
+                <p className="text-sm font-medium text-navy-600">Sin gastos en {mesLabel}</p>
                 <p className="text-xs text-[#8a9ab0]">Registra los gastos del mes</p>
                 <Button variant="secondary" onClick={abrirCrear}><Plus size={14} /> Registrar gasto</Button>
               </div>
