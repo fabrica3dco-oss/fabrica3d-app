@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, BarChart2,
-  Plus, Edit2, Trash2, X, Calendar, Users,
+  Plus, Edit2, Trash2, X, Users,
   Loader2, ChevronDown,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
@@ -51,6 +51,45 @@ function MiniBar({ valor, max, color }) {
   )
 }
 
+// ── Tarjeta KPI ───────────────────────────────────────────────────────────────
+function KpiCard({ icon, label, value, sub, valueColor = 'text-navy-600', bg = '' }) {
+  return (
+    <Card className={`p-4 ${bg}`}>
+      <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
+        {icon} {label}
+      </p>
+      <p className={`text-xl font-bold ${valueColor}`}>{value}</p>
+      {sub && <p className="text-xs text-[#8a9ab0] mt-0.5">{sub}</p>}
+    </Card>
+  )
+}
+
+// ── Strip de desglose por receta ──────────────────────────────────────────────
+function RecetaStrip({ rj }) {
+  return (
+    <div className="mt-2 bg-[#f0f4f8] rounded-xl px-3 py-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
+      {rj.costo_total > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0] mb-0.5">Costo mat.</p>
+          <p className="text-xs font-semibold text-[#8a9ab0]">{fmt(rj.costo_total)}</p>
+        </div>
+      )}
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0] mb-0.5">Utilidad</p>
+        <p className="text-xs font-bold text-green-700">{rj.utilidad_total ? fmt(rj.utilidad_total) : '—'}</p>
+      </div>
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-green-600 mb-0.5">{rj.pct_mayor ?? 75}%</p>
+        <p className="text-xs font-semibold text-green-600">{rj.parte_mayor ? fmt(rj.parte_mayor) : '—'}</p>
+      </div>
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-yellow-600 mb-0.5">{rj.pct_menor ?? 25}%</p>
+        <p className="text-xs font-semibold text-yellow-600">{rj.parte_menor ? fmt(rj.parte_menor) : '—'}</p>
+      </div>
+    </div>
+  )
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function Finanzas() {
   const {
@@ -60,7 +99,7 @@ export default function Finanzas() {
     totalGastos, totalIngresos, utilidad,
     cobrosRes, loadingRes,
     resDesde, setResDesde, resHasta, setResHasta,
-    resFiltro, aplicarFiltroResumen,
+    resFiltro, aplicarFiltroResumen, aplicarFiltroDirecto,
     consolidado, totalPeriodo,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
     crearGasto, actualizarGasto, eliminarGasto,
@@ -121,21 +160,37 @@ export default function Finanzas() {
   )
 
   const margenMes = totalIngresos > 0 ? Math.round((utilidad / totalIngresos) * 100) : null
-
-  // Máximos para escalar barras
   const maxIngreso = Math.max(...consolidado.map(m => m.ingresos), 1)
-
-  // ¿El rango abarca más de un año?
   const multiAnio = resFiltro.desde.split('-')[0] !== resFiltro.hasta.split('-')[0]
 
-  // Atajos de fecha
+  // Shortcuts con auto-apply
   function setAtajo(tipo) {
     const y = curYear
-    if (tipo === 'este')   { setResDesde(`${y}-01-01`); setResHasta(`${y}-12-31`) }
-    if (tipo === 'ant')    { setResDesde(`${y-1}-01-01`); setResHasta(`${y-1}-12-31`) }
-    if (tipo === 'h1')     { setResDesde(`${y}-01-01`); setResHasta(`${y}-06-30`) }
-    if (tipo === 'h2')     { setResDesde(`${y}-07-01`); setResHasta(`${y}-12-31`) }
+    const map = {
+      este: [`${y}-01-01`,   `${y}-12-31`],
+      ant:  [`${y-1}-01-01`, `${y-1}-12-31`],
+      h1:   [`${y}-01-01`,   `${y}-06-30`],
+      h2:   [`${y}-07-01`,   `${y}-12-31`],
+    }
+    if (map[tipo]) aplicarFiltroDirecto(map[tipo][0], map[tipo][1])
   }
+
+  // Datos de receta para el mes seleccionado (Ingresos tab)
+  const cobrosConRecetaMes = useMemo(() =>
+    cobrosMes.filter(c => c.receta_json?.utilidad_total != null),
+    [cobrosMes]
+  )
+  const totMes = useMemo(() => {
+    if (cobrosConRecetaMes.length === 0) return null
+    return {
+      costo:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0),
+      util:     cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0),
+      mayor:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0),
+      menor:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0),
+      pctMayor: cobrosConRecetaMes[0]?.receta_json?.pct_mayor ?? 75,
+      pctMenor: cobrosConRecetaMes[0]?.receta_json?.pct_menor ?? 25,
+    }
+  }, [cobrosConRecetaMes])
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
@@ -147,7 +202,6 @@ export default function Finanzas() {
           <p className="text-sm text-[#8a9ab0] mt-0.5">Ingresos, gastos y consolidado</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Selectores año/mes — solo en tabs de detalle */}
           {tab !== 'resumen' && (
             <>
               {(tab === 'ingresos' || tab === 'gastos') && (
@@ -181,7 +235,7 @@ export default function Finanzas() {
       </div>
 
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
-      <div className="flex gap-1 mb-5 border-b border-[#e2e6ea]">
+      <div className="flex gap-1 mb-6 border-b border-[#e2e6ea]">
         {[
           ['resumen',  'Resumen'],
           ['ingresos', 'Ingresos'],
@@ -201,98 +255,90 @@ export default function Finanzas() {
       ══════════════════════════════════════════════════════════════════════ */}
       {tab === 'resumen' && (
         <div>
-          {/* Filtro de fechas */}
-          <Card className="p-4 mb-5">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="flex items-center gap-1.5">
-                <Calendar size={15} className="text-[#8a9ab0]" />
-                <span className="text-xs font-medium text-[#8a9ab0] uppercase tracking-wide">Período</span>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap flex-1">
-                <div className="flex items-center gap-1.5">
-                  <label className="text-xs text-[#8a9ab0] whitespace-nowrap">Desde</label>
-                  <input
-                    type="date"
-                    value={resDesde}
-                    onChange={e => setResDesde(e.target.value)}
-                    className="text-sm border border-[#e2e6ea] rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <label className="text-xs text-[#8a9ab0] whitespace-nowrap">Hasta</label>
-                  <input
-                    type="date"
-                    value={resHasta}
-                    onChange={e => setResHasta(e.target.value)}
-                    className="text-sm border border-[#e2e6ea] rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                </div>
-                <Button onClick={aplicarFiltroResumen} className="shrink-0">Aplicar</Button>
-              </div>
-              {/* Atajos */}
-              <div className="flex gap-1.5 flex-wrap">
-                {[
-                  ['este', 'Este año'],
-                  ['ant',  'Año anterior'],
-                  ['h1',   'Ene – Jun'],
-                  ['h2',   'Jul – Dic'],
-                ].map(([tipo, label]) => (
-                  <button
-                    key={tipo}
-                    onClick={() => setAtajo(tipo)}
-                    className="text-xs px-2.5 py-1 rounded-full border border-[#e2e6ea] text-[#8a9ab0] hover:border-accent hover:text-accent transition-colors"
-                  >{label}</button>
-                ))}
-              </div>
-            </div>
-          </Card>
 
-          {/* Cards del período */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <Card className="p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-                <TrendingUp size={12} className="text-green-500" /> Ingresos
-              </p>
-              <p className="text-xl font-bold text-green-600">{fmt(totalPeriodo.ingresos)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-                <TrendingDown size={12} className="text-red-500" /> Gastos
-              </p>
-              <p className="text-xl font-bold text-red-600">{fmt(totalPeriodo.gastos)}</p>
-            </Card>
-            <Card className={`p-4 ${totalPeriodo.utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-              <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 mb-1 ${totalPeriodo.utilidad >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                <DollarSign size={12} /> Utilidad neta
-              </p>
-              <p className={`text-xl font-bold ${totalPeriodo.utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>{fmt(totalPeriodo.utilidad)}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-                <BarChart2 size={12} /> Margen
-              </p>
-              <p className="text-xl font-bold text-navy-600">
-                {totalPeriodo.margen !== null ? `${totalPeriodo.margen}%` : '—'}
-              </p>
-            </Card>
+          {/* Filtro de período — barra limpia sin card */}
+          <div className="flex flex-wrap items-center gap-3 mb-6 pb-5 border-b border-[#e2e6ea]">
+            {/* Atajos */}
+            <div className="flex gap-1.5 flex-wrap">
+              {[
+                ['este', 'Este año'],
+                ['ant',  'Año anterior'],
+                ['h1',   'Ene – Jun'],
+                ['h2',   'Jul – Dic'],
+              ].map(([tipo, label]) => (
+                <button
+                  key={tipo}
+                  onClick={() => setAtajo(tipo)}
+                  className="text-xs px-3 py-1.5 rounded-full border font-medium text-[#8a9ab0] border-[#e2e6ea] hover:border-accent hover:text-accent transition-colors"
+                >{label}</button>
+              ))}
+            </div>
+            {/* Separador */}
+            <div className="hidden sm:block w-px h-5 bg-[#e2e6ea]" />
+            {/* Rango personalizado */}
+            <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
+              <input
+                type="date"
+                value={resDesde}
+                onChange={e => setResDesde(e.target.value)}
+                className="text-sm border border-[#e2e6ea] rounded-lg px-3 py-1.5 text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30"
+              />
+              <span className="text-[#8a9ab0] font-medium text-sm">–</span>
+              <input
+                type="date"
+                value={resHasta}
+                onChange={e => setResHasta(e.target.value)}
+                className="text-sm border border-[#e2e6ea] rounded-lg px-3 py-1.5 text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30"
+              />
+              <Button onClick={aplicarFiltroResumen} className="shrink-0">Aplicar</Button>
+            </div>
           </div>
 
-          {/* Tabla consolidado */}
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            <KpiCard
+              icon={<TrendingUp size={12} className="text-green-500" />}
+              label="Ingresos"
+              value={fmt(totalPeriodo.ingresos)}
+              valueColor="text-green-600"
+            />
+            <KpiCard
+              icon={<TrendingDown size={12} className="text-red-500" />}
+              label="Gastos"
+              value={fmt(totalPeriodo.gastos)}
+              valueColor="text-red-600"
+            />
+            <KpiCard
+              icon={<DollarSign size={12} />}
+              label="Utilidad neta"
+              value={fmt(totalPeriodo.utilidad)}
+              valueColor={totalPeriodo.utilidad >= 0 ? 'text-green-700' : 'text-red-700'}
+              bg={totalPeriodo.utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}
+            />
+            <KpiCard
+              icon={<BarChart2 size={12} />}
+              label="Margen"
+              value={totalPeriodo.margen !== null ? `${totalPeriodo.margen}%` : '—'}
+              valueColor="text-navy-600"
+            />
+          </div>
+
+          {/* Tabla mensual */}
           {loadingRes ? (
-            <div className="text-center py-10 text-[#8a9ab0] text-sm flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 py-10 text-[#8a9ab0] text-sm">
               <Loader2 size={16} className="animate-spin" /> Cargando...
             </div>
           ) : (
-            <Card className="overflow-hidden p-0">
+            <Card className="overflow-hidden p-0 mb-5">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[130px]">Mes</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[150px]">Ingresos</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Ingresos</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[140px]">Gastos</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[140px]">Utilidad</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[70px]">Margen</th>
-                    <th className="px-4 py-3 w-[90px]" />
+                    <th className="px-4 py-3 w-[80px]" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e2e6ea]">
@@ -305,38 +351,27 @@ export default function Finanzas() {
                       <td className="px-4 py-3 font-medium text-navy-600">
                         {m.nombre}{multiAnio && <span className="text-xs text-[#8a9ab0] ml-1">{m.anio}</span>}
                       </td>
-
-                      {/* Ingresos con barra */}
                       <td className="px-4 py-3">
                         <div className="flex flex-col items-end gap-1">
                           <span className="text-green-700 font-semibold tabular-nums">{m.ingresos > 0 ? fmt(m.ingresos) : '—'}</span>
                           {m.ingresos > 0 && <MiniBar valor={m.ingresos} max={maxIngreso} color="bg-green-400" />}
                         </div>
                       </td>
-
                       <td className="px-4 py-3 text-right">
                         <span className="text-red-600 font-semibold tabular-nums">{m.gastos > 0 ? fmt(m.gastos) : '—'}</span>
                       </td>
-
                       <td className="px-4 py-3 text-right">
-                        {m.tieneData ? (
-                          <span className={`font-bold tabular-nums ${m.utilidad >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                            {fmt(m.utilidad)}
-                          </span>
-                        ) : <span className="text-[#c0cad6]">—</span>}
+                        {m.tieneData
+                          ? <span className={`font-bold tabular-nums ${m.utilidad >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmt(m.utilidad)}</span>
+                          : <span className="text-[#c0cad6]">—</span>}
                       </td>
-
                       <td className="px-4 py-3 text-right">
                         {m.margen !== null
                           ? <span className={`font-medium ${m.margen >= 0 ? 'text-green-600' : 'text-red-500'}`}>{m.margen}%</span>
-                          : <span className="text-[#c0cad6]">—</span>
-                        }
+                          : <span className="text-[#c0cad6]">—</span>}
                       </td>
-
                       <td className="px-4 py-3 text-right">
-                        {m.tieneData && (
-                          <span className="text-xs text-accent font-medium">Ver →</span>
-                        )}
+                        {m.tieneData && <span className="text-xs text-accent font-medium">Ver →</span>}
                       </td>
                     </tr>
                   ))}
@@ -359,7 +394,7 @@ export default function Finanzas() {
             </Card>
           )}
 
-          {/* Desglose por trabajo — cobros pagados con datos de calculadora */}
+          {/* Desglose por trabajo */}
           {!loadingRes && (() => {
             const jobs = cobrosRes.filter(c => c.receta_json?.utilidad_total != null)
             if (jobs.length === 0) return null
@@ -371,91 +406,90 @@ export default function Finanzas() {
             const totMayor  = jobs.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0)
             const totMenor  = jobs.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0)
             return (
-              <Card className="mt-4 overflow-hidden p-0">
-                {/* Encabezado con totales del split */}
-                <div className="px-4 py-3 border-b border-[#e2e6ea] bg-[#f8f9fb] flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Users size={14} className="text-accent" />
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">
-                      Desglose por trabajo · {jobs.length} cobro{jobs.length !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 bg-green-50 border border-green-100 rounded-lg px-2.5 py-1">
-                      <span className="text-xs font-semibold text-green-600">{pctMayor}%</span>
-                      <span className="text-sm font-bold text-green-700">{fmt(totMayor)}</span>
+              <Card className="overflow-hidden p-0">
+                {/* Encabezado */}
+                <div className="px-4 py-4 border-b border-[#e2e6ea]">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                        <Users size={15} className="text-accent" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-navy-600">Desglose por trabajo</p>
+                        <p className="text-xs text-[#8a9ab0]">
+                          {jobs.length} cobro{jobs.length !== 1 ? 's' : ''} con datos de calculadora · solo pagados
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-yellow-50 border border-yellow-100 rounded-lg px-2.5 py-1">
-                      <span className="text-xs font-semibold text-yellow-600">{pctMenor}%</span>
-                      <span className="text-sm font-bold text-yellow-700">{fmt(totMenor)}</span>
+                    {/* Split totals */}
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-center min-w-[90px]">
+                        <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wide mb-0.5">{pctMayor}%</p>
+                        <p className="text-sm font-bold text-green-700">{fmt(totMayor)}</p>
+                      </div>
+                      <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-center min-w-[90px]">
+                        <p className="text-[10px] font-semibold text-yellow-600 uppercase tracking-wide mb-0.5">{pctMenor}%</p>
+                        <p className="text-sm font-bold text-yellow-700">{fmt(totMenor)}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Tabla */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm" style={{ minWidth: 640 }}>
-                    <thead>
-                      <tr className="border-b border-[#e2e6ea]">
-                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Fecha</th>
-                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cliente</th>
-                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Producto</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide whitespace-nowrap">Costo mat.</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide whitespace-nowrap">A cobrar</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Utilidad</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-green-600 uppercase tracking-wide">{pctMayor}%</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-yellow-600 uppercase tracking-wide">{pctMenor}%</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#e2e6ea]">
-                      {jobs.map(c => {
-                        const rj = c.receta_json
-                        return (
-                          <tr key={c.id} className="hover:bg-[#f8f9fb] transition-colors">
-                            <td className="px-4 py-2.5 text-[#8a9ab0] text-xs whitespace-nowrap">
-                              {c.fecha_emision ? fmtFecha(c.fecha_emision) : '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-navy-600 font-medium truncate max-w-[110px]">
-                              {c.cliente_nombre || '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-navy-600 truncate max-w-[110px]">
-                              {rj.producto || '—'}
-                              {rj.cantidad > 1 && <span className="ml-1 text-xs text-[#8a9ab0]">×{rj.cantidad}</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-right text-[#8a9ab0] tabular-nums text-xs">
-                              {rj.costo_total ? fmt(rj.costo_total) : '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-navy-600 tabular-nums">
-                              {rj.precio_total ? fmt(rj.precio_total) : '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-bold text-green-700 tabular-nums">
-                              {rj.utilidad_total ? fmt(rj.utilidad_total) : '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-green-600 tabular-nums">
-                              {rj.parte_mayor ? fmt(rj.parte_mayor) : '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-yellow-600 tabular-nums">
-                              {rj.parte_menor ? fmt(rj.parte_menor) : '—'}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-[#e2e6ea] bg-[#f8f9fb] font-bold">
-                        <td colSpan={3} className="px-4 py-2.5 text-navy-600 text-sm">Total período</td>
-                        <td className="px-4 py-2.5 text-right text-[#8a9ab0] tabular-nums text-xs">{fmt(totCosto)}</td>
-                        <td className="px-4 py-2.5 text-right text-navy-600 tabular-nums">{fmt(totPrecio)}</td>
-                        <td className="px-4 py-2.5 text-right text-green-700 tabular-nums">{fmt(totUtil)}</td>
-                        <td className="px-4 py-2.5 text-right text-green-600 tabular-nums">{fmt(totMayor)}</td>
-                        <td className="px-4 py-2.5 text-right text-yellow-600 tabular-nums">{fmt(totMenor)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                {/* Filas */}
+                <div className="divide-y divide-[#e2e6ea]">
+                  {jobs.map(c => {
+                    const rj = c.receta_json
+                    return (
+                      <div key={c.id} className="px-4 py-3.5 hover:bg-[#f8f9fb] transition-colors">
+                        {/* Fila principal */}
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">
+                            {c.fecha_emision ? fmtFecha(c.fecha_emision) : '—'}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-navy-600 truncate">{c.cliente_nombre || '—'}</p>
+                            {rj.producto && (
+                              <p className="text-xs text-[#8a9ab0]">
+                                {rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-sm font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
+                        </div>
+                        {/* Strip de breakdown */}
+                        <div className="ml-[84px]">
+                          <RecetaStrip rj={rj} />
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-                <p className="text-[11px] text-[#8a9ab0] px-4 py-2 border-t border-[#f0f2f5]">
-                  Solo cobros pagados generados desde la calculadora de precios
-                </p>
+
+                {/* Footer totales */}
+                <div className="px-4 py-3.5 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 ml-[84px]">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0]">Total costo mat.</p>
+                      <p className="text-sm font-semibold text-[#8a9ab0]">{fmt(totCosto)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0]">Total cobrado</p>
+                      <p className="text-sm font-bold text-navy-600">{fmt(totPrecio)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-[#8a9ab0]">Utilidad total</p>
+                      <p className="text-sm font-bold text-green-700">{fmt(totUtil)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-green-600">{pctMayor}%</p>
+                      <p className="text-sm font-bold text-green-600">{fmt(totMayor)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-yellow-600">{pctMenor}%</p>
+                      <p className="text-sm font-bold text-yellow-600">{fmt(totMenor)}</p>
+                    </div>
+                  </div>
+                </div>
               </Card>
             )
           })()}
@@ -475,70 +509,101 @@ export default function Finanzas() {
       ══════════════════════════════════════════════════════════════════════ */}
       {tab === 'ingresos' && (
         <div>
+          {/* KPI cards */}
           <div className="grid grid-cols-3 gap-3 mb-5">
-            <Card className="p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-                <TrendingUp size={12} className="text-green-500" /> Ingresos
-              </p>
-              <p className="text-xl font-bold text-green-600">{fmt(totalIngresos)}</p>
-              <p className="text-xs text-[#8a9ab0] mt-0.5">{cobrosMes.length} cobro{cobrosMes.length !== 1 ? 's' : ''} pagado{cobrosMes.length !== 1 ? 's' : ''}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-                <TrendingDown size={12} className="text-red-500" /> Gastos
-              </p>
-              <p className="text-xl font-bold text-red-600">{fmt(totalGastos)}</p>
-              <p className="text-xs text-[#8a9ab0] mt-0.5">{gastosMes.length} registro{gastosMes.length !== 1 ? 's' : ''}</p>
-            </Card>
-            <Card className={`p-4 ${utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-              <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 mb-1 ${utilidad >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                <DollarSign size={12} /> Utilidad neta
-              </p>
-              <p className={`text-xl font-bold ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>{fmt(utilidad)}</p>
-              <p className="text-xs text-[#8a9ab0] mt-0.5">{margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aun'}</p>
-            </Card>
+            <KpiCard
+              icon={<TrendingUp size={12} className="text-green-500" />}
+              label="Ingresos"
+              value={fmt(totalIngresos)}
+              sub={`${cobrosMes.length} cobro${cobrosMes.length !== 1 ? 's' : ''} pagado${cobrosMes.length !== 1 ? 's' : ''}`}
+              valueColor="text-green-600"
+            />
+            <KpiCard
+              icon={<TrendingDown size={12} className="text-red-500" />}
+              label="Gastos"
+              value={fmt(totalGastos)}
+              sub={`${gastosMes.length} registro${gastosMes.length !== 1 ? 's' : ''}`}
+              valueColor="text-red-600"
+            />
+            <KpiCard
+              icon={<DollarSign size={12} />}
+              label="Utilidad neta"
+              value={fmt(utilidad)}
+              sub={margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aún'}
+              valueColor={utilidad >= 0 ? 'text-green-700' : 'text-red-700'}
+              bg={utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}
+            />
           </div>
 
+          {/* Resumen split del mes (si hay cobros con receta) */}
+          {totMes && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+                <span className="text-xs font-semibold text-green-600">{totMes.pctMayor}%</span>
+                <span className="text-base font-bold text-green-700">{fmt(totMes.mayor)}</span>
+              </div>
+              <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5">
+                <span className="text-xs font-semibold text-yellow-600">{totMes.pctMenor}%</span>
+                <span className="text-base font-bold text-yellow-700">{fmt(totMes.menor)}</span>
+              </div>
+              <div className="flex items-center gap-2 bg-[#f8f9fb] border border-[#e2e6ea] rounded-xl px-4 py-2.5">
+                <span className="text-xs text-[#8a9ab0]">Costo materiales</span>
+                <span className="text-base font-bold text-navy-600">{fmt(totMes.costo)}</span>
+              </div>
+            </div>
+          )}
+
           {loading ? (
-            <div className="text-center py-10 text-[#8a9ab0] text-sm">Cargando...</div>
+            <div className="flex items-center justify-center gap-2 py-10 text-[#8a9ab0] text-sm">
+              <Loader2 size={16} className="animate-spin" /> Cargando...
+            </div>
           ) : cobrosMes.length === 0 ? (
             <Card>
               <div className="flex flex-col items-center py-12 gap-3">
                 <TrendingUp size={36} className="text-[#e2e6ea]" />
                 <p className="text-sm font-medium text-navy-600">Sin ingresos en {MESES_LABEL[mes - 1]} {anio}</p>
-                <p className="text-xs text-[#8a9ab0]">Los cobros marcados como pagados aparecen aqui</p>
+                <p className="text-xs text-[#8a9ab0]">Los cobros marcados como pagados aparecen aquí</p>
               </div>
             </Card>
           ) : (
             <Card className="overflow-hidden p-0">
-              <table className="w-full text-sm table-fixed">
-                <colgroup>
-                  <col className="w-[105px]" />
-                  <col />
-                  <col className="w-[150px]" />
-                  <col className="w-[130px]" />
-                </colgroup>
-                <thead>
-                  <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Fecha</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cliente</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Concepto</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Monto</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#e2e6ea]">
-                  {cobrosMes.map(c => (
-                    <tr key={c.id} className="hover:bg-[#f8f9fb] transition-colors">
-                      <td className="px-4 py-3 text-[#8a9ab0] whitespace-nowrap text-xs">{fmtFecha(c.fecha_emision)}</td>
-                      <td className="px-4 py-3 text-navy-600 font-medium truncate">{c.cliente_nombre}</td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap">{c.concepto || 'Pago'}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-green-700 whitespace-nowrap">{fmt(c.monto)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="divide-y divide-[#e2e6ea]">
+                {cobrosMes.map(c => {
+                  const rj = c.receta_json
+                  const tieneReceta = rj?.utilidad_total != null
+                  return (
+                    <div key={c.id} className="px-4 py-3.5 hover:bg-[#f8f9fb] transition-colors">
+                      {/* Fila principal */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">{fmtFecha(c.fecha_emision)}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-navy-600 text-sm truncate">{c.cliente_nombre || '—'}</p>
+                          {tieneReceta && rj.producto && (
+                            <p className="text-xs text-[#8a9ab0] truncate">
+                              {rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap shrink-0">
+                          {c.concepto || 'Pago'}
+                        </span>
+                        <span className="font-bold text-navy-600 tabular-nums shrink-0 text-sm">{fmt(c.monto)}</span>
+                      </div>
+                      {/* Strip de breakdown si tiene receta */}
+                      {tieneReceta && (
+                        <div className="ml-[84px]">
+                          <RecetaStrip rj={rj} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Footer total del mes */}
+              <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
+                <span className="text-sm font-semibold text-navy-600">{MESES_LABEL[mes - 1]} {anio}</span>
+                <span className="text-base font-bold text-green-700 tabular-nums">{fmt(totalIngresos)}</span>
+              </div>
             </Card>
           )}
         </div>
@@ -550,27 +615,28 @@ export default function Finanzas() {
       {tab === 'gastos' && (
         <div>
           <div className="grid grid-cols-3 gap-3 mb-5">
-            <Card className="p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-                <TrendingUp size={12} className="text-green-500" /> Ingresos
-              </p>
-              <p className="text-xl font-bold text-green-600">{fmt(totalIngresos)}</p>
-              <p className="text-xs text-[#8a9ab0] mt-0.5">{cobrosMes.length} cobro{cobrosMes.length !== 1 ? 's' : ''}</p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
-                <TrendingDown size={12} className="text-red-500" /> Gastos
-              </p>
-              <p className="text-xl font-bold text-red-600">{fmt(totalGastos)}</p>
-              <p className="text-xs text-[#8a9ab0] mt-0.5">{gastosMes.length} registro{gastosMes.length !== 1 ? 's' : ''}</p>
-            </Card>
-            <Card className={`p-4 ${utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-              <p className={`text-xs font-medium uppercase tracking-wide flex items-center gap-1 mb-1 ${utilidad >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                <DollarSign size={12} /> Utilidad neta
-              </p>
-              <p className={`text-xl font-bold ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>{fmt(utilidad)}</p>
-              <p className="text-xs text-[#8a9ab0] mt-0.5">{margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aun'}</p>
-            </Card>
+            <KpiCard
+              icon={<TrendingUp size={12} className="text-green-500" />}
+              label="Ingresos"
+              value={fmt(totalIngresos)}
+              sub={`${cobrosMes.length} cobro${cobrosMes.length !== 1 ? 's' : ''}`}
+              valueColor="text-green-600"
+            />
+            <KpiCard
+              icon={<TrendingDown size={12} className="text-red-500" />}
+              label="Gastos"
+              value={fmt(totalGastos)}
+              sub={`${gastosMes.length} registro${gastosMes.length !== 1 ? 's' : ''}`}
+              valueColor="text-red-600"
+            />
+            <KpiCard
+              icon={<DollarSign size={12} />}
+              label="Utilidad neta"
+              value={fmt(utilidad)}
+              sub={margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aún'}
+              valueColor={utilidad >= 0 ? 'text-green-700' : 'text-red-700'}
+              bg={utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}
+            />
           </div>
 
           {porCategoria.length > 0 && (
@@ -590,11 +656,14 @@ export default function Finanzas() {
 
           <div className="mb-3">
             <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-              placeholder="Buscar gasto..." className="w-full px-4 py-2 text-sm border border-[#e2e6ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              placeholder="Buscar gasto..."
+              className="w-full px-4 py-2 text-sm border border-[#e2e6ea] rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30" />
           </div>
 
           {loading ? (
-            <div className="text-center py-10 text-[#8a9ab0] text-sm">Cargando...</div>
+            <div className="flex items-center justify-center gap-2 py-10 text-[#8a9ab0] text-sm">
+              <Loader2 size={16} className="animate-spin" /> Cargando...
+            </div>
           ) : gastosFiltrados.length === 0 ? (
             <Card>
               <div className="flex flex-col items-center py-12 gap-3">
@@ -617,8 +686,8 @@ export default function Finanzas() {
                 <thead>
                   <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Fecha</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Categoria</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Descripcion</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Categoría</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Descripción</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Monto</th>
                     <th className="px-4 py-3" />
                   </tr>
@@ -682,7 +751,7 @@ export default function Finanzas() {
                     className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-navy-600 mb-1">Categoria *</label>
+                  <label className="block text-xs font-medium text-navy-600 mb-1">Categoría *</label>
                   <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
                     className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30">
                     {CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -690,7 +759,7 @@ export default function Finanzas() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-navy-600 mb-1">Descripcion *</label>
+                <label className="block text-xs font-medium text-navy-600 mb-1">Descripción *</label>
                 <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
                   placeholder="Ej: Filamento PLA azul 1 kg"
                   className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
@@ -721,11 +790,14 @@ export default function Finanzas() {
   )
 }
 
-// ── Subcomponente: Tab Extracto (saldo mensual) ───────────────────────────────
+// ── Subcomponente: Tab Extracto ───────────────────────────────────────────────
 function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
   const [modal,  setModal]  = useState(null)
   const [form,   setForm]   = useState({ mes: '', saldo: '', notas: '' })
   const [saving, setSaving] = useState(false)
+
+  const fmt = n =>
+    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
 
   function mesLabel(mesStr) {
     if (!mesStr) return '—'
@@ -733,7 +805,6 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
     return `${MESES_LABEL[parseInt(m) - 1]} ${y}`
   }
 
-  // Variación respecto al mes anterior (saldos viene desc por mes)
   function variacion(index) {
     if (index >= saldos.length - 1) return null
     return saldos[index].saldo - saldos[index + 1].saldo
@@ -763,13 +834,11 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
     if (ok) setModal(null)
   }
 
-  // Saldo actual (mes más reciente)
-  const saldoActual  = saldos.length > 0 ? saldos[0].saldo : null
-  const variActual   = saldos.length > 1 ? saldos[0].saldo - saldos[1].saldo : null
+  const saldoActual = saldos.length > 0 ? saldos[0].saldo : null
+  const variActual  = saldos.length > 1 ? saldos[0].saldo - saldos[1].saldo : null
 
   return (
     <div>
-      {/* Header del tab */}
       <div className="flex items-start justify-between mb-5 gap-3 flex-wrap">
         <div>
           <p className="text-sm font-semibold text-navy-600">Saldo mensual · Nu Colombia</p>
@@ -778,7 +847,6 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
         <Button onClick={abrirCrear}><Plus size={16} /> Registrar saldo</Button>
       </div>
 
-      {/* Tarjeta saldo actual */}
       {saldoActual !== null && (
         <div className="grid grid-cols-2 gap-3 mb-5">
           <Card className="p-4">
@@ -802,9 +870,8 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
         </div>
       )}
 
-      {/* Tabla */}
       {loadingSald ? (
-        <div className="text-center py-10 text-[#8a9ab0] text-sm flex items-center justify-center gap-2">
+        <div className="flex items-center justify-center gap-2 py-10 text-[#8a9ab0] text-sm">
           <Loader2 size={16} className="animate-spin" /> Cargando...
         </div>
       ) : saldos.length === 0 ? (
@@ -812,7 +879,7 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
           <div className="flex flex-col items-center py-12 gap-3">
             <DollarSign size={36} className="text-[#e2e6ea]" />
             <p className="text-sm font-medium text-navy-600">Sin saldos registrados</p>
-            <p className="text-xs text-[#8a9ab0]">Registra el saldo de tu cuenta al cierre de cada mes para llevar el historial</p>
+            <p className="text-xs text-[#8a9ab0]">Registra el saldo de tu cuenta al cierre de cada mes</p>
             <Button variant="secondary" onClick={abrirCrear}><Plus size={14} /> Registrar primer saldo</Button>
           </div>
         </Card>
@@ -836,11 +903,11 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
                     <td className="px-4 py-3 font-medium text-navy-600">{mesLabel(s.mes)}</td>
                     <td className="px-4 py-3 text-right font-semibold text-navy-600 tabular-nums">{fmt(s.saldo)}</td>
                     <td className="px-4 py-3 text-right">
-                      {v !== null ? (
-                        <span className={`font-medium tabular-nums text-sm ${v >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                          {v >= 0 ? '+' : ''}{fmt(v)}
-                        </span>
-                      ) : <span className="text-[#c0cad6]">—</span>}
+                      {v !== null
+                        ? <span className={`font-medium tabular-nums text-sm ${v >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {v >= 0 ? '+' : ''}{fmt(v)}
+                          </span>
+                        : <span className="text-[#c0cad6]">—</span>}
                     </td>
                     <td className="px-4 py-3 text-[#8a9ab0] text-xs max-w-[180px] truncate">{s.notas || '—'}</td>
                     <td className="px-4 py-3">
@@ -857,47 +924,31 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
         </Card>
       )}
 
-      {/* Modal */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) setModal(null) }}>
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#e2e6ea]">
-              <h2 className="font-semibold text-navy-600">
-                {modal.mode === 'crear' ? 'Registrar saldo' : 'Editar saldo'}
-              </h2>
+              <h2 className="font-semibold text-navy-600">{modal.mode === 'crear' ? 'Registrar saldo' : 'Editar saldo'}</h2>
               <button onClick={() => setModal(null)} className="p-1.5 rounded-lg hover:bg-[#f8f9fb]"><X size={18} /></button>
             </div>
             <div className="p-5 flex flex-col gap-4">
               <div>
                 <label className="block text-xs font-medium text-navy-600 mb-1">Mes *</label>
-                <input
-                  type="month"
-                  value={form.mes}
-                  onChange={e => setForm(f => ({ ...f, mes: e.target.value }))}
-                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
+                <input type="month" value={form.mes} onChange={e => setForm(f => ({ ...f, mes: e.target.value }))}
+                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-navy-600 mb-1">Saldo al cierre del mes (COP) *</label>
-                <input
-                  type="number"
-                  value={form.saldo}
-                  onChange={e => setForm(f => ({ ...f, saldo: e.target.value }))}
-                  placeholder="0"
-                  min="0"
-                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
+                <input type="number" value={form.saldo} onChange={e => setForm(f => ({ ...f, saldo: e.target.value }))}
+                  placeholder="0" min="0"
+                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-navy-600 mb-1">Notas (opcional)</label>
-                <textarea
-                  value={form.notas}
-                  onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
-                  rows={2}
-                  placeholder="Ej: incluye transferencia pendiente..."
-                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
-                />
+                <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
+                  rows={2} placeholder="Ej: incluye transferencia pendiente..."
+                  className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none" />
               </div>
             </div>
             <div className="px-5 pb-5 flex gap-3">

@@ -39,7 +39,7 @@ export function useFinanzas() {
 
   const fetchCobros = useCallback(async () => {
     const { data, error } = await supabase
-      .from('cobros').select('id, monto, estado, fecha_emision, cliente_nombre, concepto')
+      .from('cobros').select('id, monto, estado, fecha_emision, cliente_nombre, concepto, receta_json')
       .eq('estado', 'pagado')
       .gte('fecha_emision', `${anio}-01-01`).lte('fecha_emision', `${anio}-12-31`)
     if (error) toast.error('Error cargando ingresos')
@@ -79,6 +79,12 @@ export function useFinanzas() {
     if (!resDesde || !resHasta) { toast.error('Selecciona las fechas'); return }
     if (resDesde > resHasta) { toast.error('La fecha inicio debe ser antes que la fecha fin'); return }
     setResFiltro({ desde: resDesde, hasta: resHasta })
+  }
+
+  function aplicarFiltroDirecto(desde, hasta) {
+    setResDesde(desde)
+    setResHasta(hasta)
+    setResFiltro({ desde, hasta })
   }
 
   // ── Saldos cuenta (extracto manual) ───────────────────────────────────────
@@ -178,7 +184,7 @@ export function useFinanzas() {
     gastosMes, cobrosMes, totalGastos, totalIngresos, utilidad,
     gastosRes, cobrosRes, loadingRes,
     resDesde, setResDesde, resHasta, setResHasta,
-    resFiltro, aplicarFiltroResumen,
+    resFiltro, aplicarFiltroResumen, aplicarFiltroDirecto,
     consolidado, totalPeriodo, splitData,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
     crearGasto, actualizarGasto, eliminarGasto,
