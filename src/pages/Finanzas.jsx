@@ -1,7 +1,15 @@
 import { useState, useMemo } from 'react'
-import { BarChart2, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
+import { BarChart2, Loader2, ChevronDown, ChevronRight, Plus, Edit2, X } from 'lucide-react'
 import Card from '../components/ui/Card'
+import Button from '../components/ui/Button'
 import { useFinanzas } from '../hooks/useFinanzas'
+
+const EMPTY_COBRO = {
+  fecha_emision: new Date().toISOString().split('T')[0],
+  cliente_nombre: '',
+  concepto: 'Pago total',
+  monto: '',
+}
 
 const MESES_LABEL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -61,12 +69,16 @@ export default function Finanzas() {
     cobros, loading,
     anio, setAnio, mes, setMes,
     cobrosMes,
+    crearCobro, actualizarCobro,
   } = useFinanzas()
 
   const curYear = new Date().getFullYear()
   const ANIOS   = [curYear - 2, curYear - 1, curYear, curYear + 1]
 
-  const [granul, setGranul] = useState('mes')
+  const [granul,     setGranul]     = useState('mes')
+  const [modalV,     setModalV]     = useState(null)   // { mode: 'crear' | 'editar', id? }
+  const [formV,      setFormV]      = useState(EMPTY_COBRO)
+  const [savingV,    setSavingV]    = useState(false)
 
   // ── Datos del periodo ────────────────────────────────────────────────────
   const periodoCobros   = granul === 'mes' ? cobrosMes : cobros
@@ -110,6 +122,37 @@ export default function Finanzas() {
 
   function irAMes(mesNum) { setMes(mesNum); setGranul('mes') }
 
+  // ── Modal venta ──────────────────────────────────────────────────────────
+  function abrirCrear() {
+    setFormV({ ...EMPTY_COBRO, fecha_emision: new Date().toISOString().split('T')[0] })
+    setModalV({ mode: 'crear' })
+  }
+  function abrirEditar(c) {
+    setFormV({
+      fecha_emision: c.fecha_emision || '',
+      cliente_nombre: c.cliente_nombre || '',
+      concepto: c.concepto || 'Pago total',
+      monto: c.monto ?? '',
+    })
+    setModalV({ mode: 'editar', id: c.id })
+  }
+  async function guardarV(e) {
+    e.preventDefault()
+    if (!formV.monto || Number(formV.monto) <= 0) return
+    setSavingV(true)
+    const payload = {
+      fecha_emision: formV.fecha_emision,
+      cliente_nombre: formV.cliente_nombre.trim() || null,
+      concepto: formV.concepto.trim() || 'Pago total',
+      monto: Number(formV.monto),
+    }
+    const ok = modalV.mode === 'crear'
+      ? await crearCobro(payload)
+      : await actualizarCobro(modalV.id, payload)
+    setSavingV(false)
+    if (ok) setModalV(null)
+  }
+
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
 
@@ -120,8 +163,12 @@ export default function Finanzas() {
           <p className="text-sm text-[#8a9ab0] mt-0.5">{periodoLabel}</p>
         </div>
 
-        {/* Filtro de periodo */}
+        {/* Filtro de periodo + botón */}
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button onClick={abrirCrear}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold bg-accent text-white px-3.5 py-2 rounded-lg hover:bg-accent/90 transition-colors">
+            <Plus size={15} /> Registrar venta
+          </button>
           <div className="flex rounded-lg border border-[#e2e6ea] overflow-hidden text-sm">
             <button onClick={() => setGranul('mes')}
               className={`px-3 py-1.5 font-medium transition-colors ${granul === 'mes' ? 'bg-navy-600 text-white' : 'bg-white text-[#8a9ab0] hover:bg-[#f8f9fb]'}`}>
@@ -276,6 +323,11 @@ export default function Finanzas() {
                         {c.concepto || 'Pago'}
                       </span>
                       <span className="font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
+                      <button onClick={() => abrirEditar(c)}
+                        className="shrink-0 p-1.5 rounded-lg text-[#8a9ab0] hover:text-accent hover:bg-accent/10 transition-colors"
+                        title="Editar venta">
+                        <Edit2 size={14} />
+                      </button>
                     </div>
                     {tieneReceta && <div className="ml-[84px]"><RecetaStrip rj={rj} /></div>}
                   </div>
@@ -288,6 +340,62 @@ export default function Finanzas() {
             </div>
           </Card>}
         </>
+      )}
+
+      {/* ── Modal registrar / editar venta ─────────────────────────────────── */}
+      {modalV && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setModalV(null) }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-bold text-navy-600">
+                {modalV.mode === 'crear' ? 'Registrar venta' : 'Editar venta'}
+              </h2>
+              <button onClick={() => setModalV(null)}
+                className="p-1.5 rounded-lg text-[#8a9ab0] hover:bg-[#f0f4f8] transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={guardarV} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide mb-1.5">Fecha</label>
+                <input type="date" required value={formV.fecha_emision}
+                  onChange={e => setFormV(v => ({ ...v, fecha_emision: e.target.value }))}
+                  className="w-full text-sm border border-[#e2e6ea] rounded-xl px-3 py-2.5 text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide mb-1.5">Cliente</label>
+                <input type="text" placeholder="Nombre del cliente" value={formV.cliente_nombre}
+                  onChange={e => setFormV(v => ({ ...v, cliente_nombre: e.target.value }))}
+                  className="w-full text-sm border border-[#e2e6ea] rounded-xl px-3 py-2.5 text-navy-600 placeholder:text-[#c0cad6] focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide mb-1.5">Concepto</label>
+                <input type="text" placeholder="Pago total" value={formV.concepto}
+                  onChange={e => setFormV(v => ({ ...v, concepto: e.target.value }))}
+                  className="w-full text-sm border border-[#e2e6ea] rounded-xl px-3 py-2.5 text-navy-600 placeholder:text-[#c0cad6] focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide mb-1.5">Monto (COP)</label>
+                <input type="number" required min="1" placeholder="0" value={formV.monto}
+                  onChange={e => setFormV(v => ({ ...v, monto: e.target.value }))}
+                  className="w-full text-sm border border-[#e2e6ea] rounded-xl px-3 py-2.5 text-navy-600 placeholder:text-[#c0cad6] focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setModalV(null)}
+                  className="flex-1 text-sm font-semibold border border-[#e2e6ea] rounded-xl py-2.5 text-[#8a9ab0] hover:bg-[#f8f9fb] transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={savingV}
+                  className="flex-1 text-sm font-semibold bg-accent text-white rounded-xl py-2.5 hover:bg-accent/90 disabled:opacity-60 transition-colors">
+                  {savingV ? 'Guardando…' : modalV.mode === 'crear' ? 'Registrar' : 'Guardar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )
