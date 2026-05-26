@@ -141,6 +141,27 @@ export default function Cobros() {
     window.history.replaceState({}, document.title)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pre-fill desde Calculadora (cobro directo)
+  useEffect(() => {
+    const fromCalc = location.state?.fromCalculadora
+    if (!fromCalc) return
+    setForm({
+      ...EMPTY,
+      cliente_nombre: '',
+      concepto: 'Pago total',
+      lineas: [{
+        descripcion:     fromCalc.nombre || 'Producto 3D',
+        detalle:         '',
+        cantidad:        fromCalc.cantidad || 1,
+        precio_unitario: fromCalc.precioSugerido || '',
+      }],
+      fecha_emision: new Date().toISOString().split('T')[0],
+      receta_json: fromCalc.receta_json || null,
+    })
+    setModal({ mode: 'crear' })
+    window.history.replaceState({}, document.title)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Marcar vencidos visualmente
   const hoy = new Date().toISOString().split('T')[0]
   const cobrosConEstado = cobros.map(c =>
@@ -232,6 +253,7 @@ export default function Cobros() {
       fecha_emision:  form.fecha_emision || null,
       metodo_pago:    form.metodo_pago   || null,
       notas:          form.notas         || null,
+      receta_json:    form.receta_json   || null,
     }
     let ok
     if (modal.mode === 'crear') ok = await crearCobro(datos)

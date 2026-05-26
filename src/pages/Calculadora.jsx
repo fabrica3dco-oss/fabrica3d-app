@@ -162,42 +162,39 @@ export default function Calculadora() {
     setEditPlant(null)
   }
 
-  // ── Navegar a cotización con precio elegido ───────────────────────────────
-  function navegarConPrecio(precio, ctx) {
+  // ── Navegar con precio elegido (cotización o cobro) ──────────────────────
+  function navegarConPrecio(precio, ctx, destino = 'cotizacion') {
     setRoundModal(null)
     const { cantidad, accesoriosUsados, acabadosUsados, costoXUd, pctMayor, pctMenor, nombre } = ctx
     const _utilXUd = precio - costoXUd
     const _utilTot = _utilXUd * cantidad
-    navigate('/cotizaciones', {
-      state: {
-        fromCalculadora: {
-          nombre,
-          cantidad,
-          precioSugerido: precio,
-          detalle: '',
-          receta_json: {
-            producto: nombre,
-            cantidad,
-            precio_unitario: precio,
-            accesorios_usados: accesoriosUsados,
-            acabados_usados: acabadosUsados,
-            costo_unitario:    Math.round(costoXUd),
-            costo_total:       Math.round(costoXUd * cantidad),
-            precio_total:      Math.round(precio * cantidad),
-            utilidad_unitaria: Math.round(_utilXUd),
-            utilidad_total:    Math.round(_utilTot),
-            pct_mayor:         pctMayor,
-            pct_menor:         pctMenor,
-            parte_mayor:       Math.round(_utilTot * (pctMayor / 100)),
-            parte_menor:       Math.round(_utilTot * (pctMenor / 100)),
-          },
-        },
+    const fromCalculadora = {
+      nombre,
+      cantidad,
+      precioSugerido: precio,
+      detalle: '',
+      receta_json: {
+        producto: nombre,
+        cantidad,
+        precio_unitario: precio,
+        accesorios_usados: accesoriosUsados,
+        acabados_usados: acabadosUsados,
+        costo_unitario:    Math.round(costoXUd),
+        costo_total:       Math.round(costoXUd * cantidad),
+        precio_total:      Math.round(precio * cantidad),
+        utilidad_unitaria: Math.round(_utilXUd),
+        utilidad_total:    Math.round(_utilTot),
+        pct_mayor:         pctMayor,
+        pct_menor:         pctMenor,
+        parte_mayor:       Math.round(_utilTot * (pctMayor / 100)),
+        parte_menor:       Math.round(_utilTot * (pctMenor / 100)),
       },
-    })
+    }
+    navigate(destino === 'cobro' ? '/cobros' : '/cotizaciones', { state: { fromCalculadora } })
   }
 
-  // ── Ir a cotización ───────────────────────────────────────────────────────
-  function irACotizacion() {
+  // ── Helper compartido: calcular ctx y disparar modal o navegar ────────────
+  function prepararYNavegar(destino) {
     const cantidad = rec.cantidad || 1
     const accesoriosUsados = rec.accesorios.map(a => {
       const item = config.accesorios.find(x => x.id === a.id)
@@ -209,15 +206,6 @@ export default function Calculadora() {
       if (!item) return null
       return { nombre: item.nombre, unidad: item.unidad, cantidad_por_unidad: a.cantidad, cantidad_total: a.cantidad * cantidad }
     }).filter(Boolean)
-    const partes = []
-    if (rec.filamento_g > 0) partes.push(`${rec.filamento_g}g filamento`)
-    if (rec.tiempo_min > 0) {
-      const h = Math.floor(rec.tiempo_min / 60), m = rec.tiempo_min % 60
-      partes.push(`${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'min' : ''}`.trim() + ' impresión')
-    }
-    accesoriosUsados.forEach(a => partes.push(`${a.nombre} ×${a.cantidad_por_unidad}`))
-    acabadosUsados.forEach(a => partes.push(`${a.nombre} (${a.cantidad_por_unidad}${a.unidad})`))
-    // Recalculo inline para evitar closure stale
     const _costoFil = rec.filamento_g > 0 ? (rec.filamento_g / config.filamento_rollo_gramos) * config.filamento_rollo_precio : 0
     const _costoTmp = (rec.tiempo_min / 60) * config.tarifa_hora
     const _costoAcc = rec.accesorios.reduce((s, a) => { const it = config.accesorios.find(x => x.id === a.id); return s + (it ? it.precio * a.cantidad : 0) }, 0)
@@ -228,20 +216,21 @@ export default function Calculadora() {
     const ctx = {
       nombre:           rec.nombre || 'Producto 3D',
       cantidad,
-      detalle:          partes.join(' · '),
       accesoriosUsados,
       acabadosUsados,
       costoXUd:         _costoXUd,
       pctMayor:         100 - rec.comision,
       pctMenor:         rec.comision,
     }
-    // Si ya es múltiplo de 1000 exacto → ir directo sin modal
     if (precioCerrado === Math.round(precioExacto)) {
-      navegarConPrecio(precioExacto, ctx)
+      navegarConPrecio(precioExacto, ctx, destino)
     } else {
-      setRoundModal({ precioExacto, precioCerrado, ctx })
+      setRoundModal({ precioExacto, precioCerrado, ctx, destino })
     }
   }
+
+  function irACotizacion() { prepararYNavegar('cotizacion') }
+  function irACobro()      { prepararYNavegar('cobro') }
 
   // ── Calculos ──────────────────────────────────────────────────────────────
   const calc = useMemo(() => {
@@ -738,6 +727,13 @@ export default function Calculadora() {
                   Generar cotización →
                 </button>
                 <button
+                  onClick={irACobro}
+                  className="w-full py-2.5 text-sm font-semibold rounded-xl transition-all hover:opacity-90"
+                  style={{ backgroundColor: '#10b981', color: '#ffffff' }}
+                >
+                  Generar cobro →
+                </button>
+                <button
                   onClick={() => { setPlantNombre(rec.nombre || ''); setSaveModal(true) }}
                   className="w-full py-2 text-xs font-medium rounded-xl flex items-center justify-center gap-1.5 transition-colors"
                   style={{ color: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.2)' }}
@@ -814,7 +810,7 @@ export default function Calculadora() {
             <div className="flex flex-col gap-3 mb-5">
               {/* Precio cerrado (sugerido) */}
               <button
-                onClick={() => navegarConPrecio(roundModal.precioCerrado, roundModal.ctx)}
+                onClick={() => navegarConPrecio(roundModal.precioCerrado, roundModal.ctx, roundModal.destino)}
                 className="flex items-center justify-between gap-3 w-full rounded-xl border-2 border-accent bg-accent/5 px-4 py-3 hover:bg-accent/10 transition-colors text-left"
               >
                 <div>
@@ -831,7 +827,7 @@ export default function Calculadora() {
 
               {/* Precio exacto */}
               <button
-                onClick={() => navegarConPrecio(roundModal.precioExacto, roundModal.ctx)}
+                onClick={() => navegarConPrecio(roundModal.precioExacto, roundModal.ctx, roundModal.destino)}
                 className="flex items-center justify-between gap-3 w-full rounded-xl border border-[#e2e6ea] bg-[#f8f9fb] px-4 py-3 hover:border-[#c8cdd5] transition-colors text-left"
               >
                 <div>
