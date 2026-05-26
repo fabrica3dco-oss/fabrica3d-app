@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { BarChart2, Loader2, ChevronDown } from 'lucide-react'
+import { BarChart2, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { useFinanzas } from '../hooks/useFinanzas'
 
@@ -206,7 +206,7 @@ export default function Finanzas() {
                       <th className="text-right px-4 py-3 text-xs font-semibold text-teal-600 uppercase tracking-wide">Util. bruta</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">{gPctMayor}%</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-yellow-600 uppercase tracking-wide">{gPctMenor}%</th>
-                      <th className="w-[40px]" />
+                      <th className="w-[56px]" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e2e6ea]">
@@ -230,8 +230,12 @@ export default function Finanzas() {
                         <td className="px-4 py-2.5 text-right tabular-nums">
                           {m.partem > 0 ? <span className="font-semibold text-yellow-600">{fmt(m.partem)}</span> : <span className="text-[#c0cad6]">—</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-right">
-                          {m.tieneData && <span className="text-xs text-accent font-medium">Ver →</span>}
+                        <td className="px-3 py-2.5 text-right">
+                          {m.tieneData && (
+                            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-accent bg-accent/10 px-2 py-1 rounded-lg whitespace-nowrap">
+                              Ver <ChevronRight size={12} />
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -252,8 +256,8 @@ export default function Finanzas() {
             </Card>
           )}
 
-          {/* Lista de cobros */}
-          <Card className="overflow-hidden p-0">
+          {/* Lista de cobros — solo en vista mes */}
+          {granul === 'mes' && <Card className="overflow-hidden p-0">
             <div className="divide-y divide-[#e2e6ea]">
               {periodoCobros.map(c => {
                 const rj = c.receta_json
@@ -282,7 +286,7 @@ export default function Finanzas() {
               <span className="text-sm font-semibold text-navy-600">{periodoLabel}</span>
               <span className="text-base font-bold text-green-700 tabular-nums">{fmt(ventas)}</span>
             </div>
-          </Card>
+          </Card>}
         </>
       )}
     </div>
