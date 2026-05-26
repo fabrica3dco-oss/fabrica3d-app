@@ -222,7 +222,9 @@ export default function Finanzas() {
                 <div className="flex items-start justify-between py-2.5 border-b border-[#f0f4f8]">
                   <div>
                     <p className="text-sm text-navy-600 font-medium">Ventas</p>
-                    <p className="text-xs text-[#8a9ab0] mt-0.5">{periodoCobros.length} cobro{periodoCobros.length !== 1 ? 's' : ''} pagado{periodoCobros.length !== 1 ? 's' : ''}</p>
+                    <p className="text-xs text-[#8a9ab0] mt-0.5">
+                      {periodoCobros.length} cobro{periodoCobros.length !== 1 ? 's' : ''} pagado{periodoCobros.length !== 1 ? 's' : ''} · lo que cobraste a clientes
+                    </p>
                   </div>
                   <span className="text-sm font-bold text-navy-600 tabular-nums">{fmt(ventas)}</span>
                 </div>
@@ -231,8 +233,11 @@ export default function Finanzas() {
                 <div className="flex items-start justify-between py-2.5 border-b border-[#f0f4f8]">
                   <div>
                     <p className="text-sm text-[#8a9ab0]">Costo de venta</p>
+                    <p className="text-xs text-[#8a9ab0] mt-0.5">
+                      material por trabajo · calculado automáticamente en la calculadora
+                    </p>
                     {sinReceta > 0 && (
-                      <p className="text-xs text-[#8a9ab0] mt-0.5">{sinReceta} cobro{sinReceta > 1 ? 's' : ''} sin datos de calculadora</p>
+                      <p className="text-xs text-orange-500 mt-0.5">{sinReceta} cobro{sinReceta > 1 ? 's' : ''} sin datos de calculadora</p>
                     )}
                   </div>
                   <span className="text-sm text-[#8a9ab0] tabular-nums">{costoVenta > 0 ? `(${fmt(costoVenta)})` : '—'}</span>
@@ -262,7 +267,9 @@ export default function Finanzas() {
                 <div className="flex items-start justify-between py-2.5 border-b border-[#f0f4f8]">
                   <div>
                     <p className="text-sm text-[#8a9ab0]">Gastos operativos</p>
-                    <p className="text-xs text-[#8a9ab0] mt-0.5">{periodoGastos.length} registro{periodoGastos.length !== 1 ? 's' : ''} — filamento, servicios, etc.</p>
+                    <p className="text-xs text-[#8a9ab0] mt-0.5">
+                      {periodoGastos.length} registro{periodoGastos.length !== 1 ? 's' : ''} · luz, herramientas, servicios y otros gastos fijos
+                    </p>
                   </div>
                   <span className="text-sm text-red-500 tabular-nums">{gastosOp > 0 ? `(${fmt(gastosOp)})` : '—'}</span>
                 </div>
@@ -425,6 +432,11 @@ export default function Finanzas() {
       {/* ══ TAB GASTOS ══ */}
       {tab === 'gastos' && (
         <div>
+          {/* Aviso sobre qué va aquí */}
+          <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 leading-relaxed">
+            <span className="font-semibold">¿Qué registrar aquí?</span> Solo gastos que no cubre la calculadora por trabajo: electricidad, herramientas, dominios, servicios, etc.{' '}
+            <span className="font-semibold">NO registres el filamento de cada impresión</span> — ese costo ya lo calcula automáticamente la calculadora en cada cobro.
+          </div>
           <div className="grid grid-cols-2 gap-3 mb-5">
             <Card className="p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-[#8a9ab0] flex items-center gap-1 mb-1">
