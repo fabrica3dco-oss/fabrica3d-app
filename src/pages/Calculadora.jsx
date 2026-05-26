@@ -731,7 +731,7 @@ export default function Calculadora() {
                   className="w-full py-2.5 text-sm font-semibold rounded-xl transition-all hover:opacity-90"
                   style={{ backgroundColor: '#10b981', color: '#ffffff' }}
                 >
-                  Generar cobro →
+                  Generar cuenta de cobro →
                 </button>
                 <button
                   onClick={() => { setPlantNombre(rec.nombre || ''); setSaveModal(true) }}
