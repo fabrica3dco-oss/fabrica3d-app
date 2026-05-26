@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { TrendingUp, BarChart2, Loader2, ChevronDown } from 'lucide-react'
+import { BarChart2, Loader2, ChevronDown } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { useFinanzas } from '../hooks/useFinanzas'
 
@@ -66,7 +66,6 @@ export default function Finanzas() {
   const curYear = new Date().getFullYear()
   const ANIOS   = [curYear - 2, curYear - 1, curYear, curYear + 1]
 
-  const [tab,   setTab]   = useState('resumen')
   const [granul, setGranul] = useState('mes')
 
   // ── Datos del periodo ────────────────────────────────────────────────────
@@ -109,7 +108,7 @@ export default function Finanzas() {
     ? `${MESES_LABEL[mes - 1]} ${anio}`
     : `Año ${anio}`
 
-  function irAMes(mesNum) { setMes(mesNum); setGranul('mes'); setTab('resumen') }
+  function irAMes(mesNum) { setMes(mesNum); setGranul('mes') }
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
@@ -152,228 +151,139 @@ export default function Finanzas() {
         </div>
       </div>
 
-      {/* ── Tabs ───────────────────────────────────────────────────────────── */}
-      <div className="flex gap-1 mb-6 border-b border-[#e2e6ea]">
-        {[['resumen','Resumen'],['ventas','Ventas']].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === key ? 'border-accent text-accent' : 'border-transparent text-[#8a9ab0] hover:text-navy-600'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          RESUMEN
-      ══════════════════════════════════════════════════════════════════════ */}
-      {tab === 'resumen' && (
-        <div>
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 py-20 text-[#8a9ab0] text-sm">
-              <Loader2 size={16} className="animate-spin" /> Cargando {periodoLabel}...
-            </div>
-          ) : periodoCobros.length === 0 ? (
-            <div className="text-center py-24">
-              <BarChart2 size={48} className="text-[#e2e6ea] mx-auto mb-4" />
-              <p className="text-base font-semibold text-navy-600">Sin cobros en {periodoLabel}</p>
-              <p className="text-xs text-[#8a9ab0] mt-1.5">Los cobros marcados como pagados aparecen aquí</p>
-            </div>
-          ) : (
-            <>
-              {/* KPI cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-
-                {/* Ventas */}
-                <KpiCard
-                  theme="green"
-                  label="Ventas"
-                  value={fmt(ventas)}
-                  sub={`${periodoCobros.length} cobro${periodoCobros.length !== 1 ? 's' : ''} pagado${periodoCobros.length !== 1 ? 's' : ''}`}
-                />
-
-                {/* Costo de material */}
-                <KpiCard
-                  theme="slate"
-                  label="Costo de material"
-                  value={costoVenta > 0 ? fmt(costoVenta) : '—'}
-                  sub={
-                    cobrosConReceta.length > 0
-                      ? `${cobrosConReceta.length} trabajo${cobrosConReceta.length !== 1 ? 's' : ''} con desglose`
-                      : 'Genera cobros desde la calculadora'
-                  }
-                />
-
-                {/* Utilidad bruta */}
-                <KpiCard
-                  theme="teal"
-                  label="Utilidad bruta"
-                  value={utilidadBruta > 0 ? fmt(utilidadBruta) : '—'}
-                  sub={margen !== null ? `${margen}% de margen sobre ventas` : undefined}
-                />
-
-                {/* Split 75% / 25% */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex-1 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-green-600">{pctMayor}%</p>
-                    <p className="text-xl font-bold text-green-700 tabular-nums">{parteM > 0 ? fmt(parteM) : '—'}</p>
-                  </div>
-                  <div className="flex-1 bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-600">{pctMenor}%</p>
-                    <p className="text-xl font-bold text-yellow-700 tabular-nums">{partem > 0 ? fmt(partem) : '—'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Nota cobros sin calculadora */}
-              {sinReceta > 0 && (
-                <p className="text-xs text-[#8a9ab0] mb-5 pl-1">
-                  {sinReceta} cobro{sinReceta > 1 ? 's' : ''} sin desglose — generado sin calculadora, no incluido en costo ni utilidad
-                </p>
-              )}
-
-              {/* Tabla mes a mes (solo vista año) */}
-              {granul === 'anio' && (
-                <Card className="overflow-hidden p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm" style={{ minWidth: 540 }}>
-                      <thead>
-                        <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[100px]">Mes</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">Ventas</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Costo mat.</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-teal-600 uppercase tracking-wide">Util. bruta</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">{gPctMayor}%</th>
-                          <th className="text-right px-4 py-3 text-xs font-semibold text-yellow-600 uppercase tracking-wide">{gPctMenor}%</th>
-                          <th className="w-[40px]" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#e2e6ea]">
-                        {anuales.map(m => (
-                          <tr key={m.mesNum}
-                            className={`transition-colors ${m.tieneData ? 'hover:bg-[#f8f9fb] cursor-pointer' : 'opacity-25'}`}
-                            onClick={() => m.tieneData && irAMes(m.mesNum)}>
-                            <td className="px-4 py-2.5 font-medium text-navy-600">{m.nombre}</td>
-                            <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-navy-600">
-                              {m.ventas > 0 ? fmt(m.ventas) : <span className="text-[#c0cad6] font-normal">—</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">
-                              {m.costoVenta > 0 ? fmt(m.costoVenta) : <span className="text-[#c0cad6]">—</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-right tabular-nums">
-                              {m.utilidad > 0
-                                ? <span className="font-bold text-teal-700">{fmt(m.utilidad)}</span>
-                                : <span className="text-[#c0cad6]">—</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-right tabular-nums">
-                              {m.parteM > 0
-                                ? <span className="font-semibold text-green-600">{fmt(m.parteM)}</span>
-                                : <span className="text-[#c0cad6]">—</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-right tabular-nums">
-                              {m.partem > 0
-                                ? <span className="font-semibold text-yellow-600">{fmt(m.partem)}</span>
-                                : <span className="text-[#c0cad6]">—</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-right">
-                              {m.tieneData && <span className="text-xs text-accent font-medium">Ver →</span>}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-[#e2e6ea] bg-[#f8f9fb] font-bold">
-                          <td className="px-4 py-3 text-navy-600">Total {anio}</td>
-                          <td className="px-4 py-3 text-right text-green-700 tabular-nums">{fmt(ventas)}</td>
-                          <td className="px-4 py-3 text-right text-slate-500 tabular-nums">{fmt(costoVenta)}</td>
-                          <td className="px-4 py-3 text-right text-teal-700 tabular-nums">{fmt(utilidadBruta)}</td>
-                          <td className="px-4 py-3 text-right text-green-600 tabular-nums">{fmt(parteM)}</td>
-                          <td className="px-4 py-3 text-right text-yellow-600 tabular-nums">{fmt(partem)}</td>
-                          <td />
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </Card>
-              )}
-            </>
-          )}
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-20 text-[#8a9ab0] text-sm">
+          <Loader2 size={16} className="animate-spin" /> Cargando {periodoLabel}...
         </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          VENTAS
-      ══════════════════════════════════════════════════════════════════════ */}
-      {tab === 'ventas' && (
-        <div>
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 py-20 text-[#8a9ab0] text-sm">
-              <Loader2 size={16} className="animate-spin" /> Cargando...
-            </div>
-          ) : periodoCobros.length === 0 ? (
-            <div className="text-center py-24">
-              <TrendingUp size={48} className="text-[#e2e6ea] mx-auto mb-4" />
-              <p className="text-base font-semibold text-navy-600">Sin ventas en {periodoLabel}</p>
-              <p className="text-xs text-[#8a9ab0] mt-1.5">Los cobros marcados como pagados aparecen aquí</p>
-            </div>
-          ) : (
-            <>
-              {/* KPIs del mes — 3 columnas */}
-              <div className="grid grid-cols-3 gap-3 mb-5">
-                <KpiCard theme="green" label="Ventas"
-                  value={fmt(ventas)}
-                  sub={`${periodoCobros.length} cobro${periodoCobros.length !== 1 ? 's' : ''}`} />
-                <KpiCard theme="teal" label="Utilidad bruta"
-                  value={utilidadBruta > 0 ? fmt(utilidadBruta) : '—'}
-                  sub={margen !== null ? `${margen}% de margen` : undefined} />
-                {/* Split compacto */}
-                <div className="bg-white border border-[#e2e6ea] rounded-2xl p-4 flex flex-col justify-center gap-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-green-600">{pctMayor}%</span>
-                    <span className="text-sm font-bold text-green-700 tabular-nums">{parteM > 0 ? fmt(parteM) : '—'}</span>
-                  </div>
-                  <div className="h-px bg-[#f0f4f8]" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-600">{pctMenor}%</span>
-                    <span className="text-sm font-bold text-yellow-700 tabular-nums">{partem > 0 ? fmt(partem) : '—'}</span>
-                  </div>
-                </div>
+      ) : periodoCobros.length === 0 ? (
+        <div className="text-center py-24">
+          <BarChart2 size={48} className="text-[#e2e6ea] mx-auto mb-4" />
+          <p className="text-base font-semibold text-navy-600">Sin cobros en {periodoLabel}</p>
+          <p className="text-xs text-[#8a9ab0] mt-1.5">Los cobros marcados como pagados aparecen aquí</p>
+        </div>
+      ) : (
+        <>
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            <KpiCard theme="green" label="Ventas" value={fmt(ventas)}
+              sub={`${periodoCobros.length} cobro${periodoCobros.length !== 1 ? 's' : ''} pagado${periodoCobros.length !== 1 ? 's' : ''}`} />
+            <KpiCard theme="slate" label="Costo de material"
+              value={costoVenta > 0 ? fmt(costoVenta) : '—'}
+              sub={cobrosConReceta.length > 0
+                ? `${cobrosConReceta.length} trabajo${cobrosConReceta.length !== 1 ? 's' : ''} con desglose`
+                : 'Genera cobros desde la calculadora'} />
+            <KpiCard theme="teal" label="Utilidad bruta"
+              value={utilidadBruta > 0 ? fmt(utilidadBruta) : '—'}
+              sub={margen !== null ? `${margen}% de margen sobre ventas` : undefined} />
+            <div className="flex flex-col gap-2">
+              <div className="flex-1 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-green-600">{pctMayor}%</p>
+                <p className="text-xl font-bold text-green-700 tabular-nums">{parteM > 0 ? fmt(parteM) : '—'}</p>
               </div>
+              <div className="flex-1 bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-600">{pctMenor}%</p>
+                <p className="text-xl font-bold text-yellow-700 tabular-nums">{partem > 0 ? fmt(partem) : '—'}</p>
+              </div>
+            </div>
+          </div>
 
-              {/* Lista de cobros */}
-              <Card className="overflow-hidden p-0">
-                <div className="divide-y divide-[#e2e6ea]">
-                  {periodoCobros.map(c => {
-                    const rj = c.receta_json
-                    const tieneReceta = rj?.utilidad_total != null
-                    return (
-                      <div key={c.id} className="px-4 py-3.5 hover:bg-[#f8f9fb] transition-colors">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">{fmtFecha(c.fecha_emision)}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-navy-600 text-sm truncate">{c.cliente_nombre || '—'}</p>
-                            {tieneReceta && rj.producto && (
-                              <p className="text-xs text-[#8a9ab0] truncate">{rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}</p>
-                            )}
-                          </div>
-                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap shrink-0">
-                            {c.concepto || 'Pago'}
-                          </span>
-                          <span className="font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
-                        </div>
-                        {tieneReceta && (
-                          <div className="ml-[84px]"><RecetaStrip rj={rj} /></div>
+          {sinReceta > 0 && (
+            <p className="text-xs text-[#8a9ab0] mb-5 pl-1">
+              {sinReceta} cobro{sinReceta > 1 ? 's' : ''} sin desglose — generado sin calculadora
+            </p>
+          )}
+
+          {/* Tabla mes a mes (solo vista año) */}
+          {granul === 'anio' && (
+            <Card className="overflow-hidden p-0 mb-5">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" style={{ minWidth: 540 }}>
+                  <thead>
+                    <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[100px]">Mes</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">Ventas</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Costo mat.</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-teal-600 uppercase tracking-wide">Util. bruta</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">{gPctMayor}%</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-yellow-600 uppercase tracking-wide">{gPctMenor}%</th>
+                      <th className="w-[40px]" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e2e6ea]">
+                    {anuales.map(m => (
+                      <tr key={m.mesNum}
+                        className={`transition-colors ${m.tieneData ? 'hover:bg-[#f8f9fb] cursor-pointer' : 'opacity-25'}`}
+                        onClick={() => m.tieneData && irAMes(m.mesNum)}>
+                        <td className="px-4 py-2.5 font-medium text-navy-600">{m.nombre}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-navy-600">
+                          {m.ventas > 0 ? fmt(m.ventas) : <span className="text-[#c0cad6] font-normal">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">
+                          {m.costoVenta > 0 ? fmt(m.costoVenta) : <span className="text-[#c0cad6]">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">
+                          {m.utilidad > 0 ? <span className="font-bold text-teal-700">{fmt(m.utilidad)}</span> : <span className="text-[#c0cad6]">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">
+                          {m.parteM > 0 ? <span className="font-semibold text-green-600">{fmt(m.parteM)}</span> : <span className="text-[#c0cad6]">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">
+                          {m.partem > 0 ? <span className="font-semibold text-yellow-600">{fmt(m.partem)}</span> : <span className="text-[#c0cad6]">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          {m.tieneData && <span className="text-xs text-accent font-medium">Ver →</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-[#e2e6ea] bg-[#f8f9fb] font-bold">
+                      <td className="px-4 py-3 text-navy-600">Total {anio}</td>
+                      <td className="px-4 py-3 text-right text-green-700 tabular-nums">{fmt(ventas)}</td>
+                      <td className="px-4 py-3 text-right text-slate-500 tabular-nums">{fmt(costoVenta)}</td>
+                      <td className="px-4 py-3 text-right text-teal-700 tabular-nums">{fmt(utilidadBruta)}</td>
+                      <td className="px-4 py-3 text-right text-green-600 tabular-nums">{fmt(parteM)}</td>
+                      <td className="px-4 py-3 text-right text-yellow-600 tabular-nums">{fmt(partem)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* Lista de cobros */}
+          <Card className="overflow-hidden p-0">
+            <div className="divide-y divide-[#e2e6ea]">
+              {periodoCobros.map(c => {
+                const rj = c.receta_json
+                const tieneReceta = rj?.utilidad_total != null
+                return (
+                  <div key={c.id} className="px-4 py-3.5 hover:bg-[#f8f9fb] transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">{fmtFecha(c.fecha_emision)}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-navy-600 text-sm truncate">{c.cliente_nombre || '—'}</p>
+                        {tieneReceta && rj.producto && (
+                          <p className="text-xs text-[#8a9ab0] truncate">{rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}</p>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-                <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
-                  <span className="text-sm font-semibold text-navy-600">{periodoLabel}</span>
-                  <span className="text-base font-bold text-green-700 tabular-nums">{fmt(ventas)}</span>
-                </div>
-              </Card>
-            </>
-          )}
-        </div>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap shrink-0">
+                        {c.concepto || 'Pago'}
+                      </span>
+                      <span className="font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
+                    </div>
+                    {tieneReceta && <div className="ml-[84px]"><RecetaStrip rj={rj} /></div>}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
+              <span className="text-sm font-semibold text-navy-600">{periodoLabel}</span>
+              <span className="text-base font-bold text-green-700 tabular-nums">{fmt(ventas)}</span>
+            </div>
+          </Card>
+        </>
       )}
     </div>
   )
