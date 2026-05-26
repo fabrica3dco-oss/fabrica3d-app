@@ -213,17 +213,11 @@ export default function Finanzas() {
                 {/* Split 75% / 25% */}
                 <div className="flex flex-col gap-2">
                   <div className="flex-1 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-green-600 mb-0.5">{pctMayor}%</p>
-                      <p className="text-[10px] text-green-600/70">Mayor</p>
-                    </div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-green-600">{pctMayor}%</p>
                     <p className="text-xl font-bold text-green-700 tabular-nums">{parteM > 0 ? fmt(parteM) : '—'}</p>
                   </div>
                   <div className="flex-1 bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-600 mb-0.5">{pctMenor}%</p>
-                      <p className="text-[10px] text-yellow-600/70">Menor</p>
-                    </div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-600">{pctMenor}%</p>
                     <p className="text-xl font-bold text-yellow-700 tabular-nums">{partem > 0 ? fmt(partem) : '—'}</p>
                   </div>
                 </div>
