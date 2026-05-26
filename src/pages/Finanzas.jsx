@@ -365,9 +365,40 @@ export default function Finanzas() {
                 )
               })}
             </div>
-            <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
-              <span className="text-sm font-semibold text-navy-600">{periodoLabel}</span>
-              <span className="text-base font-bold text-green-700 tabular-nums">{fmt(ventas)}</span>
+            <div className="px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <span className="text-sm font-bold text-navy-600">{periodoLabel}</span>
+                <div className="flex gap-5 flex-wrap justify-end">
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-wide mb-0.5">Ventas</p>
+                    <p className="text-sm font-bold text-green-700 tabular-nums">{fmt(ventas)}</p>
+                  </div>
+                  {costoVenta > 0 && (
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">Costo mat.</p>
+                      <p className="text-sm font-semibold text-slate-500 tabular-nums">{fmt(costoVenta)}</p>
+                    </div>
+                  )}
+                  {utilidadBruta > 0 && (
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-teal-600 uppercase tracking-wide mb-0.5">Utilidad</p>
+                      <p className="text-sm font-bold text-teal-700 tabular-nums">{fmt(utilidadBruta)}</p>
+                    </div>
+                  )}
+                  {parteM > 0 && (
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-green-600 uppercase tracking-wide mb-0.5">{pctMayor}%</p>
+                      <p className="text-sm font-semibold text-green-600 tabular-nums">{fmt(parteM)}</p>
+                    </div>
+                  )}
+                  {partem > 0 && (
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-yellow-600 uppercase tracking-wide mb-0.5">{pctMenor}%</p>
+                      <p className="text-sm font-semibold text-yellow-600 tabular-nums">{fmt(partem)}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </Card>}
         </>
