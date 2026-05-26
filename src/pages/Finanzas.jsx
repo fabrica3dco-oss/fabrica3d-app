@@ -58,10 +58,10 @@ export default function Finanzas() {
     anio, setAnio, mes, setMes,
     gastosMes, cobrosMes,
     totalGastos, totalIngresos, utilidad,
-    loadingRes,
+    cobrosRes, loadingRes,
     resDesde, setResDesde, resHasta, setResHasta,
     resFiltro, aplicarFiltroResumen,
-    consolidado, totalPeriodo, splitData,
+    consolidado, totalPeriodo,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
     crearGasto, actualizarGasto, eliminarGasto,
   } = useFinanzas()
