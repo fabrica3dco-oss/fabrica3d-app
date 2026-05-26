@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, BarChart2,
-  Plus, Edit2, Trash2, X, Users, Loader2, ChevronDown,
+  Plus, Edit2, Trash2, X, Loader2, ChevronDown,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -40,16 +40,6 @@ const fmt = n =>
 const fmtFecha = d =>
   new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-// ── Mini barra horizontal ─────────────────────────────────────────────────────
-function MiniBar({ valor, max, color }) {
-  const pct = max > 0 ? Math.min(100, Math.round((valor / max) * 100)) : 0
-  return (
-    <div className="w-full bg-[#f0f2f5] rounded-full h-1.5 overflow-hidden">
-      <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
-    </div>
-  )
-}
-
 // ── Tarjeta KPI ───────────────────────────────────────────────────────────────
 function KpiCard({ icon, label, value, sub, valueColor = 'text-navy-600', bg = '' }) {
   return (
@@ -63,7 +53,7 @@ function KpiCard({ icon, label, value, sub, valueColor = 'text-navy-600', bg = '
   )
 }
 
-// ── Strip de desglose financiero por cobro ────────────────────────────────────
+// ── Strip de desglose por cobro (usado en Ingresos) ──────────────────────────
 function RecetaStrip({ rj }) {
   return (
     <div className="mt-2 bg-[#f0f4f8] rounded-xl px-3 py-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
@@ -92,7 +82,7 @@ function RecetaStrip({ rj }) {
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function Finanzas() {
   const {
-    loading,
+    cobros, loading,
     anio, setAnio, mes, setMes,
     gastosMes, cobrosMes,
     totalGastos, totalIngresos, utilidad,
@@ -109,6 +99,49 @@ export default function Finanzas() {
   const [saving,    setSaving]    = useState(false)
   const [busqueda,  setBusqueda]  = useState('')
   const [filtrocat, setFiltrocat] = useState('')
+
+  // ── Cálculo anual por mes (para la tabla del Resumen) ─────────────────────
+  const anuales = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const m      = i + 1
+      const prefix = `${anio}-${String(m).padStart(2, '0')}`
+      const mCobros = cobros.filter(c => c.fecha_emision?.startsWith(prefix))
+      const mReceta = mCobros.filter(c => c.receta_json?.utilidad_total != null)
+      const totalCobrado   = mCobros.reduce((s, c) => s + Number(c.monto),                           0)
+      const costoMat       = mReceta.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0)
+      const utilidadBruta  = mReceta.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0)
+      const parteM         = mReceta.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0)
+      const partem         = mReceta.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0)
+      return {
+        nombre: MESES_LABEL[i], mesNum: m,
+        tieneData: totalCobrado > 0,
+        totalCobrado, costoMat, utilidadBruta, parteM, partem,
+        jobs: mReceta.length,
+        pctMayor: mReceta[0]?.receta_json?.pct_mayor ?? 75,
+        pctMenor: mReceta[0]?.receta_json?.pct_menor ?? 25,
+      }
+    })
+  }, [cobros, anio])
+
+  const pctMayorGlobal = cobros.find(c => c.receta_json?.pct_mayor != null)?.receta_json?.pct_mayor ?? 75
+  const pctMenorGlobal = cobros.find(c => c.receta_json?.pct_menor != null)?.receta_json?.pct_menor ?? 25
+
+  const totAnual = useMemo(() => ({
+    totalCobrado:  anuales.reduce((s, m) => s + m.totalCobrado,  0),
+    costoMat:      anuales.reduce((s, m) => s + m.costoMat,      0),
+    utilidadBruta: anuales.reduce((s, m) => s + m.utilidadBruta, 0),
+    parteM:        anuales.reduce((s, m) => s + m.parteM,        0),
+    partem:        anuales.reduce((s, m) => s + m.partem,        0),
+    jobs:          anuales.reduce((s, m) => s + m.jobs,          0),
+  }), [anuales])
+
+  // Jobs del año con receta (para desglose individual)
+  const jobsAnio = useMemo(() =>
+    cobros
+      .filter(c => c.receta_json?.utilidad_total != null)
+      .sort((a, b) => (a.fecha_emision || '').localeCompare(b.fecha_emision || '')),
+    [cobros]
+  )
 
   // ── Handlers modal gasto ──────────────────────────────────────────────────
   function abrirCrear() {
@@ -147,26 +180,31 @@ export default function Finanzas() {
     [gastosMes]
   )
 
-  const margenMes = totalIngresos > 0 ? Math.round((utilidad / totalIngresos) * 100) : null
-
-  // Cobros con receta del mes (para Resumen e Ingresos)
-  const cobrosConReceta = useMemo(() =>
+  // Cobros con receta del mes seleccionado (Ingresos tab)
+  const cobrosConRecetaMes = useMemo(() =>
     cobrosMes.filter(c => c.receta_json?.utilidad_total != null),
     [cobrosMes]
   )
-  const totReceta = useMemo(() => {
-    if (cobrosConReceta.length === 0) return null
+  const totRecetaMes = useMemo(() => {
+    if (cobrosConRecetaMes.length === 0) return null
     return {
-      costo:    cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0),
-      util:     cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0),
-      mayor:    cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0),
-      menor:    cobrosConReceta.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0),
-      pctMayor: cobrosConReceta[0]?.receta_json?.pct_mayor ?? 75,
-      pctMenor: cobrosConReceta[0]?.receta_json?.pct_menor ?? 25,
+      costo:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.costo_total    || 0), 0),
+      util:     cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.utilidad_total || 0), 0),
+      mayor:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.parte_mayor    || 0), 0),
+      menor:    cobrosConRecetaMes.reduce((s, c) => s + Number(c.receta_json.parte_menor    || 0), 0),
+      pctMayor: cobrosConRecetaMes[0]?.receta_json?.pct_mayor ?? 75,
+      pctMenor: cobrosConRecetaMes[0]?.receta_json?.pct_menor ?? 25,
     }
-  }, [cobrosConReceta])
+  }, [cobrosConRecetaMes])
 
+  const margenMes = totalIngresos > 0 ? Math.round((utilidad / totalIngresos) * 100) : null
   const mesLabel = `${MESES_LABEL[mes - 1]} ${anio}`
+
+  // Navegar a mes en tab ingresos
+  function irAMesIngresos(mesNum) {
+    setMes(mesNum)
+    setTab('ingresos')
+  }
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
@@ -175,35 +213,38 @@ export default function Finanzas() {
       <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-navy-600">Finanzas</h1>
-          <p className="text-sm text-[#8a9ab0] mt-0.5">Ingresos, gastos y utilidades</p>
+          <p className="text-sm text-[#8a9ab0] mt-0.5">
+            {tab === 'resumen' ? `Resumen ${anio}` : tab === 'extracto' ? 'Saldo bancario' : mesLabel}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Selectores mes/año — siempre visibles */}
-          {(tab === 'resumen' || tab === 'ingresos' || tab === 'gastos') && (
-            <>
-              <div className="relative">
-                <select
-                  value={mes}
-                  onChange={e => setMes(Number(e.target.value))}
-                  className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
-                >
-                  {MESES_LABEL.map((label, i) => (
-                    <option key={i + 1} value={i + 1}>{label}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
-              </div>
-              <div className="relative">
-                <select
-                  value={anio}
-                  onChange={e => setAnio(Number(e.target.value))}
-                  className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
-                >
-                  {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
-              </div>
-            </>
+          {/* Mes — solo en Ingresos y Gastos */}
+          {(tab === 'ingresos' || tab === 'gastos') && (
+            <div className="relative">
+              <select
+                value={mes}
+                onChange={e => setMes(Number(e.target.value))}
+                className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
+              >
+                {MESES_LABEL.map((label, i) => (
+                  <option key={i + 1} value={i + 1}>{label}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
+            </div>
+          )}
+          {/* Año — en Resumen, Ingresos y Gastos */}
+          {tab !== 'extracto' && (
+            <div className="relative">
+              <select
+                value={anio}
+                onChange={e => setAnio(Number(e.target.value))}
+                className="appearance-none text-sm border border-[#e2e6ea] rounded-lg pl-3 pr-8 py-2 bg-white text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent/30 cursor-pointer"
+              >
+                {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a9ab0] pointer-events-none" />
+            </div>
           )}
           <Button onClick={abrirCrear}><Plus size={16} /> Gasto</Button>
         </div>
@@ -212,7 +253,7 @@ export default function Finanzas() {
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 mb-6 border-b border-[#e2e6ea]">
         {[
-          ['resumen',  'Resumen'],
+          ['resumen',  'Resumen anual'],
           ['ingresos', 'Ingresos'],
           ['gastos',   'Gastos'],
           ['extracto', 'Extracto'],
@@ -226,165 +267,160 @@ export default function Finanzas() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB RESUMEN
+          TAB RESUMEN ANUAL
       ══════════════════════════════════════════════════════════════════════ */}
       {tab === 'resumen' && (
         <div>
-          {/* KPI del mes */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <KpiCard
-              icon={<TrendingUp size={12} className="text-green-500" />}
-              label="Ingresos"
-              value={fmt(totalIngresos)}
-              sub={`${cobrosMes.length} cobro${cobrosMes.length !== 1 ? 's' : ''} pagado${cobrosMes.length !== 1 ? 's' : ''}`}
-              valueColor="text-green-600"
-            />
-            <KpiCard
-              icon={<TrendingDown size={12} className="text-red-500" />}
-              label="Gastos"
-              value={fmt(totalGastos)}
-              sub={`${gastosMes.length} registro${gastosMes.length !== 1 ? 's' : ''}`}
-              valueColor="text-red-600"
-            />
-            <KpiCard
-              icon={<DollarSign size={12} />}
-              label="Utilidad neta"
-              value={fmt(utilidad)}
-              sub={margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aún'}
-              valueColor={utilidad >= 0 ? 'text-green-700' : 'text-red-700'}
-              bg={utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}
-            />
-            <KpiCard
-              icon={<BarChart2 size={12} />}
-              label="Margen"
-              value={margenMes !== null ? `${margenMes}%` : '—'}
-              valueColor="text-navy-600"
-            />
-          </div>
-
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-[#8a9ab0] text-sm">
-              <Loader2 size={16} className="animate-spin" /> Cargando {mesLabel}...
-            </div>
-          ) : (cobrosMes.length === 0 && gastosMes.length === 0) ? (
-            <div className="text-center py-16">
-              <BarChart2 size={40} className="text-[#e2e6ea] mx-auto mb-3" />
-              <p className="text-sm font-medium text-navy-600">Sin datos en {mesLabel}</p>
-              <p className="text-xs text-[#8a9ab0] mt-1">Registra gastos o marca cobros como pagados</p>
+            <div className="flex items-center justify-center gap-2 py-16 text-[#8a9ab0] text-sm">
+              <Loader2 size={16} className="animate-spin" /> Cargando {anio}...
             </div>
           ) : (
-            <div className="flex flex-col gap-5">
-
-              {/* ── Ventas del mes ─────────────────────────────────────────── */}
-              {cobrosMes.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0]">
-                      Ventas · {mesLabel}
-                    </p>
-                    {totReceta && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1">
-                          <span className="text-[10px] font-semibold text-green-600">{totReceta.pctMayor}%</span>
-                          <span className="text-sm font-bold text-green-700">{fmt(totReceta.mayor)}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-1">
-                          <span className="text-[10px] font-semibold text-yellow-600">{totReceta.pctMenor}%</span>
-                          <span className="text-sm font-bold text-yellow-700">{fmt(totReceta.menor)}</span>
-                        </div>
-                      </div>
-                    )}
+            <>
+              {/* KPI anuales */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                <KpiCard
+                  icon={<TrendingUp size={12} className="text-green-500" />}
+                  label="Total vendido"
+                  value={fmt(totAnual.totalCobrado)}
+                  sub={`${cobros.length} cobro${cobros.length !== 1 ? 's' : ''} pagado${cobros.length !== 1 ? 's' : ''}`}
+                  valueColor="text-green-600"
+                />
+                <KpiCard
+                  icon={<BarChart2 size={12} />}
+                  label="Costo materiales"
+                  value={fmt(totAnual.costoMat)}
+                  sub={totAnual.jobs > 0 ? `${totAnual.jobs} trabajo${totAnual.jobs !== 1 ? 's' : ''} con datos` : 'Sin datos de calculadora'}
+                  valueColor="text-[#8a9ab0]"
+                />
+                <KpiCard
+                  icon={<DollarSign size={12} />}
+                  label="Utilidad bruta"
+                  value={fmt(totAnual.utilidadBruta)}
+                  sub={totAnual.totalCobrado > 0 ? `${Math.round((totAnual.utilidadBruta / totAnual.totalCobrado) * 100)}% de margen` : ''}
+                  valueColor={totAnual.utilidadBruta >= 0 ? 'text-green-700' : 'text-red-700'}
+                  bg={totAnual.utilidadBruta > 0 ? 'bg-green-50 border-green-200' : ''}
+                />
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 flex-1">
+                    <span className="text-xs font-semibold text-green-600">{pctMayorGlobal}%</span>
+                    <span className="text-lg font-bold text-green-700">{fmt(totAnual.parteM)}</span>
                   </div>
+                  <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5 flex-1">
+                    <span className="text-xs font-semibold text-yellow-600">{pctMenorGlobal}%</span>
+                    <span className="text-lg font-bold text-yellow-700">{fmt(totAnual.partem)}</span>
+                  </div>
+                </div>
+              </div>
 
+              {/* Tabla mes a mes */}
+              <Card className="overflow-hidden p-0 mb-5">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" style={{ minWidth: 620 }}>
+                    <thead>
+                      <tr className="border-b border-[#e2e6ea] bg-[#f8f9fb]">
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide w-[110px]">Mes</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cobrado</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Costo mat.</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Utilidad</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-green-600 uppercase tracking-wide">{pctMayorGlobal}%</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-yellow-600 uppercase tracking-wide">{pctMenorGlobal}%</th>
+                        <th className="px-3 py-3 w-[60px]" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e2e6ea]">
+                      {anuales.map(m => (
+                        <tr
+                          key={m.mesNum}
+                          className={`transition-colors ${m.tieneData ? 'hover:bg-[#f8f9fb] cursor-pointer' : 'opacity-40'}`}
+                          onClick={() => m.tieneData && irAMesIngresos(m.mesNum)}
+                        >
+                          <td className="px-4 py-3 font-medium text-navy-600">{m.nombre}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-navy-600 tabular-nums">
+                            {m.totalCobrado > 0 ? fmt(m.totalCobrado) : <span className="text-[#c0cad6]">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums text-[#8a9ab0]">
+                            {m.costoMat > 0 ? fmt(m.costoMat) : <span className="text-[#c0cad6]">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums">
+                            {m.utilidadBruta > 0
+                              ? <span className="font-bold text-green-700">{fmt(m.utilidadBruta)}</span>
+                              : <span className="text-[#c0cad6]">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums">
+                            {m.parteM > 0
+                              ? <span className="font-semibold text-green-600">{fmt(m.parteM)}</span>
+                              : <span className="text-[#c0cad6]">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums">
+                            {m.partem > 0
+                              ? <span className="font-semibold text-yellow-600">{fmt(m.partem)}</span>
+                              : <span className="text-[#c0cad6]">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {m.tieneData && <span className="text-xs text-accent font-medium">Ver →</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-[#e2e6ea] bg-[#f8f9fb] font-bold">
+                        <td className="px-4 py-3 text-navy-600">Total {anio}</td>
+                        <td className="px-4 py-3 text-right text-navy-600 tabular-nums">{fmt(totAnual.totalCobrado)}</td>
+                        <td className="px-4 py-3 text-right text-[#8a9ab0] tabular-nums">{fmt(totAnual.costoMat)}</td>
+                        <td className="px-4 py-3 text-right text-green-700 tabular-nums">{fmt(totAnual.utilidadBruta)}</td>
+                        <td className="px-4 py-3 text-right text-green-600 tabular-nums">{fmt(totAnual.parteM)}</td>
+                        <td className="px-4 py-3 text-right text-yellow-600 tabular-nums">{fmt(totAnual.partem)}</td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </Card>
+
+              {/* Desglose individual por trabajo */}
+              {jobsAnio.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">
+                    Trabajos {anio} · {jobsAnio.length} con desglose de calculadora
+                  </p>
                   <Card className="overflow-hidden p-0">
                     <div className="divide-y divide-[#e2e6ea]">
-                      {cobrosMes.map(c => {
+                      {jobsAnio.map(c => {
                         const rj = c.receta_json
-                        const tieneReceta = rj?.utilidad_total != null
                         return (
                           <div key={c.id} className="px-4 py-3.5 hover:bg-[#f8f9fb] transition-colors">
                             <div className="flex items-center gap-3">
                               <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">{fmtFecha(c.fecha_emision)}</span>
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-navy-600 text-sm truncate">{c.cliente_nombre || '—'}</p>
-                                {tieneReceta && rj.producto && (
+                                {rj.producto && (
                                   <p className="text-xs text-[#8a9ab0] truncate">
                                     {rj.producto}{rj.cantidad > 1 ? ` ×${rj.cantidad}` : ''}
                                   </p>
                                 )}
                               </div>
-                              <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium whitespace-nowrap shrink-0">
-                                {c.concepto || 'Pago'}
-                              </span>
                               <span className="font-bold text-navy-600 tabular-nums shrink-0">{fmt(c.monto)}</span>
                             </div>
-                            {tieneReceta && (
-                              <div className="ml-[84px]">
-                                <RecetaStrip rj={rj} />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                    {/* Total ventas */}
-                    <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
-                      <span className="text-sm font-semibold text-navy-600">Total ventas</span>
-                      <span className="text-base font-bold text-green-700 tabular-nums">{fmt(totalIngresos)}</span>
-                    </div>
-                  </Card>
-                </div>
-              )}
-
-              {/* ── Gastos del mes ─────────────────────────────────────────── */}
-              {gastosMes.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8a9ab0] mb-3">
-                    Gastos · {mesLabel}
-                  </p>
-
-                  {/* Por categoría */}
-                  {porCategoria.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {porCategoria.map(cat => (
-                        <div key={cat.id} className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${cat.color}`}>
-                          {cat.label}
-                          <span className="font-bold">{fmt(cat.total)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <Card className="overflow-hidden p-0">
-                    <div className="divide-y divide-[#e2e6ea]">
-                      {gastosMes.map(g => {
-                        const cat = CAT_MAP[g.categoria] || CAT_MAP['otros']
-                        return (
-                          <div key={g.id} className="flex items-center gap-3 px-4 py-3 hover:bg-[#f8f9fb] transition-colors">
-                            <span className="text-xs text-[#8a9ab0] w-[72px] shrink-0">{fmtFecha(g.fecha)}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-navy-600 truncate">{g.descripcion}</p>
-                              {g.notas && <p className="text-xs text-[#8a9ab0] truncate">{g.notas}</p>}
-                            </div>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap shrink-0 ${cat.color}`}>{cat.label}</span>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <span className="font-semibold text-navy-600 tabular-nums text-sm">{fmt(g.monto)}</span>
-                              <button onClick={() => abrirEditar(g)} className="p-1 rounded hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors"><Edit2 size={13} /></button>
-                              <button onClick={() => { if (confirm('Eliminar este gasto?')) eliminarGasto(g.id) }} className="p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
+                            <div className="ml-[84px]">
+                              <RecetaStrip rj={rj} />
                             </div>
                           </div>
                         )
                       })}
                     </div>
-                    <div className="flex items-center justify-between px-4 py-3 bg-[#f8f9fb] border-t-2 border-[#e2e6ea]">
-                      <span className="text-sm font-semibold text-navy-600">Total gastos</span>
-                      <span className="text-base font-bold text-red-600 tabular-nums">{fmt(totalGastos)}</span>
-                    </div>
                   </Card>
                 </div>
               )}
 
-            </div>
+              {cobros.length === 0 && (
+                <div className="text-center py-16">
+                  <BarChart2 size={40} className="text-[#e2e6ea] mx-auto mb-3" />
+                  <p className="text-sm font-medium text-navy-600">Sin cobros pagados en {anio}</p>
+                  <p className="text-xs text-[#8a9ab0] mt-1">Los cobros marcados como pagados aparecerán aquí</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -403,36 +439,30 @@ export default function Finanzas() {
               valueColor="text-green-600"
             />
             <KpiCard
-              icon={<TrendingDown size={12} className="text-red-500" />}
-              label="Gastos"
-              value={fmt(totalGastos)}
-              sub={`${gastosMes.length} registro${gastosMes.length !== 1 ? 's' : ''}`}
-              valueColor="text-red-600"
+              icon={<DollarSign size={12} />}
+              label="Utilidad bruta"
+              value={fmt(totRecetaMes?.util ?? 0)}
+              sub={totRecetaMes ? `${cobrosConRecetaMes.length} trabajo${cobrosConRecetaMes.length !== 1 ? 's' : ''} con desglose` : 'Sin datos de calculadora'}
+              valueColor="text-green-700"
             />
             <KpiCard
-              icon={<DollarSign size={12} />}
-              label="Utilidad neta"
-              value={fmt(utilidad)}
-              sub={margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aún'}
-              valueColor={utilidad >= 0 ? 'text-green-700' : 'text-red-700'}
-              bg={utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}
+              icon={<BarChart2 size={12} />}
+              label="Costo materiales"
+              value={fmt(totRecetaMes?.costo ?? 0)}
+              valueColor="text-[#8a9ab0]"
             />
           </div>
 
-          {/* Resumen split del mes */}
-          {totReceta && (
+          {/* Split del mes */}
+          {totRecetaMes && (
             <div className="flex flex-wrap gap-2 mb-4">
               <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
-                <span className="text-xs font-semibold text-green-600">{totReceta.pctMayor}%</span>
-                <span className="text-base font-bold text-green-700">{fmt(totReceta.mayor)}</span>
+                <span className="text-xs font-semibold text-green-600">{totRecetaMes.pctMayor}%</span>
+                <span className="text-base font-bold text-green-700">{fmt(totRecetaMes.mayor)}</span>
               </div>
               <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5">
-                <span className="text-xs font-semibold text-yellow-600">{totReceta.pctMenor}%</span>
-                <span className="text-base font-bold text-yellow-700">{fmt(totReceta.menor)}</span>
-              </div>
-              <div className="flex items-center gap-2 bg-[#f8f9fb] border border-[#e2e6ea] rounded-xl px-4 py-2.5">
-                <span className="text-xs text-[#8a9ab0]">Costo materiales</span>
-                <span className="text-base font-bold text-navy-600">{fmt(totReceta.costo)}</span>
+                <span className="text-xs font-semibold text-yellow-600">{totRecetaMes.pctMenor}%</span>
+                <span className="text-base font-bold text-yellow-700">{fmt(totRecetaMes.menor)}</span>
               </div>
             </div>
           )}
@@ -495,14 +525,7 @@ export default function Finanzas() {
       ══════════════════════════════════════════════════════════════════════ */}
       {tab === 'gastos' && (
         <div>
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <KpiCard
-              icon={<TrendingUp size={12} className="text-green-500" />}
-              label="Ingresos"
-              value={fmt(totalIngresos)}
-              sub={`${cobrosMes.length} cobro${cobrosMes.length !== 1 ? 's' : ''}`}
-              valueColor="text-green-600"
-            />
+          <div className="grid grid-cols-2 gap-3 mb-5">
             <KpiCard
               icon={<TrendingDown size={12} className="text-red-500" />}
               label="Gastos"
@@ -511,12 +534,11 @@ export default function Finanzas() {
               valueColor="text-red-600"
             />
             <KpiCard
-              icon={<DollarSign size={12} />}
-              label="Utilidad neta"
-              value={fmt(utilidad)}
-              sub={margenMes !== null ? `${margenMes}% de margen` : 'Sin ingresos aún'}
-              valueColor={utilidad >= 0 ? 'text-green-700' : 'text-red-700'}
-              bg={utilidad >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}
+              icon={<TrendingUp size={12} className="text-green-500" />}
+              label="Ingresos del mes"
+              value={fmt(totalIngresos)}
+              sub={margenMes !== null ? `Margen bruto ${margenMes}%` : ''}
+              valueColor="text-navy-600"
             />
           </div>
 
@@ -550,7 +572,7 @@ export default function Finanzas() {
               <div className="flex flex-col items-center py-12 gap-3">
                 <TrendingDown size={36} className="text-[#e2e6ea]" />
                 <p className="text-sm font-medium text-navy-600">Sin gastos en {mesLabel}</p>
-                <p className="text-xs text-[#8a9ab0]">Registra los gastos del mes</p>
+                <p className="text-xs text-[#8a9ab0]">Registra los gastos operativos del mes</p>
                 <Button variant="secondary" onClick={abrirCrear}><Plus size={14} /> Registrar gasto</Button>
               </div>
             </Card>
@@ -693,16 +715,13 @@ function ExtractoTab({ saldos, loadingSald, guardarSaldo, eliminarSaldo }) {
 
   function abrirCrear() {
     const now = new Date()
-    const mesStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    setForm({ mes: mesStr, saldo: '', notas: '' })
+    setForm({ mes: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, saldo: '', notas: '' })
     setModal({ mode: 'crear' })
   }
-
   function abrirEditar(s) {
     setForm({ mes: s.mes, saldo: String(s.saldo), notas: s.notas || '' })
     setModal({ mode: 'editar', id: s.id })
   }
-
   async function guardar() {
     if (!form.mes) { toast.error('Selecciona el mes'); return }
     const saldoNum = Number(form.saldo)
