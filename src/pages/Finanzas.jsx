@@ -453,9 +453,8 @@ export default function Finanzas() {
                   </div>
                 </div>
 
-                {/* Reparto — solo si hay costo ingresado */}
-                {formV.costo_total !== '' && (
-                  <div className="bg-[#f8f9fb] rounded-xl p-4 space-y-3">
+                {/* Reparto de utilidad */}
+                <div className="bg-[#f8f9fb] rounded-xl p-4 space-y-3">
                     <p className="text-xs font-bold text-[#8a9ab0] uppercase tracking-wide">% Reparto de utilidad</p>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -498,7 +497,6 @@ export default function Finanzas() {
                       )
                     })()}
                   </div>
-                )}
               </div>
 
               {/* Botones fijos abajo */}
