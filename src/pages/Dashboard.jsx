@@ -7,6 +7,7 @@ import MetricCard from '../components/ui/MetricCard'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import { useDashboard } from '../hooks/useDashboard'
+import { useAuth } from '../hooks/useAuth'
 
 const cop = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v)
 const dateStr = (d) => new Date(d).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
@@ -34,6 +35,8 @@ function PctBadge({ actual, anterior }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { metrics, alertas, cobrosProximos, ultimosMovimientos, pedidosPorEstado, loading } = useDashboard()
+  const { user } = useAuth()
+  const firstName = user?.user_metadata?.nombre?.split(' ')[0] || ''
 
   const metricDefs = [
     {
@@ -54,7 +57,9 @@ export default function Dashboard() {
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-navy-600">Dashboard</h1>
-        <p className="text-sm text-[#8a9ab0] mt-0.5">Bienvenido de nuevo, Dimas</p>
+        <p className="text-sm text-[#8a9ab0] mt-0.5">
+          Bienvenido de nuevo{firstName ? `, ${firstName}` : ''}
+        </p>
       </div>
 
       {/* Métricas */}
