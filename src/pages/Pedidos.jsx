@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Plus, Search, Calendar, User, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -9,6 +9,7 @@ import Input from '../components/ui/Input'
 import ClienteAutocomplete from '../components/ui/ClienteAutocomplete'
 import { usePedidos } from '../hooks/usePedidos'
 import { useClientes } from '../hooks/useClientes'
+import { useInventario } from '../hooks/useInventario'
 
 const ESTADOS = [
   { id: 'en_cola',     label: 'En cola',       color: 'gray'  },
@@ -21,8 +22,8 @@ const ESTADOS = [
 
 const BADGE_COLOR = Object.fromEntries(ESTADOS.map(e => [e.id, e.color]))
 const LABEL       = Object.fromEntries(ESTADOS.map(e => [e.id, e.label]))
+const UNIDADES    = ['u', 'g', 'kg', 'ml', 'm', 'cm']
 
-// Lee la configuración de accesorios y acabados de la Calculadora
 function getCalcConfig() {
   try {
     const raw = localStorage.getItem('f3d_calc_config_v2')
@@ -32,11 +33,13 @@ function getCalcConfig() {
   } catch { return { accesorios: [], acabados: [] } }
 }
 
+const EMPTY_ROW = { nombre: '', qty: '', unidad: 'u', inventario_id: null }
+
 const EMPTY = {
   descripcion: '', cliente_id: '', cliente_nombre: '',
   cantidad: '', estado: 'en_cola', fecha_entrega: '', cobro_ref: '',
-  accesorios:  [],  // [{ id, nombre, unidad, qty }]
-  acabados:    [],  // [{ id, nombre, unidad, qty }]
+  accesorios:  [],
+  acabados:    [],
   _recetaBase: null,
 }
 
@@ -60,7 +63,21 @@ function Skeleton() {
 export default function Pedidos() {
   const { pedidos, loading, crearPedido, actualizarPedido, eliminarPedido } = usePedidos()
   const { clientes } = useClientes()
+  const { items: matItems } = useInventario()
   const location = useLocation()
+
+  const sugerencias = useMemo(() => {
+    const cfg = getCalcConfig()
+    const nombres = new Set()
+    const lista = []
+    ;[...cfg.accesorios, ...cfg.acabados, ...matItems].forEach(x => {
+      if (x.nombre && !nombres.has(x.nombre)) {
+        nombres.add(x.nombre)
+        lista.push(x.nombre)
+      }
+    })
+    return lista
+  }, [matItems])
 
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
@@ -69,7 +86,6 @@ export default function Pedidos() {
   const [form,         setForm]         = useState(EMPTY)
   const [saving,       setSaving]       = useState(false)
 
-  // Pre-abrir modal desde FAB móvil
   useEffect(() => {
     if (location.state?._new) { abrirCrear(); window.history.replaceState({}, document.title) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -83,53 +99,28 @@ export default function Pedidos() {
     return matchQ && (!filtroEstado || p.estado === filtroEstado)
   })
 
-  const entregados = pedidos.filter(p => p.estado === 'entregado').length
-  const activos    = pedidos.filter(p => p.estado !== 'entregado').length
-  const esteMes    = pedidos.filter(p => {
+  const activos = pedidos.filter(p => p.estado !== 'entregado').length
+  const esteMes = pedidos.filter(p => {
     if (!p.created_at) return false
-    const d = new Date(p.created_at)
-    const now = new Date()
+    const d = new Date(p.created_at), now = new Date()
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   }).length
 
   function abrirCrear() {
-    const cfg = getCalcConfig()
-    setForm({
-      ...EMPTY,
-      accesorios: cfg.accesorios.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty: '' })),
-      acabados:   cfg.acabados.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty: '' })),
-    })
+    setForm(EMPTY)
     setModal({ mode: 'crear' })
   }
 
   function abrirEditar(p) {
-    const cfg = getCalcConfig()
     const rj = p.receta_json || {}
     const { accesorios_usados = [], acabados_usados = [], ...recetaBase } = rj
     const totalUnits = Number(p.cantidad) || 1
-
-    const accesorios = cfg.accesorios.map(a => {
-      const found = accesorios_usados.find(u => u.nombre === a.nombre)
-      let qty = ''
-      if (found) {
-        qty = found.cantidad_por_unidad != null
-          ? String(found.cantidad_por_unidad)
-          : String(Number(found.cantidad_total || 0) / totalUnits)
-      }
-      return { id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty }
-    })
-
-    const acabados = cfg.acabados.map(a => {
-      const found = acabados_usados.find(u => u.nombre === a.nombre)
-      let qty = ''
-      if (found) {
-        qty = found.cantidad_por_unidad != null
-          ? String(found.cantidad_por_unidad)
-          : String(Number(found.cantidad_total || 0) / totalUnits)
-      }
-      return { id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty }
-    })
-
+    const toRow = arr => arr.filter(a => a.nombre).map(a => ({
+      nombre:       a.nombre,
+      qty:          String(a.cantidad_por_unidad != null ? a.cantidad_por_unidad : Number(a.cantidad_total || 0) / totalUnits),
+      unidad:       a.unidad || 'u',
+      inventario_id: a.inventario_id || null,
+    }))
     setForm({
       descripcion:    p.descripcion    || '',
       cliente_id:     p.cliente_id     || '',
@@ -138,8 +129,8 @@ export default function Pedidos() {
       estado:         p.estado         || 'en_cola',
       fecha_entrega:  p.fecha_entrega  || '',
       cobro_ref:      p.cobro_ref      || '',
-      accesorios,
-      acabados,
+      accesorios:     toRow(accesorios_usados),
+      acabados:       toRow(acabados_usados),
       _recetaBase:    Object.keys(recetaBase).length > 0 ? recetaBase : null,
     })
     setModal({ mode: 'editar', id: p.id })
@@ -149,36 +140,21 @@ export default function Pedidos() {
     if (!form.descripcion.trim()) return
     setSaving(true)
     const totalUnits = Number(form.cantidad) || 1
-
-    const accesoriosUsados = form.accesorios
-      .filter(a => Number(a.qty) > 0)
+    const toUsado = arr => arr
+      .filter(a => a.nombre.trim() && Number(a.qty) > 0)
       .map(a => ({
-        nombre:              a.nombre,
+        nombre:              a.nombre.trim(),
         unidad:              a.unidad,
         inventario_id:       a.inventario_id || null,
         cantidad_por_unidad: Number(a.qty),
         cantidad_total:      Number(a.qty) * totalUnits,
       }))
-
-    const acabadosUsados = form.acabados
-      .filter(a => Number(a.qty) > 0)
-      .map(a => ({
-        nombre:              a.nombre,
-        unidad:              a.unidad,
-        inventario_id:       a.inventario_id || null,
-        cantidad_por_unidad: Number(a.qty),
-        cantidad_total:      Number(a.qty) * totalUnits,
-      }))
-
+    const accesoriosUsados = toUsado(form.accesorios)
+    const acabadosUsados   = toUsado(form.acabados)
     const hasItems = accesoriosUsados.length > 0 || acabadosUsados.length > 0
     const receta_json = (hasItems || form._recetaBase)
-      ? {
-          ...(form._recetaBase || {}),
-          accesorios_usados: accesoriosUsados,
-          acabados_usados:   acabadosUsados,
-        }
+      ? { ...(form._recetaBase || {}), accesorios_usados: accesoriosUsados, acabados_usados: acabadosUsados }
       : null
-
     const datos = {
       descripcion:    form.descripcion,
       cliente_id:     form.cliente_id     || null,
@@ -189,11 +165,34 @@ export default function Pedidos() {
       cobro_ref:      form.cobro_ref.trim() || null,
       receta_json,
     }
-    const ok = modal.mode === 'crear'
-      ? await crearPedido(datos)
-      : await actualizarPedido(modal.id, datos)
+    const ok = modal.mode === 'crear' ? await crearPedido(datos) : await actualizarPedido(modal.id, datos)
     setSaving(false)
     if (ok) setModal(null)
+  }
+
+  // ── Helpers filas de materiales ───────────────────────────────────────────
+  const addAcc    = () => setForm(f => ({ ...f, accesorios: [...f.accesorios, { ...EMPTY_ROW }] }))
+  const removeAcc = i  => setForm(f => ({ ...f, accesorios: f.accesorios.filter((_, j) => j !== i) }))
+  const setAcc    = (i, k, v) => setForm(f => ({ ...f, accesorios: f.accesorios.map((a, j) => j === i ? { ...a, [k]: v } : a) }))
+  const addAcb    = () => setForm(f => ({ ...f, acabados: [...f.acabados, { ...EMPTY_ROW }] }))
+  const removeAcb = i  => setForm(f => ({ ...f, acabados: f.acabados.filter((_, j) => j !== i) }))
+  const setAcb    = (i, k, v) => setForm(f => ({ ...f, acabados: f.acabados.map((a, j) => j === i ? { ...a, [k]: v } : a) }))
+
+  function onInvLink(type, i, invId) {
+    const invItem = matItems.find(m => m.id === invId)
+    const setFn = type === 'acc' ? 'accesorios' : 'acabados'
+    if (invId && invItem) {
+      setForm(f => ({
+        ...f,
+        [setFn]: f[setFn].map((a, j) => j === i
+          ? { ...a, inventario_id: invId, nombre: invItem.nombre, unidad: invItem.unidad || 'u' }
+          : a
+        ),
+      }))
+    } else {
+      const setter = type === 'acc' ? setAcc : setAcb
+      setter(i, 'inventario_id', null)
+    }
   }
 
   async function confirmarEliminar() {
@@ -203,9 +202,76 @@ export default function Pedidos() {
     setConfirmId(null)
   }
 
+  // ── Sección reutilizable de materiales ────────────────────────────────────
+  function MatSection({ label, items, onAdd, onRemove, onSet, onLink, datalistId }) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-semibold text-navy-600">{label}</label>
+          <button type="button" onClick={onAdd}
+            className="flex items-center gap-1 text-xs font-semibold text-accent hover:underline">
+            <Plus size={12} /> Agregar
+          </button>
+        </div>
+        {items.length === 0 ? (
+          <p className="text-xs text-[#8a9ab0]">Sin {label.toLowerCase()}. Pulsa Agregar para añadir.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {items.map((a, i) => (
+              <div key={i} className="p-2.5 rounded-lg bg-[#f8f9fb] border border-[#e2e6ea] flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    list={datalistId}
+                    value={a.nombre}
+                    onChange={e => onSet(i, 'nombre', e.target.value)}
+                    placeholder="Nombre del material..."
+                    className="flex-1 min-w-0 border border-[#e2e6ea] rounded-lg px-2.5 py-1.5 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                  />
+                  <input
+                    type="number" min="0" step="0.5"
+                    value={a.qty}
+                    onChange={e => onSet(i, 'qty', e.target.value)}
+                    placeholder="0"
+                    className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-sm text-right text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                  />
+                  <select
+                    value={a.unidad}
+                    onChange={e => onSet(i, 'unidad', e.target.value)}
+                    className="w-14 border border-[#e2e6ea] rounded-lg px-1 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    {UNIDADES.map(u => <option key={u}>{u}</option>)}
+                  </select>
+                  <button type="button" onClick={() => onRemove(i)}
+                    className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 shrink-0">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#8a9ab0] shrink-0">
+                    {a.inventario_id ? '✅' : '○'} Descontar de inventario:
+                  </span>
+                  <select
+                    value={a.inventario_id || ''}
+                    onChange={e => onLink(i, e.target.value)}
+                    className="flex-1 border border-[#e2e6ea] rounded-lg px-2 py-1 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    <option value="">Sin vincular</option>
+                    {matItems.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <datalist id={datalistId}>
+          {sugerencias.map((n, idx) => <option key={idx} value={n} />)}
+        </datalist>
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-navy-600">Pedidos</h1>
@@ -214,7 +280,6 @@ export default function Pedidos() {
         <Button onClick={abrirCrear}><Plus size={16} /> Nuevo pedido</Button>
       </div>
 
-      {/* Métricas rápidas */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
           { label: 'Total pedidos', value: pedidos.length },
@@ -228,28 +293,20 @@ export default function Pedidos() {
         ))}
       </div>
 
-      {/* Filtros */}
       <div className="flex gap-2 mb-4 flex-wrap">
         <div className="relative flex-1 min-w-[180px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9ab0]" />
-          <input
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
+          <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por descripción, cliente o referencia..."
-            className="w-full pl-8 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg bg-white text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent"
-          />
+            className="w-full pl-8 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg bg-white text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
         </div>
-        <select
-          value={filtroEstado}
-          onChange={e => setFiltroEstado(e.target.value)}
-          className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
-        >
+        <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}
+          className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent">
           <option value="">Todos los estados</option>
           {ESTADOS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
         </select>
       </div>
 
-      {/* Tabla */}
       <Card className="overflow-hidden p-0">
         {loading ? (
           <div className="p-4"><Skeleton /></div>
@@ -260,14 +317,11 @@ export default function Pedidos() {
               {busqueda || filtroEstado ? 'Sin resultados' : 'Sin pedidos registrados'}
             </p>
             <p className="text-xs text-[#8a9ab0]">
-              {busqueda || filtroEstado
-                ? 'Prueba con otros filtros.'
-                : 'Crea tu primer pedido con el botón de arriba o desde Producción.'}
+              {busqueda || filtroEstado ? 'Prueba con otros filtros.' : 'Crea tu primer pedido con el botón de arriba o desde Producción.'}
             </p>
           </div>
         ) : (
           <>
-            {/* Desktop */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -295,8 +349,7 @@ export default function Pedidos() {
                       <td className="px-4 py-3">
                         {p.cliente_nombre
                           ? <span className="flex items-center gap-1.5 text-[#8a9ab0]"><User size={12} />{p.cliente_nombre}</span>
-                          : <span className="text-[#c0cad6]">—</span>
-                        }
+                          : <span className="text-[#c0cad6]">—</span>}
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={BADGE_COLOR[p.estado] || 'gray'}>{LABEL[p.estado] || p.estado}</Badge>
@@ -304,18 +357,14 @@ export default function Pedidos() {
                       <td className="px-4 py-3 text-xs">
                         {p.cobro_ref
                           ? <span className="flex items-center gap-1 text-[#8a9ab0]"><Link2 size={11} />{p.cobro_ref}</span>
-                          : <span className="text-[#c0cad6]">—</span>
-                        }
+                          : <span className="text-[#c0cad6]">—</span>}
                       </td>
                       <td className="px-4 py-3 text-[#8a9ab0]">
                         {p.fecha_entrega
                           ? <span className="flex items-center gap-1.5"><Calendar size={12} />{fmtFecha(p.fecha_entrega)}</span>
-                          : <span className="text-[#c0cad6]">—</span>
-                        }
+                          : <span className="text-[#c0cad6]">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-[#8a9ab0] text-xs">
-                        {fmtCreado(p.created_at)}
-                      </td>
+                      <td className="px-4 py-3 text-[#8a9ab0] text-xs">{fmtCreado(p.created_at)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
                           <button onClick={() => abrirEditar(p)}
@@ -334,7 +383,6 @@ export default function Pedidos() {
               </table>
             </div>
 
-            {/* Mobile */}
             <div className="md:hidden divide-y divide-[#f0f2f5]">
               {filtrados.map(p => (
                 <div key={p.id} className="p-4">
@@ -347,13 +395,9 @@ export default function Pedidos() {
                     </div>
                     <Badge variant={BADGE_COLOR[p.estado] || 'gray'}>{LABEL[p.estado] || p.estado}</Badge>
                   </div>
-                  {p.cobro_ref && (
-                    <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-0.5"><Link2 size={10} />{p.cobro_ref}</p>
-                  )}
-                  {p.fecha_entrega && (
-                    <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-2"><Calendar size={10} />{fmtFecha(p.fecha_entrega)}</p>
-                  )}
-                  <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
+                  {p.cobro_ref && <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-0.5"><Link2 size={10} />{p.cobro_ref}</p>}
+                  {p.fecha_entrega && <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-2"><Calendar size={10} />{fmtFecha(p.fecha_entrega)}</p>}
+                  <div className="flex gap-2 mt-2">
                     <button onClick={() => abrirEditar(p)}
                       className="flex items-center gap-1 text-xs text-[#8a9ab0] hover:text-navy-600 px-2 py-1 rounded-lg hover:bg-[#f0f2f5] transition-colors">
                       <Pencil size={12} /> Editar
@@ -371,117 +415,57 @@ export default function Pedidos() {
       </Card>
 
       {/* Modal crear/editar */}
-      <Modal
-        open={!!modal}
-        onClose={() => setModal(null)}
-        title={modal?.mode === 'crear' ? 'Nuevo pedido' : 'Editar pedido'}
-      >
+      <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'crear' ? 'Nuevo pedido' : 'Editar pedido'}>
         <div className="flex flex-col gap-4">
-          <Input
-            label="Descripción *"
-            value={form.descripcion}
+          <Input label="Descripción *" value={form.descripcion}
             onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-            placeholder="Ej: Llavero personalizado, soporte para drone..."
-          />
+            placeholder="Ej: Llavero personalizado, soporte para drone..." />
           <div className="grid grid-cols-2 gap-3">
-            <ClienteAutocomplete
-              clientes={clientes}
-              value={form.cliente_nombre}
-              clienteId={form.cliente_id}
-              onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))}
-            />
-            <Input
-              label="Cantidad"
-              type="number"
-              min="1"
-              value={form.cantidad}
-              onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
-              placeholder="1"
-            />
+            <ClienteAutocomplete clientes={clientes} value={form.cliente_nombre} clienteId={form.cliente_id}
+              onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))} />
+            <Input label="Cantidad" type="number" min="1" value={form.cantidad}
+              onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))} placeholder="1" />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Fecha de entrega"
-              type="date"
-              value={form.fecha_entrega}
-              onChange={e => setForm(f => ({ ...f, fecha_entrega: e.target.value }))}
-            />
+            <Input label="Fecha de entrega" type="date" value={form.fecha_entrega}
+              onChange={e => setForm(f => ({ ...f, fecha_entrega: e.target.value }))} />
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Estado</label>
-              <select
-                value={form.estado}
-                onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
-                className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
-              >
+              <select value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
+                className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent">
                 {ESTADOS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
               </select>
             </div>
           </div>
-          <Input
-            label="Referencia de cobro (opcional)"
-            value={form.cobro_ref}
+          <Input label="Referencia de cobro (opcional)" value={form.cobro_ref}
             onChange={e => setForm(f => ({ ...f, cobro_ref: e.target.value }))}
-            placeholder="Ej: COB-0012, COT-005..."
-          />
+            placeholder="Ej: COB-0012, COT-005..." />
 
-          {/* ── Accesorios ──────────────────────────────────────── */}
-          {form.accesorios.length > 0 && (
-            <div className="border-t border-[#f0f2f5] pt-3 flex flex-col gap-2">
-              <div>
-                <label className="text-sm font-semibold text-navy-600">Accesorios</label>
-                <p className="text-xs text-[#8a9ab0] mt-0.5">Cantidad por unidad producida (0 o vacío = no aplica)</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                {form.accesorios.map((a, i) => (
-                  <div key={a.id ?? i} className="flex items-center gap-2">
-                    <span className="flex-1 text-sm text-navy-600 truncate">{a.nombre}</span>
-                    <input
-                      type="number" min="0" step="0.5"
-                      value={a.qty}
-                      onChange={e => setForm(f => ({ ...f, accesorios: f.accesorios.map((x, j) => j === i ? { ...x, qty: e.target.value } : x) }))}
-                      placeholder="0"
-                      className="w-20 border border-[#e2e6ea] rounded-lg px-2.5 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                    <span className="text-xs text-[#8a9ab0] w-8 shrink-0 text-right">{a.unidad}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* ── Accesorios ── */}
+          <div className="border-t border-[#f0f2f5] pt-3">
+            <MatSection
+              label="Accesorios"
+              items={form.accesorios}
+              onAdd={addAcc}
+              onRemove={removeAcc}
+              onSet={setAcc}
+              onLink={(i, v) => onInvLink('acc', i, v)}
+              datalistId="sugg-acc-ped"
+            />
+          </div>
 
-          {/* ── Acabados ──────────────────────────────────────── */}
-          {form.acabados.length > 0 && (
-            <div className="border-t border-[#f0f2f5] pt-3 flex flex-col gap-2">
-              <div>
-                <label className="text-sm font-semibold text-navy-600">Acabados</label>
-                <p className="text-xs text-[#8a9ab0] mt-0.5">Cantidad por unidad producida (0 o vacío = no aplica)</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                {form.acabados.map((a, i) => (
-                  <div key={a.id ?? i} className="flex items-center gap-2">
-                    <span className="flex-1 text-sm text-navy-600 truncate">{a.nombre}</span>
-                    <input
-                      type="number" min="0" step="0.5"
-                      value={a.qty}
-                      onChange={e => setForm(f => ({ ...f, acabados: f.acabados.map((x, j) => j === i ? { ...x, qty: e.target.value } : x) }))}
-                      placeholder="0"
-                      className="w-20 border border-[#e2e6ea] rounded-lg px-2.5 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                    <span className="text-xs text-[#8a9ab0] w-8 shrink-0 text-right">{a.unidad}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Aviso si la Calculadora no tiene accesorios ni acabados configurados */}
-          {form.accesorios.length === 0 && form.acabados.length === 0 && (
-            <div className="border-t border-[#f0f2f5] pt-3">
-              <p className="text-xs text-[#8a9ab0]">
-                Sin accesorios ni acabados configurados. Agrégalos en la sección <strong>Calculadora</strong>.
-              </p>
-            </div>
-          )}
+          {/* ── Acabados ── */}
+          <div className="border-t border-[#f0f2f5] pt-3">
+            <MatSection
+              label="Acabados"
+              items={form.acabados}
+              onAdd={addAcb}
+              onRemove={removeAcb}
+              onSet={setAcb}
+              onLink={(i, v) => onInvLink('acb', i, v)}
+              datalistId="sugg-acb-ped"
+            />
+          </div>
 
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>

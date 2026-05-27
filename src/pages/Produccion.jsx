@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Package, Link2, Clock } from 'lucide-react'
 import ClienteAutocomplete from '../components/ui/ClienteAutocomplete'
@@ -8,6 +8,7 @@ import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { usePedidos } from '../hooks/usePedidos'
 import { useClientes } from '../hooks/useClientes'
+import { useInventario } from '../hooks/useInventario'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
 
@@ -35,7 +36,8 @@ const LABEL_SIGUIENTE = {
   terminado:   'Marcar entregado',
 }
 
-// Lee la configuración de accesorios y acabados de la Calculadora
+const UNIDADES = ['u', 'g', 'kg', 'ml', 'm', 'cm']
+
 function getCalcConfig() {
   try {
     const raw = localStorage.getItem('f3d_calc_config_v2')
@@ -45,11 +47,13 @@ function getCalcConfig() {
   } catch { return { accesorios: [], acabados: [] } }
 }
 
+const EMPTY_ROW = { nombre: '', qty: '', unidad: 'u', inventario_id: null }
+
 const EMPTY = {
   descripcion: '', cliente_id: '', cliente_nombre: '', cantidad: '',
   estado: 'en_cola', fecha_entrega: '', cobro_ref: '',
-  accesorios:  [],  // [{ id, nombre, unidad, qty }] — qty es cantidad_por_unidad
-  acabados:    [],  // [{ id, nombre, unidad, qty }]
+  accesorios:  [],
+  acabados:    [],
   _recetaBase: null,
 }
 
@@ -67,7 +71,6 @@ function BadgeFecha({ fecha }) {
   return <span className="text-xs text-[#8a9ab0]">{new Date(fecha + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</span>
 }
 
-// Tiempo en estado actual a partir del historial
 function tiempoEnEstado(pedido) {
   const hist = pedido?.historial_estados
   if (!hist?.length) return null
@@ -85,6 +88,22 @@ export default function Produccion() {
   const navigate = useNavigate()
   const { pedidos, loading, crearPedido, actualizarPedido, moverEstado, eliminarPedido } = usePedidos()
   const { clientes } = useClientes()
+  const { items: matItems } = useInventario()
+
+  // Sugerencias para datalist: config Calculadora + inventario (sin duplicados)
+  const sugerencias = useMemo(() => {
+    const cfg = getCalcConfig()
+    const nombres = new Set()
+    const lista = []
+    ;[...cfg.accesorios, ...cfg.acabados, ...matItems].forEach(x => {
+      if (x.nombre && !nombres.has(x.nombre)) {
+        nombres.add(x.nombre)
+        lista.push(x.nombre)
+      }
+    })
+    return lista
+  }, [matItems])
+
   const [modal,       setModal]       = useState(null)
   const [confirmId,   setConfirmId]   = useState(null)
   const [invModal,    setInvModal]    = useState(null)
@@ -95,7 +114,6 @@ export default function Produccion() {
   const [draggingId,  setDraggingId]  = useState(null)
   const [overCol,     setOverCol]     = useState(null)
 
-  // Inicializar lista editable de materiales cuando se abre el modal de terminado
   useEffect(() => {
     if (!invModal) { setInvItems([]); return }
     const items = [
@@ -115,7 +133,6 @@ export default function Produccion() {
   const porEstado = (estadoId) => pedidos.filter(p => (p.estado || 'en_cola') === estadoId)
   const activos   = pedidos.filter(p => p.estado !== 'entregado').length
 
-  // ── Mover estado con hook para inventario ─────────────────────────────────
   async function handleMoverEstado(pedido, nuevoEstado) {
     if (!pedido) return
     await moverEstado(pedido.id, nuevoEstado)
@@ -144,22 +161,15 @@ export default function Produccion() {
   async function deducirInventario() {
     setDeduciendo(true)
     const pendientes = invItems.filter(i => i.nombre && Number(i.cantidad) > 0)
-    let deducidos = 0
-    let sinMatch  = 0
+    let deducidos = 0, sinMatch = 0
     for (const item of pendientes) {
       let invRow = null
-      // 1. Búsqueda por ID (exacta, sin ambigüedad)
       if (item.inventario_id) {
-        const { data } = await supabase
-          .from('inventario').select('id, stock_actual, nombre')
-          .eq('id', item.inventario_id).limit(1)
+        const { data } = await supabase.from('inventario').select('id, stock_actual').eq('id', item.inventario_id).limit(1)
         if (data?.length > 0) invRow = data[0]
       }
-      // 2. Fallback: búsqueda por nombre (case-insensitive exacta)
       if (!invRow) {
-        const { data } = await supabase
-          .from('inventario').select('id, stock_actual, nombre')
-          .ilike('nombre', item.nombre).limit(1)
+        const { data } = await supabase.from('inventario').select('id, stock_actual').ilike('nombre', item.nombre).limit(1)
         if (data?.length > 0) invRow = data[0]
       }
       if (invRow) {
@@ -183,45 +193,20 @@ export default function Produccion() {
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   function abrirCrear(estadoId = 'en_cola') {
-    const cfg = getCalcConfig()
-    setForm({
-      ...EMPTY,
-      estado:     estadoId,
-      accesorios: cfg.accesorios.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty: '' })),
-      acabados:   cfg.acabados.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty: '' })),
-    })
+    setForm({ ...EMPTY, estado: estadoId })
     setModal({ mode: 'crear' })
   }
 
   function abrirEditar(p) {
-    const cfg = getCalcConfig()
     const rj = p.receta_json || {}
     const { accesorios_usados = [], acabados_usados = [], ...recetaBase } = rj
     const totalUnits = Number(p.cantidad) || 1
-
-    const accesorios = cfg.accesorios.map(a => {
-      const found = accesorios_usados.find(u => u.nombre === a.nombre)
-      let qty = ''
-      if (found) {
-        qty = found.cantidad_por_unidad != null
-          ? String(found.cantidad_por_unidad)
-          : String(Number(found.cantidad_total || 0) / totalUnits)
-      }
-      // inventario_id siempre desde el config actual (más fiable que el histórico)
-      return { id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty }
-    })
-
-    const acabados = cfg.acabados.map(a => {
-      const found = acabados_usados.find(u => u.nombre === a.nombre)
-      let qty = ''
-      if (found) {
-        qty = found.cantidad_por_unidad != null
-          ? String(found.cantidad_por_unidad)
-          : String(Number(found.cantidad_total || 0) / totalUnits)
-      }
-      return { id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty }
-    })
-
+    const toRow = arr => arr.filter(a => a.nombre).map(a => ({
+      nombre:       a.nombre,
+      qty:          String(a.cantidad_por_unidad != null ? a.cantidad_por_unidad : Number(a.cantidad_total || 0) / totalUnits),
+      unidad:       a.unidad || 'u',
+      inventario_id: a.inventario_id || null,
+    }))
     setForm({
       descripcion:    p.descripcion || '',
       cliente_id:     p.cliente_id || '',
@@ -230,8 +215,8 @@ export default function Produccion() {
       estado:         p.estado || 'en_cola',
       fecha_entrega:  p.fecha_entrega || '',
       cobro_ref:      p.cobro_ref || '',
-      accesorios,
-      acabados,
+      accesorios:     toRow(accesorios_usados),
+      acabados:       toRow(acabados_usados),
       _recetaBase:    Object.keys(recetaBase).length > 0 ? recetaBase : null,
     })
     setModal({ mode: 'editar', id: p.id })
@@ -241,36 +226,21 @@ export default function Produccion() {
     if (!form.descripcion.trim()) return
     setSaving(true)
     const totalUnits = Number(form.cantidad) || 1
-
-    const accesoriosUsados = form.accesorios
-      .filter(a => Number(a.qty) > 0)
+    const toUsado = arr => arr
+      .filter(a => a.nombre.trim() && Number(a.qty) > 0)
       .map(a => ({
-        nombre:              a.nombre,
+        nombre:              a.nombre.trim(),
         unidad:              a.unidad,
         inventario_id:       a.inventario_id || null,
         cantidad_por_unidad: Number(a.qty),
         cantidad_total:      Number(a.qty) * totalUnits,
       }))
-
-    const acabadosUsados = form.acabados
-      .filter(a => Number(a.qty) > 0)
-      .map(a => ({
-        nombre:              a.nombre,
-        unidad:              a.unidad,
-        inventario_id:       a.inventario_id || null,
-        cantidad_por_unidad: Number(a.qty),
-        cantidad_total:      Number(a.qty) * totalUnits,
-      }))
-
+    const accesoriosUsados = toUsado(form.accesorios)
+    const acabadosUsados   = toUsado(form.acabados)
     const hasItems = accesoriosUsados.length > 0 || acabadosUsados.length > 0
     const receta_json = (hasItems || form._recetaBase)
-      ? {
-          ...(form._recetaBase || {}),
-          accesorios_usados: accesoriosUsados,
-          acabados_usados:   acabadosUsados,
-        }
+      ? { ...(form._recetaBase || {}), accesorios_usados: accesoriosUsados, acabados_usados: acabadosUsados }
       : null
-
     const datos = {
       descripcion:    form.descripcion,
       cliente_id:     form.cliente_id || null,
@@ -286,6 +256,32 @@ export default function Produccion() {
     if (ok) setModal(null)
   }
 
+  // ── Helpers filas de materiales ───────────────────────────────────────────
+  const addAcc    = () => setForm(f => ({ ...f, accesorios: [...f.accesorios, { ...EMPTY_ROW }] }))
+  const removeAcc = i  => setForm(f => ({ ...f, accesorios: f.accesorios.filter((_, j) => j !== i) }))
+  const setAcc    = (i, k, v) => setForm(f => ({ ...f, accesorios: f.accesorios.map((a, j) => j === i ? { ...a, [k]: v } : a) }))
+  const addAcb    = () => setForm(f => ({ ...f, acabados: [...f.acabados, { ...EMPTY_ROW }] }))
+  const removeAcb = i  => setForm(f => ({ ...f, acabados: f.acabados.filter((_, j) => j !== i) }))
+  const setAcb    = (i, k, v) => setForm(f => ({ ...f, acabados: f.acabados.map((a, j) => j === i ? { ...a, [k]: v } : a) }))
+
+  // Al seleccionar un ítem del inventario: auto-rellena nombre y unidad
+  function onInvLink(type, i, invId) {
+    const invItem = matItems.find(m => m.id === invId)
+    const setter = type === 'acc' ? setAcc : setAcb
+    if (invId && invItem) {
+      const setFn = type === 'acc' ? 'accesorios' : 'acabados'
+      setForm(f => ({
+        ...f,
+        [setFn]: f[setFn].map((a, j) => j === i
+          ? { ...a, inventario_id: invId, nombre: invItem.nombre, unidad: invItem.unidad || 'u' }
+          : a
+        ),
+      }))
+    } else {
+      setter(i, 'inventario_id', null)
+    }
+  }
+
   async function confirmarEliminar() {
     setSaving(true)
     await eliminarPedido(confirmId)
@@ -293,29 +289,97 @@ export default function Produccion() {
     setConfirmId(null)
   }
 
-  // ── Drag & drop ───────────────────────────────────────────────────────────
   function onDragStart(e, id) { setDraggingId(id); e.dataTransfer.effectAllowed = 'move' }
   function onDragOver(e, estadoId) { e.preventDefault(); setOverCol(estadoId) }
   function onDrop(e, estadoId) {
     e.preventDefault()
-    if (draggingId) {
-      const pedido = pedidos.find(p => p.id === draggingId)
-      handleMoverEstado(pedido, estadoId)
-    }
+    if (draggingId) handleMoverEstado(pedidos.find(p => p.id === draggingId), estadoId)
     setDraggingId(null); setOverCol(null)
   }
   function onDragEnd() { setDraggingId(null); setOverCol(null) }
 
+  // ── Sección reutilizable de materiales ────────────────────────────────────
+  function MatSection({ label, items, onAdd, onRemove, onSet, onLink, datalistId }) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-semibold text-navy-600">{label}</label>
+          <button type="button" onClick={onAdd}
+            className="flex items-center gap-1 text-xs font-semibold text-accent hover:underline">
+            <Plus size={12} /> Agregar
+          </button>
+        </div>
+        {items.length === 0 ? (
+          <p className="text-xs text-[#8a9ab0]">Sin {label.toLowerCase()}. Pulsa Agregar para añadir.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {items.map((a, i) => (
+              <div key={i} className="p-2.5 rounded-lg bg-[#f8f9fb] border border-[#e2e6ea] flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    list={datalistId}
+                    value={a.nombre}
+                    onChange={e => onSet(i, 'nombre', e.target.value)}
+                    placeholder="Nombre del material..."
+                    className="flex-1 min-w-0 border border-[#e2e6ea] rounded-lg px-2.5 py-1.5 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                  />
+                  <input
+                    type="number" min="0" step="0.5"
+                    value={a.qty}
+                    onChange={e => onSet(i, 'qty', e.target.value)}
+                    placeholder="0"
+                    className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-sm text-right text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                  />
+                  <select
+                    value={a.unidad}
+                    onChange={e => onSet(i, 'unidad', e.target.value)}
+                    className="w-14 border border-[#e2e6ea] rounded-lg px-1 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    {UNIDADES.map(u => <option key={u}>{u}</option>)}
+                  </select>
+                  <button type="button" onClick={() => onRemove(i)}
+                    className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 shrink-0">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#8a9ab0] shrink-0">
+                    {a.inventario_id ? '✅' : '○'} Descontar de inventario:
+                  </span>
+                  <select
+                    value={a.inventario_id || ''}
+                    onChange={e => onLink(i, e.target.value)}
+                    className="flex-1 border border-[#e2e6ea] rounded-lg px-2 py-1 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    <option value="">Sin vincular</option>
+                    {matItems.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <datalist id={datalistId}>
+          {sugerencias.map((n, idx) => <option key={idx} value={n} />)}
+        </datalist>
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 lg:p-6 flex flex-col h-full">
-      <div className="mb-4 shrink-0">
-        <h1 className="text-2xl font-bold text-navy-600">Producción</h1>
-        <p className="text-sm text-[#8a9ab0] mt-0.5">
-          {loading ? '...' : `${activos} pedido${activos !== 1 ? 's' : ''} activo${activos !== 1 ? 's' : ''}`}
-        </p>
+      {/* Header */}
+      <div className="mb-4 shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-navy-600">Producción</h1>
+          <p className="text-sm text-[#8a9ab0] mt-0.5">
+            {loading ? '...' : `${activos} pedido${activos !== 1 ? 's' : ''} activo${activos !== 1 ? 's' : ''}`}
+          </p>
+        </div>
+        <Button onClick={() => abrirCrear()}><Plus size={16} /> Nueva orden</Button>
       </div>
 
-      {/* Kanban — scroll horizontal */}
+      {/* Kanban */}
       <div className="flex gap-3 overflow-x-auto pb-4 flex-1 items-start">
         {ESTADOS.map(estado => {
           const items  = porEstado(estado.id)
@@ -366,12 +430,9 @@ export default function Produccion() {
                           <button onClick={() => setConfirmId(p.id)} className="p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500"><Trash2 size={12} /></button>
                         </div>
                       </div>
-
                       <div className="flex flex-col gap-0.5 mb-2">
                         {p.cobro_ref && (
-                          <span className="flex items-center gap-1.5 text-xs text-accent font-medium">
-                            <Link2 size={10} />{p.cobro_ref}
-                          </span>
+                          <span className="flex items-center gap-1.5 text-xs text-accent font-medium"><Link2 size={10} />{p.cobro_ref}</span>
                         )}
                         {p.cliente_nombre && (
                           <span className="flex items-center gap-1.5 text-xs text-[#8a9ab0]"><User size={10} />{p.cliente_nombre}</span>
@@ -388,7 +449,6 @@ export default function Produccion() {
                           </span>
                         )}
                       </div>
-
                       {SIGUIENTE[p.estado] && (
                         <div className="pt-2 border-t border-[#f0f2f5]">
                           <button
@@ -406,17 +466,6 @@ export default function Produccion() {
             </div>
           )
         })}
-
-        {/* Botón Nueva orden — al final del kanban, alineado con las columnas */}
-        <button
-          onClick={() => abrirCrear()}
-          className="shrink-0 w-60 lg:w-64 h-24 rounded-xl border-2 border-dashed border-[#d0d7e2] hover:border-accent hover:bg-blue-50/50 flex flex-col items-center justify-center gap-1.5 text-[#8a9ab0] hover:text-accent transition-all group self-start mt-0"
-        >
-          <div className="w-8 h-8 rounded-full bg-[#f0f2f5] group-hover:bg-accent/10 flex items-center justify-center transition-colors">
-            <Plus size={16} />
-          </div>
-          <span className="text-xs font-semibold">Nueva orden</span>
-        </button>
       </div>
 
       {/* Modal crear/editar */}
@@ -452,64 +501,31 @@ export default function Produccion() {
             onChange={e => setForm(f => ({ ...f, cobro_ref: e.target.value }))}
             placeholder="Ej: COB-0012, COT-005..." />
 
-          {/* ── Accesorios ──────────────────────────────────────── */}
-          {form.accesorios.length > 0 && (
-            <div className="border-t border-[#f0f2f5] pt-3 flex flex-col gap-2">
-              <div>
-                <label className="text-sm font-semibold text-navy-600">Accesorios</label>
-                <p className="text-xs text-[#8a9ab0] mt-0.5">Cantidad por unidad producida (0 o vacío = no aplica)</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                {form.accesorios.map((a, i) => (
-                  <div key={a.id ?? i} className="flex items-center gap-2">
-                    <span className="flex-1 text-sm text-navy-600 truncate">{a.nombre}</span>
-                    <input
-                      type="number" min="0" step="0.5"
-                      value={a.qty}
-                      onChange={e => setForm(f => ({ ...f, accesorios: f.accesorios.map((x, j) => j === i ? { ...x, qty: e.target.value } : x) }))}
-                      placeholder="0"
-                      className="w-20 border border-[#e2e6ea] rounded-lg px-2.5 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                    <span className="text-xs text-[#8a9ab0] w-8 shrink-0 text-right">{a.unidad}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* ── Accesorios ── */}
+          <div className="border-t border-[#f0f2f5] pt-3">
+            <MatSection
+              label="Accesorios"
+              items={form.accesorios}
+              onAdd={addAcc}
+              onRemove={removeAcc}
+              onSet={setAcc}
+              onLink={(i, v) => onInvLink('acc', i, v)}
+              datalistId="sugg-acc-prod"
+            />
+          </div>
 
-          {/* ── Acabados ──────────────────────────────────────── */}
-          {form.acabados.length > 0 && (
-            <div className="border-t border-[#f0f2f5] pt-3 flex flex-col gap-2">
-              <div>
-                <label className="text-sm font-semibold text-navy-600">Acabados</label>
-                <p className="text-xs text-[#8a9ab0] mt-0.5">Cantidad por unidad producida (0 o vacío = no aplica)</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                {form.acabados.map((a, i) => (
-                  <div key={a.id ?? i} className="flex items-center gap-2">
-                    <span className="flex-1 text-sm text-navy-600 truncate">{a.nombre}</span>
-                    <input
-                      type="number" min="0" step="0.5"
-                      value={a.qty}
-                      onChange={e => setForm(f => ({ ...f, acabados: f.acabados.map((x, j) => j === i ? { ...x, qty: e.target.value } : x) }))}
-                      placeholder="0"
-                      className="w-20 border border-[#e2e6ea] rounded-lg px-2.5 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                    <span className="text-xs text-[#8a9ab0] w-8 shrink-0 text-right">{a.unidad}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Aviso si la Calculadora no tiene accesorios ni acabados configurados */}
-          {form.accesorios.length === 0 && form.acabados.length === 0 && (
-            <div className="border-t border-[#f0f2f5] pt-3">
-              <p className="text-xs text-[#8a9ab0]">
-                Sin accesorios ni acabados configurados. Agrégalos en la sección <strong>Calculadora</strong>.
-              </p>
-            </div>
-          )}
+          {/* ── Acabados ── */}
+          <div className="border-t border-[#f0f2f5] pt-3">
+            <MatSection
+              label="Acabados"
+              items={form.acabados}
+              onAdd={addAcb}
+              onRemove={removeAcb}
+              onSet={setAcb}
+              onLink={(i, v) => onInvLink('acb', i, v)}
+              datalistId="sugg-acb-prod"
+            />
+          </div>
 
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
@@ -529,7 +545,7 @@ export default function Produccion() {
         </div>
       </Modal>
 
-      {/* ── Modal terminado: inventario + saldo ────────────────────────────── */}
+      {/* Modal terminado: descontar materiales */}
       {invModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) setInvModal(null) }}>
@@ -544,8 +560,6 @@ export default function Produccion() {
                 {invModal.cobro_ref && <span>{invModal.cobro_ref}</span>}
               </p>
             </div>
-
-            {/* Cuerpo scrollable */}
             <div className="overflow-y-auto flex-1 px-5 pt-4">
               {invItems.length > 0 ? (
                 <>
@@ -559,33 +573,20 @@ export default function Produccion() {
                         <span className="text-sm text-navy-600 font-medium flex-1 truncate">{item.nombre}</span>
                         <div className="flex items-center gap-1 shrink-0">
                           <span className="text-xs font-bold text-red-500">−</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.5"
-                            value={item.cantidad}
-                            onChange={e => setInvItems(prev =>
-                              prev.map((it, j) => j === i ? { ...it, cantidad: e.target.value } : it)
-                            )}
-                            className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-accent/30 tabular-nums"
-                          />
-                          {item.unidad && (
-                            <span className="text-xs text-[#8a9ab0] w-7 shrink-0">{item.unidad}</span>
-                          )}
+                          <input type="number" min="0" step="0.5" value={item.cantidad}
+                            onChange={e => setInvItems(prev => prev.map((it, j) => j === i ? { ...it, cantidad: e.target.value } : it))}
+                            className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-accent/30 tabular-nums" />
+                          {item.unidad && <span className="text-xs text-[#8a9ab0] w-7 shrink-0">{item.unidad}</span>}
                         </div>
                       </li>
                     ))}
                   </ul>
-                  <p className="text-[11px] text-[#8a9ab0] mt-3 pb-2">
-                    Se buscan por nombre en Materiales. Pon 0 para omitir un ítem.
-                  </p>
+                  <p className="text-[11px] text-[#8a9ab0] mt-3 pb-2">Pon 0 para omitir un ítem.</p>
                 </>
               ) : (
                 <p className="text-sm text-[#8a9ab0] pb-2">Sin materiales vinculados a este pedido.</p>
               )}
             </div>
-
-            {/* Botones fijos al pie */}
             <div className="px-5 pt-3 pb-5 border-t border-[#e2e6ea] shrink-0 flex flex-col gap-2">
               {invItems.length > 0 ? (
                 <div className="flex gap-2">
