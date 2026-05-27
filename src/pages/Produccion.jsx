@@ -103,7 +103,12 @@ export default function Produccion() {
       ...(invModal.receta_json?.acabados_usados   || []),
     ]
       .filter(i => i.cantidad_total > 0)
-      .map(i => ({ nombre: i.nombre, unidad: i.unidad || '', cantidad: i.cantidad_total }))
+      .map(i => ({
+        nombre:       i.nombre,
+        unidad:       i.unidad || '',
+        cantidad:     i.cantidad_total,
+        inventario_id: i.inventario_id || null,
+      }))
     setInvItems(items)
   }, [invModal])
 
@@ -138,22 +143,42 @@ export default function Produccion() {
 
   async function deducirInventario() {
     setDeduciendo(true)
-    const activos = invItems.filter(i => i.nombre && Number(i.cantidad) > 0)
+    const pendientes = invItems.filter(i => i.nombre && Number(i.cantidad) > 0)
     let deducidos = 0
-    for (const item of activos) {
-      const { data: inv } = await supabase
-        .from('inventario').select('id, stock_actual')
-        .ilike('nombre', item.nombre).limit(1)
-      if (inv?.length > 0) {
-        const nueva = Math.max(0, Number(inv[0].stock_actual) - Number(item.cantidad))
-        await supabase.from('inventario').update({ stock_actual: nueva }).eq('id', inv[0].id)
+    let sinMatch  = 0
+    for (const item of pendientes) {
+      let invRow = null
+      // 1. Búsqueda por ID (exacta, sin ambigüedad)
+      if (item.inventario_id) {
+        const { data } = await supabase
+          .from('inventario').select('id, stock_actual, nombre')
+          .eq('id', item.inventario_id).limit(1)
+        if (data?.length > 0) invRow = data[0]
+      }
+      // 2. Fallback: búsqueda por nombre (case-insensitive exacta)
+      if (!invRow) {
+        const { data } = await supabase
+          .from('inventario').select('id, stock_actual, nombre')
+          .ilike('nombre', item.nombre).limit(1)
+        if (data?.length > 0) invRow = data[0]
+      }
+      if (invRow) {
+        const nueva = Math.max(0, Number(invRow.stock_actual) - Number(item.cantidad))
+        await supabase.from('inventario').update({ stock_actual: nueva }).eq('id', invRow.id)
         deducidos++
+      } else {
+        sinMatch++
       }
     }
     setDeduciendo(false)
     setInvModal(null)
-    if (deducidos > 0) toast.success(`${deducidos} material${deducidos !== 1 ? 'es' : ''} descontado${deducidos !== 1 ? 's' : ''} de materiales ✓`)
-    else toast('Sin coincidencias en Materiales — verifica los nombres', { icon: 'ℹ️' })
+    if (deducidos > 0 && sinMatch === 0) {
+      toast.success(`${deducidos} material${deducidos !== 1 ? 'es' : ''} descontado${deducidos !== 1 ? 's' : ''} ✓`)
+    } else if (deducidos > 0) {
+      toast.success(`${deducidos} descontado${deducidos !== 1 ? 's' : ''} · ${sinMatch} sin match — vincúlalos en la Calculadora`)
+    } else {
+      toast('Ningún material encontrado. Vincúlalos en Calculadora → Configurar precios base', { icon: 'ℹ️' })
+    }
   }
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -162,8 +187,8 @@ export default function Produccion() {
     setForm({
       ...EMPTY,
       estado:     estadoId,
-      accesorios: cfg.accesorios.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, qty: '' })),
-      acabados:   cfg.acabados.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, qty: '' })),
+      accesorios: cfg.accesorios.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty: '' })),
+      acabados:   cfg.acabados.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty: '' })),
     })
     setModal({ mode: 'crear' })
   }
@@ -182,7 +207,8 @@ export default function Produccion() {
           ? String(found.cantidad_por_unidad)
           : String(Number(found.cantidad_total || 0) / totalUnits)
       }
-      return { id: a.id, nombre: a.nombre, unidad: a.unidad, qty }
+      // inventario_id siempre desde el config actual (más fiable que el histórico)
+      return { id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty }
     })
 
     const acabados = cfg.acabados.map(a => {
@@ -193,7 +219,7 @@ export default function Produccion() {
           ? String(found.cantidad_por_unidad)
           : String(Number(found.cantidad_total || 0) / totalUnits)
       }
-      return { id: a.id, nombre: a.nombre, unidad: a.unidad, qty }
+      return { id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty }
     })
 
     setForm({
@@ -221,6 +247,7 @@ export default function Produccion() {
       .map(a => ({
         nombre:              a.nombre,
         unidad:              a.unidad,
+        inventario_id:       a.inventario_id || null,
         cantidad_por_unidad: Number(a.qty),
         cantidad_total:      Number(a.qty) * totalUnits,
       }))
@@ -230,6 +257,7 @@ export default function Produccion() {
       .map(a => ({
         nombre:              a.nombre,
         unidad:              a.unidad,
+        inventario_id:       a.inventario_id || null,
         cantidad_por_unidad: Number(a.qty),
         cantidad_total:      Number(a.qty) * totalUnits,
       }))

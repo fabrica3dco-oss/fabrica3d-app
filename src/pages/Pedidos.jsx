@@ -96,8 +96,8 @@ export default function Pedidos() {
     const cfg = getCalcConfig()
     setForm({
       ...EMPTY,
-      accesorios: cfg.accesorios.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, qty: '' })),
-      acabados:   cfg.acabados.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, qty: '' })),
+      accesorios: cfg.accesorios.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty: '' })),
+      acabados:   cfg.acabados.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty: '' })),
     })
     setModal({ mode: 'crear' })
   }
@@ -116,7 +116,7 @@ export default function Pedidos() {
           ? String(found.cantidad_por_unidad)
           : String(Number(found.cantidad_total || 0) / totalUnits)
       }
-      return { id: a.id, nombre: a.nombre, unidad: a.unidad, qty }
+      return { id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty }
     })
 
     const acabados = cfg.acabados.map(a => {
@@ -127,7 +127,7 @@ export default function Pedidos() {
           ? String(found.cantidad_por_unidad)
           : String(Number(found.cantidad_total || 0) / totalUnits)
       }
-      return { id: a.id, nombre: a.nombre, unidad: a.unidad, qty }
+      return { id: a.id, nombre: a.nombre, unidad: a.unidad, inventario_id: a.inventario_id || null, qty }
     })
 
     setForm({
@@ -155,6 +155,7 @@ export default function Pedidos() {
       .map(a => ({
         nombre:              a.nombre,
         unidad:              a.unidad,
+        inventario_id:       a.inventario_id || null,
         cantidad_por_unidad: Number(a.qty),
         cantidad_total:      Number(a.qty) * totalUnits,
       }))
@@ -164,6 +165,7 @@ export default function Pedidos() {
       .map(a => ({
         nombre:              a.nombre,
         unidad:              a.unidad,
+        inventario_id:       a.inventario_id || null,
         cantidad_por_unidad: Number(a.qty),
         cantidad_total:      Number(a.qty) * totalUnits,
       }))

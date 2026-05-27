@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2, BookMarked, Save, Pencil, Check } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
+import { useInventario } from '../hooks/useInventario'
 
 // ── Plantillas (localStorage) ─────────────────────────────────────────────────
 const PLANT_KEY = 'f3d_plantillas_v1'
@@ -75,6 +76,7 @@ export default function Calculadora() {
   })
 
   const navigate = useNavigate()
+  const { items: matItems } = useInventario()
 
   const [rec, setRec]                 = useState(DEFAULT_RECETA)
   const [showConfig, setShowConfig]   = useState(false)
@@ -200,12 +202,24 @@ export default function Calculadora() {
     const accesoriosUsados = rec.accesorios.map(a => {
       const item = config.accesorios.find(x => x.id === a.id)
       if (!item) return null
-      return { nombre: item.nombre, unidad: item.unidad, cantidad_por_unidad: a.cantidad, cantidad_total: a.cantidad * cantidad }
+      return {
+        nombre:              item.nombre,
+        unidad:              item.unidad,
+        inventario_id:       item.inventario_id || null,
+        cantidad_por_unidad: a.cantidad,
+        cantidad_total:      a.cantidad * cantidad,
+      }
     }).filter(Boolean)
     const acabadosUsados = rec.acabados.map(a => {
       const item = config.acabados.find(x => x.id === a.id)
       if (!item) return null
-      return { nombre: item.nombre, unidad: item.unidad, cantidad_por_unidad: a.cantidad, cantidad_total: a.cantidad * cantidad }
+      return {
+        nombre:              item.nombre,
+        unidad:              item.unidad,
+        inventario_id:       item.inventario_id || null,
+        cantidad_por_unidad: a.cantidad,
+        cantidad_total:      a.cantidad * cantidad,
+      }
     }).filter(Boolean)
     const _costoFil = rec.filamento_g > 0 ? (rec.filamento_g / config.filamento_rollo_gramos) * config.filamento_rollo_precio : 0
     const _costoTmp = (rec.tiempo_min / 60) * config.tarifa_hora
@@ -902,35 +916,53 @@ export default function Calculadora() {
                 <p className="text-xs text-[#8a9ab0]">Sin accesorios</p>
               )}
               {config.accesorios.map(a => (
-                <div key={a.id} className="flex items-center gap-2">
-                  <input
-                    type="text" value={a.nombre}
-                    onChange={e => updAccCfg(a.id, 'nombre', e.target.value)}
-                    placeholder="Nombre del accesorio"
-                    className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                  <div className="relative w-28 shrink-0">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                <div key={a.id} className="flex flex-col gap-1.5 p-2 rounded-lg border border-[#e2e6ea] bg-[#fafbfc]">
+                  <div className="flex items-center gap-2">
                     <input
-                      type="number" min={0}
-                      value={a.precio || ''}
-                      onChange={e => updAccCfg(a.id, 'precio', toNum(e.target.value))}
-                      placeholder="0"
-                      className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      type="text" value={a.nombre}
+                      onChange={e => updAccCfg(a.id, 'nombre', e.target.value)}
+                      placeholder="Nombre del accesorio"
+                      className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
                     />
+                    <div className="relative w-28 shrink-0">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                      <input
+                        type="number" min={0}
+                        value={a.precio || ''}
+                        onChange={e => updAccCfg(a.id, 'precio', toNum(e.target.value))}
+                        placeholder="0"
+                        className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                      />
+                    </div>
+                    <input
+                      type="text" value={a.unidad}
+                      onChange={e => updAccCfg(a.id, 'unidad', e.target.value)}
+                      placeholder="ud"
+                      className="w-14 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                    />
+                    <button
+                      onClick={() => removeAccCfg(a.id)}
+                      className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
-                  <input
-                    type="text" value={a.unidad}
-                    onChange={e => updAccCfg(a.id, 'unidad', e.target.value)}
-                    placeholder="ud"
-                    className="w-14 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                  <button
-                    onClick={() => removeAccCfg(a.id)}
-                    className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  {/* Vincular a ítem del inventario (para descuento automático) */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[#8a9ab0] shrink-0">
+                      {a.inventario_id ? '✅' : '○'} Material en inventario:
+                    </span>
+                    <select
+                      value={a.inventario_id || ''}
+                      onChange={e => updAccCfg(a.id, 'inventario_id', e.target.value || null)}
+                      className="flex-1 border border-[#e2e6ea] rounded-lg px-2 py-1 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    >
+                      <option value="">Sin vincular (no descuenta inventario)</option>
+                      {matItems.map(m => (
+                        <option key={m.id} value={m.id}>{m.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               ))}
             </div>
@@ -950,35 +982,53 @@ export default function Calculadora() {
                 <p className="text-xs text-[#8a9ab0]">Sin acabados</p>
               )}
               {config.acabados.map(a => (
-                <div key={a.id} className="flex items-center gap-2">
-                  <input
-                    type="text" value={a.nombre}
-                    onChange={e => updAcbCfg(a.id, 'nombre', e.target.value)}
-                    placeholder="Nombre del acabado"
-                    className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                  <div className="relative w-28 shrink-0">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                <div key={a.id} className="flex flex-col gap-1.5 p-2 rounded-lg border border-[#e2e6ea] bg-[#fafbfc]">
+                  <div className="flex items-center gap-2">
                     <input
-                      type="number" min={0}
-                      value={a.precio || ''}
-                      onChange={e => updAcbCfg(a.id, 'precio', toNum(e.target.value))}
-                      placeholder="0"
-                      className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      type="text" value={a.nombre}
+                      onChange={e => updAcbCfg(a.id, 'nombre', e.target.value)}
+                      placeholder="Nombre del acabado"
+                      className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
                     />
+                    <div className="relative w-28 shrink-0">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                      <input
+                        type="number" min={0}
+                        value={a.precio || ''}
+                        onChange={e => updAcbCfg(a.id, 'precio', toNum(e.target.value))}
+                        placeholder="0"
+                        className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                      />
+                    </div>
+                    <input
+                      type="text" value={a.unidad}
+                      onChange={e => updAcbCfg(a.id, 'unidad', e.target.value)}
+                      placeholder="ml"
+                      className="w-14 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                    />
+                    <button
+                      onClick={() => removeAcbCfg(a.id)}
+                      className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
-                  <input
-                    type="text" value={a.unidad}
-                    onChange={e => updAcbCfg(a.id, 'unidad', e.target.value)}
-                    placeholder="ml"
-                    className="w-14 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                  <button
-                    onClick={() => removeAcbCfg(a.id)}
-                    className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  {/* Vincular a ítem del inventario (para descuento automático) */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[#8a9ab0] shrink-0">
+                      {a.inventario_id ? '✅' : '○'} Material en inventario:
+                    </span>
+                    <select
+                      value={a.inventario_id || ''}
+                      onChange={e => updAcbCfg(a.id, 'inventario_id', e.target.value || null)}
+                      className="flex-1 border border-[#e2e6ea] rounded-lg px-2 py-1 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    >
+                      <option value="">Sin vincular (no descuenta inventario)</option>
+                      {matItems.map(m => (
+                        <option key={m.id} value={m.id}>{m.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               ))}
             </div>
