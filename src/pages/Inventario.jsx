@@ -221,7 +221,7 @@ export default function Inventario() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-navy-600">Inventario</h1>
+          <h1 className="text-2xl font-bold text-navy-600">Materiales</h1>
           <p className="text-sm text-[#8a9ab0] mt-0.5">
             {loading ? '...' : `${items.length} ítems registrados`}
           </p>
@@ -493,7 +493,7 @@ export default function Inventario() {
 
       {/* ── Confirmar eliminar ítem ────────────────────────────────────────── */}
       <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar ítem" size="sm">
-        <p className="text-sm text-navy-600 mb-5">¿Seguro que quieres eliminar este ítem del inventario?</p>
+        <p className="text-sm text-navy-600 mb-5">¿Seguro que quieres eliminar este ítem de materiales?</p>
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setConfirmId(null)}>Cancelar</Button>
           <Button variant="danger" disabled={saving}

@@ -35,6 +35,7 @@ export function useInventario() {
 
   // Producción descuenta stock directo a Supabase sin pasar por este hook
   useRealtimeRefresh('inventario', fetchItems)
+  useRealtimeRefresh('categorias_inventario', fetchCategorias)
 
   // ── Items CRUD ─────────────────────────────────────────────────────────────
   async function crearItem(datos) {

@@ -141,8 +141,8 @@ export default function Produccion() {
     }
     setDeduciendo(false)
     setInvModal(null)
-    if (deducidos > 0) toast.success(`${deducidos} material${deducidos !== 1 ? 'es' : ''} descontado${deducidos !== 1 ? 's' : ''} del inventario ✓`)
-    else toast('Sin coincidencias en inventario — verifica los nombres', { icon: 'ℹ️' })
+    if (deducidos > 0) toast.success(`${deducidos} material${deducidos !== 1 ? 'es' : ''} descontado${deducidos !== 1 ? 's' : ''} de materiales ✓`)
+    else toast('Sin coincidencias en Materiales — verifica los nombres', { icon: 'ℹ️' })
   }
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -405,7 +405,7 @@ export default function Produccion() {
                     ))}
                   </ul>
                   <p className="text-[11px] text-[#8a9ab0] mt-3 pb-2">
-                    Se buscan por nombre en inventario. Pon 0 para omitir un ítem.
+                    Se buscan por nombre en Materiales. Pon 0 para omitir un ítem.
                   </p>
                 </>
               ) : (
@@ -419,7 +419,7 @@ export default function Produccion() {
                 <div className="flex gap-2">
                   <Button variant="secondary" className="flex-1" onClick={() => setInvModal(null)} disabled={deduciendo}>Omitir</Button>
                   <Button className="flex-1" onClick={deducirInventario} disabled={deduciendo}>
-                    {deduciendo ? 'Descontando...' : 'Descontar inventario'}
+                    {deduciendo ? 'Descontando...' : 'Descontar materiales'}
                   </Button>
                 </div>
               ) : (

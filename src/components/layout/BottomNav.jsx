@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BarChart2, Plus, X, FileEdit, CreditCard, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BarChart2, Plus, X, FileEdit, CreditCard, TrendingUp, ClipboardList } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 const tabs = [
@@ -12,9 +12,10 @@ const tabs = [
 ]
 
 const fabActions = [
-  { icon: FileEdit, label: 'Nueva cotización', to: '/cotizaciones', state: { _new: true } },
-  { icon: CreditCard, label: 'Nueva cuenta de cobro', to: '/cobros', state: { _new: true } },
-  { icon: TrendingUp, label: 'Nuevo lead', to: '/leads', state: { _new: true } },
+  { icon: FileEdit,      label: 'Nueva cotización',       to: '/cotizaciones', state: { _new: true } },
+  { icon: CreditCard,    label: 'Nueva cuenta de cobro',  to: '/cobros',       state: { _new: true } },
+  { icon: TrendingUp,    label: 'Nuevo lead',             to: '/leads',        state: { _new: true } },
+  { icon: ClipboardList, label: 'Nuevo pedido',           to: '/pedidos',      state: { _new: true } },
 ]
 
 export default function BottomNav() {

@@ -44,7 +44,7 @@ const groups = [
   {
     label: 'Negocio',
     items: [
-      { to: '/inventario',  icon: Archive,    label: 'Inventario',  badge: 'stock' },
+      { to: '/inventario',  icon: Archive,    label: 'Materiales',  badge: 'stock' },
       { to: '/finanzas',    icon: BarChart2,  label: 'Finanzas' },
       { to: '/calculadora', icon: Calculator, label: 'Calculadora' },
     ],

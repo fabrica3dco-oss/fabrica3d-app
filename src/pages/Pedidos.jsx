@@ -1,20 +1,38 @@
-import { useState } from 'react'
-import { Search, Calendar, User, Hash, ClipboardList, Link2 } from 'lucide-react'
-import Card from '../components/ui/Card'
+import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
+import { Plus, Search, Calendar, User, Hash, ClipboardList, Link2, Pencil, Trash2 } from 'lucide-react'
+import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import Card from '../components/ui/Card'
+import Modal from '../components/ui/Modal'
+import Input from '../components/ui/Input'
+import ClienteAutocomplete from '../components/ui/ClienteAutocomplete'
 import { usePedidos } from '../hooks/usePedidos'
+import { useClientes } from '../hooks/useClientes'
 
 const ESTADOS = [
-  { id: 'en_cola',     label: 'En cola',       color: 'gray' },
-  { id: 'diseno_stl',  label: 'Diseño STL',    color: 'blue' },
+  { id: 'en_cola',     label: 'En cola',       color: 'gray'  },
+  { id: 'diseno_stl',  label: 'Diseño STL',    color: 'blue'  },
   { id: 'imprimiendo', label: 'Impresión',      color: 'amber' },
-  { id: 'acabado',     label: 'Acabado final',  color: 'gray' },
+  { id: 'acabado',     label: 'Acabado final',  color: 'gray'  },
   { id: 'terminado',   label: 'Terminado',      color: 'green' },
   { id: 'entregado',   label: 'Entregado',      color: 'green' },
 ]
 
 const BADGE_COLOR = Object.fromEntries(ESTADOS.map(e => [e.id, e.color]))
 const LABEL       = Object.fromEntries(ESTADOS.map(e => [e.id, e.label]))
+
+const EMPTY = {
+  descripcion: '', cliente_id: '', cliente_nombre: '',
+  cantidad: '', estado: 'en_cola', fecha_entrega: '', cobro_ref: '',
+}
+
+function fmtFecha(d) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+function fmtCreado(d) {
+  return new Date(d).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 function Skeleton() {
   return (
@@ -27,32 +45,93 @@ function Skeleton() {
 }
 
 export default function Pedidos() {
-  const { pedidos, loading } = usePedidos()
-  const [busqueda,    setBusqueda]    = useState('')
+  const { pedidos, loading, crearPedido, actualizarPedido, eliminarPedido } = usePedidos()
+  const { clientes } = useClientes()
+  const location = useLocation()
+
+  const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
+  const [modal,        setModal]        = useState(null)
+  const [confirmId,    setConfirmId]    = useState(null)
+  const [form,         setForm]         = useState(EMPTY)
+  const [saving,       setSaving]       = useState(false)
+
+  // Pre-abrir modal desde FAB móvil
+  useEffect(() => {
+    if (location.state?._new) { abrirCrear(); window.history.replaceState({}, document.title) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtrados = pedidos.filter(p => {
-    const coincideBusqueda =
-      p.descripcion?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.cliente_nombre?.toLowerCase().includes(busqueda.toLowerCase())
-    const coincideEstado = !filtroEstado || p.estado === filtroEstado
-    return coincideBusqueda && coincideEstado
+    const q = busqueda.trim().toLowerCase()
+    const matchQ = !q ||
+      p.descripcion?.toLowerCase().includes(q) ||
+      p.cliente_nombre?.toLowerCase().includes(q) ||
+      p.cobro_ref?.toLowerCase().includes(q)
+    return matchQ && (!filtroEstado || p.estado === filtroEstado)
   })
 
-  const entregados  = pedidos.filter(p => p.estado === 'entregado').length
-  const activos     = pedidos.filter(p => p.estado !== 'entregado').length
-  const esteMes     = pedidos.filter(p => {
+  const entregados = pedidos.filter(p => p.estado === 'entregado').length
+  const activos    = pedidos.filter(p => p.estado !== 'entregado').length
+  const esteMes    = pedidos.filter(p => {
     if (!p.created_at) return false
     const d = new Date(p.created_at)
     const now = new Date()
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   }).length
 
+  function abrirCrear() {
+    setForm(EMPTY)
+    setModal({ mode: 'crear' })
+  }
+
+  function abrirEditar(p) {
+    setForm({
+      descripcion:    p.descripcion    || '',
+      cliente_id:     p.cliente_id     || '',
+      cliente_nombre: p.cliente_nombre || '',
+      cantidad:       p.cantidad       || '',
+      estado:         p.estado         || 'en_cola',
+      fecha_entrega:  p.fecha_entrega  || '',
+      cobro_ref:      p.cobro_ref      || '',
+    })
+    setModal({ mode: 'editar', id: p.id })
+  }
+
+  async function guardar() {
+    if (!form.descripcion.trim()) return
+    setSaving(true)
+    const datos = {
+      descripcion:    form.descripcion,
+      cliente_id:     form.cliente_id     || null,
+      cliente_nombre: form.cliente_nombre || null,
+      cantidad:       form.cantidad ? Number(form.cantidad) : null,
+      estado:         form.estado,
+      fecha_entrega:  form.fecha_entrega  || null,
+      cobro_ref:      form.cobro_ref.trim() || null,
+    }
+    const ok = modal.mode === 'crear'
+      ? await crearPedido(datos)
+      : await actualizarPedido(modal.id, datos)
+    setSaving(false)
+    if (ok) setModal(null)
+  }
+
+  async function confirmarEliminar() {
+    setSaving(true)
+    await eliminarPedido(confirmId)
+    setSaving(false)
+    setConfirmId(null)
+  }
+
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-navy-600">Pedidos</h1>
-        <p className="text-sm text-[#8a9ab0] mt-0.5">Historial completo de todos los pedidos</p>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-navy-600">Pedidos</h1>
+          <p className="text-sm text-[#8a9ab0] mt-0.5">Historial completo de todos los pedidos</p>
+        </div>
+        <Button onClick={abrirCrear}><Plus size={16} /> Nuevo pedido</Button>
       </div>
 
       {/* Métricas rápidas */}
@@ -76,7 +155,7 @@ export default function Pedidos() {
           <input
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por descripción o cliente..."
+            placeholder="Buscar por descripción, cliente o referencia..."
             className="w-full pl-8 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg bg-white text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
@@ -101,7 +180,9 @@ export default function Pedidos() {
               {busqueda || filtroEstado ? 'Sin resultados' : 'Sin pedidos registrados'}
             </p>
             <p className="text-xs text-[#8a9ab0]">
-              {busqueda || filtroEstado ? 'Prueba con otros filtros.' : 'Los pedidos aparecerán aquí cuando los crees en Producción.'}
+              {busqueda || filtroEstado
+                ? 'Prueba con otros filtros.'
+                : 'Crea tu primer pedido con el botón de arriba o desde Producción.'}
             </p>
           </div>
         ) : (
@@ -117,6 +198,7 @@ export default function Pedidos() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Ref. Cobro</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Entrega</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Creado</th>
+                    <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f2f5]">
@@ -124,7 +206,11 @@ export default function Pedidos() {
                     <tr key={p.id} className="hover:bg-[#f8f9fb] transition-colors">
                       <td className="px-4 py-3">
                         <p className="font-medium text-navy-600">{p.descripcion}</p>
-                        {p.cantidad && <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mt-0.5"><Hash size={10} />{p.cantidad} unidad{p.cantidad !== 1 ? 'es' : ''}</p>}
+                        {p.cantidad && (
+                          <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mt-0.5">
+                            <Hash size={10} />{p.cantidad} unidad{p.cantidad !== 1 ? 'es' : ''}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {p.cliente_nombre
@@ -143,12 +229,24 @@ export default function Pedidos() {
                       </td>
                       <td className="px-4 py-3 text-[#8a9ab0]">
                         {p.fecha_entrega
-                          ? <span className="flex items-center gap-1.5"><Calendar size={12} />{new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                          ? <span className="flex items-center gap-1.5"><Calendar size={12} />{fmtFecha(p.fecha_entrega)}</span>
                           : <span className="text-[#c0cad6]">—</span>
                         }
                       </td>
                       <td className="px-4 py-3 text-[#8a9ab0] text-xs">
-                        {new Date(p.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {fmtCreado(p.created_at)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 justify-end">
+                          <button onClick={() => abrirEditar(p)}
+                            className="p-1.5 rounded-lg hover:bg-[#e2e6ea] text-[#8a9ab0] hover:text-navy-600 transition-colors">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => setConfirmId(p.id)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 transition-colors">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -161,18 +259,109 @@ export default function Pedidos() {
               {filtrados.map(p => (
                 <div key={p.id} className="p-4">
                   <div className="flex items-start justify-between gap-2 mb-1">
-                    <p className="font-medium text-navy-600 leading-tight">{p.descripcion}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-navy-600 leading-tight">{p.descripcion}</p>
+                      {p.cliente_nombre && (
+                        <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mt-0.5"><User size={10} />{p.cliente_nombre}</p>
+                      )}
+                    </div>
                     <Badge variant={BADGE_COLOR[p.estado] || 'gray'}>{LABEL[p.estado] || p.estado}</Badge>
                   </div>
-                  {p.cliente_nombre && <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-0.5"><User size={10} />{p.cliente_nombre}</p>}
-                  {p.cobro_ref && <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-0.5"><Link2 size={10} />{p.cobro_ref}</p>}
-                  {p.fecha_entrega && <p className="text-xs text-[#8a9ab0] flex items-center gap-1"><Calendar size={10} />{new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</p>}
+                  {p.cobro_ref && (
+                    <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-0.5"><Link2 size={10} />{p.cobro_ref}</p>
+                  )}
+                  {p.fecha_entrega && (
+                    <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-2"><Calendar size={10} />{fmtFecha(p.fecha_entrega)}</p>
+                  )}
+                  <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => abrirEditar(p)}
+                      className="flex items-center gap-1 text-xs text-[#8a9ab0] hover:text-navy-600 px-2 py-1 rounded-lg hover:bg-[#f0f2f5] transition-colors">
+                      <Pencil size={12} /> Editar
+                    </button>
+                    <button onClick={() => setConfirmId(p.id)}
+                      className="flex items-center gap-1 text-xs text-[#8a9ab0] hover:text-red-500 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">
+                      <Trash2 size={12} /> Eliminar
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </>
         )}
       </Card>
+
+      {/* Modal crear/editar */}
+      <Modal
+        open={!!modal}
+        onClose={() => setModal(null)}
+        title={modal?.mode === 'crear' ? 'Nuevo pedido' : 'Editar pedido'}
+      >
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Descripción *"
+            value={form.descripcion}
+            onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
+            placeholder="Ej: Llavero personalizado, soporte para drone..."
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <ClienteAutocomplete
+              clientes={clientes}
+              value={form.cliente_nombre}
+              clienteId={form.cliente_id}
+              onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))}
+            />
+            <Input
+              label="Cantidad"
+              type="number"
+              min="1"
+              value={form.cantidad}
+              onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
+              placeholder="1"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Fecha de entrega"
+              type="date"
+              value={form.fecha_entrega}
+              onChange={e => setForm(f => ({ ...f, fecha_entrega: e.target.value }))}
+            />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-navy-600">Estado</label>
+              <select
+                value={form.estado}
+                onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
+                className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {ESTADOS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <Input
+            label="Referencia de cobro (opcional)"
+            value={form.cobro_ref}
+            onChange={e => setForm(f => ({ ...f, cobro_ref: e.target.value }))}
+            placeholder="Ej: COB-0012, COT-005..."
+          />
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
+            <Button onClick={guardar} disabled={!form.descripcion.trim() || saving}>
+              {saving ? 'Guardando...' : modal?.mode === 'crear' ? 'Crear pedido' : 'Guardar cambios'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirmar eliminar */}
+      <Modal open={!!confirmId} onClose={() => setConfirmId(null)} title="Eliminar pedido" size="sm">
+        <p className="text-sm text-navy-600 mb-5">¿Seguro que quieres eliminar este pedido? Esta acción no se puede deshacer.</p>
+        <div className="flex gap-3 justify-end">
+          <Button variant="secondary" onClick={() => setConfirmId(null)}>Cancelar</Button>
+          <Button variant="danger" onClick={confirmarEliminar} disabled={saving}>
+            {saving ? 'Eliminando...' : 'Eliminar'}
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }
