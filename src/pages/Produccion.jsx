@@ -36,7 +36,7 @@ const LABEL_SIGUIENTE = {
 
 const EMPTY = {
   descripcion: '', cliente_id: '', cliente_nombre: '', cantidad: '',
-  estado: 'en_cola', fecha_entrega: '',
+  estado: 'en_cola', fecha_entrega: '', cobro_ref: '',
 }
 
 function diasRestantes(fecha) {
@@ -161,6 +161,7 @@ export default function Produccion() {
       cantidad:       p.cantidad || '',
       estado:         p.estado || 'en_cola',
       fecha_entrega:  p.fecha_entrega || '',
+      cobro_ref:      p.cobro_ref || '',
     })
     setModal({ mode: 'editar', id: p.id })
   }
@@ -175,6 +176,7 @@ export default function Produccion() {
       cantidad:       form.cantidad ? Number(form.cantidad) : null,
       estado:         form.estado,
       fecha_entrega:  form.fecha_entrega || null,
+      cobro_ref:      form.cobro_ref.trim() || null,
     }
     const ok = modal.mode === 'crear' ? await crearPedido(datos) : await actualizarPedido(modal.id, datos)
     setSaving(false)
@@ -336,6 +338,9 @@ export default function Produccion() {
               </select>
             </div>
           </div>
+          <Input label="Referencia de cobro (opcional)" value={form.cobro_ref}
+            onChange={e => setForm(f => ({ ...f, cobro_ref: e.target.value }))}
+            placeholder="Ej: COB-0012, COT-005..." />
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
             <Button onClick={guardar} disabled={!form.descripcion.trim() || saving}>

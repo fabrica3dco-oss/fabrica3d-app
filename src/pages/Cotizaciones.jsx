@@ -238,11 +238,19 @@ export default function Cotizaciones() {
     const vence7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const total  = Number(c.total)
 
+    // Lineas provenientes de la cotización (para que los productos sean visibles en la lista)
+    const lineasBase = (c.lineas || []).map(l => ({
+      descripcion: l.descripcion, detalle: l.detalle || null,
+      cantidad: Number(l.cantidad) || 1, precio_unitario: Number(l.precio_unitario) || 0,
+    }))
+    const lineasMitad = lineasBase.map(l => ({ ...l, precio_unitario: l.precio_unitario * 0.5 }))
+
     const cobros = modalidadCobro === 'split'
       ? [
           {
             cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
             concepto: 'Anticipo 50%',
+            lineas: lineasMitad,
             monto: total * 0.5, estado: 'pendiente',
             fecha_emision: hoy,
             notas: `Anticipo para iniciar producción.\nRef: COT-${num}`,
@@ -251,6 +259,7 @@ export default function Cotizaciones() {
           {
             cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
             concepto: 'Saldo 50%',
+            lineas: lineasMitad,
             monto: total * 0.5, estado: 'pendiente',
             fecha_emision: hoy,
             notas: `Saldo contra entrega del pedido.\nRef: COT-${num}`,
@@ -261,6 +270,7 @@ export default function Cotizaciones() {
           {
             cliente_id: c.cliente_id || null, cliente_nombre: c.cliente_nombre,
             concepto: 'Pago total',
+            lineas: lineasBase,
             monto: total, estado: 'pendiente',
             fecha_emision: hoy,
             notas: `Pago total del pedido.\nRef: COT-${num}`,

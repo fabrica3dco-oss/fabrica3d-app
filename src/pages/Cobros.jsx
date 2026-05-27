@@ -43,7 +43,7 @@ const EMPTY = {
   cliente_id: '', cliente_nombre: '', concepto: 'Pago total',
   lineas: [{ ...LINEA_EMPTY }],
   estado: 'pendiente', fecha_emision: '',
-  metodo_pago: '', notas: '',
+  fecha_vencimiento: '', metodo_pago: '', notas: '',
 }
 
 function Skeleton() {
@@ -169,6 +169,7 @@ export default function Cobros() {
       concepto: tipoValido ? c.concepto : 'Pago total',
       lineas: c.lineas?.length ? c.lineas : [{ ...LINEA_EMPTY }],
       estado: c.estado || 'pendiente', fecha_emision: c.fecha_emision || '',
+      fecha_vencimiento: c.fecha_vencimiento || '',
       metodo_pago: c.metodo_pago || '',
       notas: c.notas || '',
     })
@@ -197,16 +198,17 @@ export default function Cobros() {
       cantidad: Number(l.cantidad) || 1, precio_unitario: Number(l.precio_unitario) || 0,
     }))
     const datos = {
-      cliente_id:     clienteId,
-      cliente_nombre: form.cliente_nombre,
-      concepto:       form.concepto,
-      lineas:         lineasValidas,
-      monto:          subtotalLineas,
-      estado:         form.estado,
-      fecha_emision:  form.fecha_emision || null,
-      metodo_pago:    form.metodo_pago   || null,
-      notas:          form.notas         || null,
-      receta_json:    form.receta_json   || null,
+      cliente_id:        clienteId,
+      cliente_nombre:    form.cliente_nombre,
+      concepto:          form.concepto,
+      lineas:            lineasValidas,
+      monto:             subtotalLineas,
+      estado:            form.estado,
+      fecha_emision:     form.fecha_emision     || null,
+      fecha_vencimiento: form.fecha_vencimiento || null,
+      metodo_pago:       form.metodo_pago       || null,
+      notas:             form.notas             || null,
+      receta_json:       form.receta_json       || null,
     }
     let ok
     if (modal.mode === 'crear') ok = await crearCobro(datos)
@@ -233,6 +235,7 @@ export default function Cobros() {
         const cobroNum = cobroPagando.numero ? `COB-${String(cobroPagando.numero).padStart(3, '0')}` : null
         const { error } = await supabase.from('pedidos').insert([{
           descripcion:    receta.producto || cobroPagando.cliente_nombre || 'Pedido 3D',
+          cliente_id:     cobroPagando.cliente_id || null,
           cliente_nombre: cobroPagando.cliente_nombre || null,
           cantidad:       receta.cantidad || 1,
           estado:         'en_cola',
@@ -565,8 +568,12 @@ export default function Cobros() {
             )}
           </div>
 
-          <Input label="Fecha de emisión" type="date" value={form.fecha_emision}
-            onChange={e => setForm(f => ({ ...f, fecha_emision: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Fecha de emisión" type="date" value={form.fecha_emision}
+              onChange={e => setForm(f => ({ ...f, fecha_emision: e.target.value }))} />
+            <Input label="Fecha de vencimiento" type="date" value={form.fecha_vencimiento}
+              onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))} />
+          </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-navy-600">Notas</label>
             <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
