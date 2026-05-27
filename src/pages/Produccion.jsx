@@ -7,6 +7,7 @@ import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { usePedidos } from '../hooks/usePedidos'
+import { useClientes } from '../hooks/useClientes'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
 
@@ -70,7 +71,7 @@ function tiempoEnEstado(pedido) {
 export default function Produccion() {
   const navigate = useNavigate()
   const { pedidos, loading, crearPedido, actualizarPedido, moverEstado, eliminarPedido } = usePedidos()
-  const [clientes,    setClientes]    = useState([])
+  const { clientes } = useClientes()
   const [modal,       setModal]       = useState(null)
   const [confirmId,   setConfirmId]   = useState(null)
   const [invModal,    setInvModal]    = useState(null) // pedido con receta_json al llegar a terminado
@@ -81,9 +82,6 @@ export default function Produccion() {
   const [draggingId,  setDraggingId]  = useState(null)
   const [overCol,     setOverCol]     = useState(null)
 
-  useEffect(() => {
-    supabase.from('clientes').select('id, empresa').order('empresa').then(({ data }) => setClientes(data || []))
-  }, [])
 
   // Inicializar lista editable de materiales cuando se abre el modal de terminado
   useEffect(() => {

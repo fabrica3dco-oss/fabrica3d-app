@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
+import { useRealtimeRefresh } from './useRealtimeRefresh'
 
 export function useLeads() {
   const [leads, setLeads] = useState([])
@@ -18,6 +19,9 @@ export function useLeads() {
   }, [])
 
   useEffect(() => { fetchLeads() }, [fetchLeads])
+
+  // Cambios en leads desde cualquier sección (auto-promociones, ediciones externas)
+  useRealtimeRefresh('leads', fetchLeads)
 
   async function autoCrearCliente(lead) {
     const { data: existing } = await supabase

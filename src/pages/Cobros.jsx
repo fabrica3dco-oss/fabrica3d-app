@@ -8,6 +8,7 @@ import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { useCobros } from '../hooks/useCobros'
+import { useClientes } from '../hooks/useClientes'
 import { generarPdfCobro, previewUrlCobro, blobCobro } from '../utils/pdfCobro'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
@@ -54,7 +55,7 @@ function Skeleton() {
 export default function Cobros() {
   const location = useLocation()
   const { cobros, loading, crearCobro, actualizarCobro, marcarPagado, eliminarCobro } = useCobros()
-  const [clientes,     setClientes]    = useState([])
+  const { clientes } = useClientes()
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroTipo,   setFiltroTipo]   = useState('')
@@ -67,9 +68,6 @@ export default function Cobros() {
   const [saving,       setSaving]      = useState(false)
   const [previewUrl,   setPreviewUrl]  = useState(null)
 
-  useEffect(() => {
-    supabase.from('clientes').select('id, empresa').order('empresa').then(({ data }) => setClientes(data || []))
-  }, [])
 
   // Pre-fill desde Producción (cobro de saldo al terminar pedido)
   useEffect(() => {

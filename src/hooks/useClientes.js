@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
+import { useRealtimeRefresh } from './useRealtimeRefresh'
 
 export function useClientes() {
   const [clientes, setClientes] = useState([])
@@ -18,6 +19,9 @@ export function useClientes() {
   }, [])
 
   useEffect(() => { fetchClientes() }, [fetchClientes])
+
+  // Cambios desde Cotizaciones, Cobros, Leads (auto-crean clientes)
+  useRealtimeRefresh('clientes', fetchClientes)
 
   async function crearCliente(datos) {
     const { error } = await supabase.from('clientes').insert([datos])

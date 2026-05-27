@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, X, ChevronDown, Receipt } from 'lucide-react'
 import ClienteAutocomplete from '../components/ui/ClienteAutocomplete'
@@ -7,6 +7,8 @@ import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { useCotizaciones } from '../hooks/useCotizaciones'
+import { useClientes } from '../hooks/useClientes'
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { generarPdfCotizacion, previewUrlCotizacion, blobCotizacion } from '../utils/pdfCotizacion'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
@@ -46,8 +48,8 @@ function Skeleton() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Cotizaciones() {
   const { cotizaciones, loading, crearCotizacion, actualizarCotizacion, eliminarCotizacion } = useCotizaciones()
+  const { clientes } = useClientes()
   const location = useLocation()
-  const [clientes,     setClientes]     = useState([])
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [modal,        setModal]        = useState(null)
@@ -82,9 +84,7 @@ export default function Cotizaciones() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    supabase.from('clientes').select('*').order('empresa').then(({ data }) => setClientes(data || []))
-    // Qué cotizaciones ya tienen cobros generados
+  const refreshCotConCobros = useCallback(() => {
     supabase.from('cobros').select('notas').ilike('notas', '%Ref: COT-%').then(({ data }) => {
       const nums = new Set()
       data?.forEach(r => {
@@ -94,6 +94,11 @@ export default function Cotizaciones() {
       setCotConCobros(nums)
     })
   }, [])
+
+  useEffect(() => { refreshCotConCobros() }, [refreshCotConCobros])
+
+  // Cuando un cobro es eliminado o creado desde Cobros, refrescar el Set de COTs con cobros
+  useRealtimeRefresh('cobros', refreshCotConCobros)
 
   const filtradas = cotizaciones.filter(c => {
     const ok = c.cliente_nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||

@@ -12,8 +12,6 @@ import CotizacionPublica from './pages/CotizacionPublica'
 import Inventario from './pages/Inventario'
 import Finanzas from './pages/Finanzas'
 import Calculadora from './pages/Calculadora'
-import Redes from './pages/Redes'
-import Equipo from './pages/Equipo'
 
 export default function App() {
   return (
@@ -32,8 +30,6 @@ export default function App() {
           <Route path="inventario" element={<Inventario />} />
           <Route path="finanzas" element={<Finanzas />} />
           <Route path="calculadora" element={<Calculadora />} />
-          <Route path="redes" element={<Redes />} />
-          <Route path="equipo" element={<Equipo />} />
         </Route>
         <Route path="cotizacion/:id" element={<CotizacionPublica />} />
       </Routes>

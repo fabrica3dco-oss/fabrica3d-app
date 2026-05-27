@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Users, TrendingUp, Package,
   FileText, CreditCard, Archive, BarChart2,
-  Share2, UsersRound, ClipboardList, Calculator,
+  ClipboardList, Calculator,
   ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { supabase } from '../../services/supabase'
@@ -44,13 +44,6 @@ const groups = [
       { to: '/inventario',  icon: Archive,    label: 'Inventario',  badge: 'stock' },
       { to: '/finanzas',    icon: BarChart2,  label: 'Finanzas' },
       { to: '/calculadora', icon: Calculator, label: 'Calculadora' },
-    ],
-  },
-  {
-    label: 'Contenido',
-    items: [
-      { to: '/redes',  icon: Share2,     label: 'Redes Sociales' },
-      { to: '/equipo', icon: UsersRound, label: 'Equipo' },
     ],
   },
 ]

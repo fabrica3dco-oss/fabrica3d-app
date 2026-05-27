@@ -32,7 +32,7 @@ export function useDashboard() {
         cobradoRes, cobradoAntRes, porCobrarRes,
         leadsRes, produccionRes,
         stockRes, vencidosRes, proximosRes,
-        movimientosRes, cotizPendRes, pedidosEstadoRes,
+        cobrosMovRes, gastosMovRes, cotizPendRes, pedidosEstadoRes,
       ] = await Promise.all([
         supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_emision', primerMes),
         supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_emision', primerMesAnt).lt('fecha_emision', primerMes),
@@ -42,7 +42,8 @@ export function useDashboard() {
         supabase.from('inventario').select('nombre, stock_actual, stock_minimo').filter('stock_actual', 'lte', 'stock_minimo'),
         supabase.from('cobros').select('id, cliente_nombre, monto, fecha_vencimiento').eq('estado', 'pendiente').lt('fecha_vencimiento', hoy),
         supabase.from('cobros').select('id, cliente_nombre, monto, fecha_vencimiento').eq('estado', 'pendiente').gte('fecha_vencimiento', hoy).order('fecha_vencimiento').limit(5),
-        supabase.from('transacciones').select('descripcion, monto, tipo, fecha').order('created_at', { ascending: false }).limit(5),
+        supabase.from('cobros').select('cliente_nombre, concepto, monto, fecha_emision, created_at').eq('estado', 'pagado').order('created_at', { ascending: false }).limit(6),
+        supabase.from('gastos').select('concepto, monto, fecha, created_at').order('created_at', { ascending: false }).limit(6),
         supabase.from('cotizaciones').select('id, cliente_nombre, fecha_emision').eq('estado', 'enviada').lt('fecha_emision', hace15),
         supabase.from('pedidos').select('estado').not('estado', 'eq', 'entregado'),
       ])
@@ -59,10 +60,25 @@ export function useDashboard() {
         .map(e => ({ id: e, label: ESTADO_LABELS[e], count: estadoCounts[e] || 0 }))
         .filter(e => e.count > 0)
 
+      // Últimos movimientos: mezcla de cobros pagados (ingresos) y gastos (egresos)
+      const ingresos = (cobrosMovRes.data || []).map(c => ({
+        descripcion: c.concepto ? `${c.cliente_nombre || 'Cliente'} · ${c.concepto}` : (c.cliente_nombre || 'Ingreso'),
+        monto: c.monto, tipo: 'ingreso',
+        fecha: c.fecha_emision || c.created_at,
+      }))
+      const egresos = (gastosMovRes.data || []).map(g => ({
+        descripcion: g.concepto || 'Gasto',
+        monto: g.monto, tipo: 'gasto',
+        fecha: g.fecha || g.created_at,
+      }))
+      const movimientos = [...ingresos, ...egresos]
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+        .slice(0, 5)
+
       setMetrics({ cobradoMes, cobradoMesAnterior: cobradoMesAnt, porCobrar, leadsActivos: leadsRes.count || 0, enProduccion: produccionRes.count || 0 })
       setAlertas({ stockBajo: stockRes.data || [], cobrosVencidos: vencidosRes.data || [], cotizPendientes: cotizPendRes.data || [] })
       setCobrosProximos(proximosRes.data || [])
-      setUltimosMovimientos(movimientosRes.data || [])
+      setUltimosMovimientos(movimientos)
       setPedidosPorEstado(pedidosArr)
     } catch (e) {
       console.error(e)
@@ -74,7 +90,7 @@ export function useDashboard() {
   useEffect(() => { fetchAll() }, [fetchAll])
 
   // Actualización en tiempo real: cualquier cambio en estas tablas refresca el dashboard
-  useRealtimeRefresh(['cobros', 'pedidos', 'inventario', 'cotizaciones', 'leads'], fetchAll)
+  useRealtimeRefresh(['cobros', 'pedidos', 'inventario', 'cotizaciones', 'leads', 'gastos'], fetchAll)
 
   return { metrics, alertas, cobrosProximos, ultimosMovimientos, pedidosPorEstado, loading, refetch: fetchAll }
 }
