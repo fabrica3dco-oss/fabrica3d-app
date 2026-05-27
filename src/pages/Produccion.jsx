@@ -203,14 +203,11 @@ export default function Produccion() {
 
   return (
     <div className="p-4 lg:p-6 flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-navy-600">Producción</h1>
-          <p className="text-sm text-[#8a9ab0] mt-0.5">
-            {loading ? '...' : `${activos} pedido${activos !== 1 ? 's' : ''} activo${activos !== 1 ? 's' : ''}`}
-          </p>
-        </div>
-        <Button onClick={() => abrirCrear()}><Plus size={16} /> Nuevo pedido</Button>
+      <div className="mb-4 shrink-0">
+        <h1 className="text-2xl font-bold text-navy-600">Producción</h1>
+        <p className="text-sm text-[#8a9ab0] mt-0.5">
+          {loading ? '...' : `${activos} pedido${activos !== 1 ? 's' : ''} activo${activos !== 1 ? 's' : ''}`}
+        </p>
       </div>
 
       {/* Kanban — scroll horizontal */}
@@ -305,10 +302,21 @@ export default function Produccion() {
             </div>
           )
         })}
+
+        {/* Botón Nueva orden — al final del kanban, alineado con las columnas */}
+        <button
+          onClick={() => abrirCrear()}
+          className="shrink-0 w-60 lg:w-64 h-24 rounded-xl border-2 border-dashed border-[#d0d7e2] hover:border-accent hover:bg-blue-50/50 flex flex-col items-center justify-center gap-1.5 text-[#8a9ab0] hover:text-accent transition-all group self-start mt-0"
+        >
+          <div className="w-8 h-8 rounded-full bg-[#f0f2f5] group-hover:bg-accent/10 flex items-center justify-center transition-colors">
+            <Plus size={16} />
+          </div>
+          <span className="text-xs font-semibold">Nueva orden</span>
+        </button>
       </div>
 
       {/* Modal crear/editar */}
-      <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'crear' ? 'Nuevo pedido' : 'Editar pedido'}>
+      <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'crear' ? 'Nueva orden' : 'Editar orden'}>
         <div className="flex flex-col gap-4">
           <Input label="Descripción *" value={form.descripcion}
             onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
