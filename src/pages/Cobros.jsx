@@ -45,6 +45,7 @@ const EMPTY = {
   lineas: [{ ...LINEA_EMPTY }],
   estado: 'pendiente', fecha_emision: '',
   fecha_vencimiento: '', metodo_pago: '', notas: '',
+  receta_json: null,
 }
 
 function Skeleton() {
@@ -113,6 +114,11 @@ export default function Cobros() {
     window.history.replaceState({}, document.title)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pre-abrir modal desde FAB móvil
+  useEffect(() => {
+    if (location.state?._new) { abrirCrear(); window.history.replaceState({}, document.title) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Marcar vencidos visualmente
   const hoy = new Date().toISOString().split('T')[0]
   const cobrosConEstado = cobros.map(c =>
@@ -139,11 +145,10 @@ export default function Cobros() {
   const totalPendiente = cobrosConEstado
     .filter(c => c.estado === 'pendiente' || c.estado === 'vencido')
     .reduce((s, c) => s + Number(c.monto), 0)
-  const totalPagadoMes = cobrosConEstado.filter(c => {
-    if (c.estado !== 'pagado') return false
-    const d = new Date(c.created_at), now = new Date()
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-  }).reduce((s, c) => s + Number(c.monto), 0)
+  const primerDiaMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+  const totalPagadoMes = cobrosConEstado.filter(c =>
+    c.estado === 'pagado' && c.fecha_emision >= primerDiaMes
+  ).reduce((s, c) => s + Number(c.monto), 0)
   const vencidos = cobrosConEstado.filter(c => c.estado === 'vencido').length
 
   // ── Líneas ─────────────────────────────────────────────────────────────────
@@ -170,6 +175,7 @@ export default function Cobros() {
       fecha_vencimiento: c.fecha_vencimiento || '',
       metodo_pago: c.metodo_pago || '',
       notas: c.notas || '',
+      receta_json: c.receta_json || null,
     })
     setModal({ mode: 'editar', id: c.id })
   }

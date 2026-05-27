@@ -1,5 +1,5 @@
 const cop = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(v) || 0)
-const fechaLarga = (d) => { try { return new Date(d).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) } catch { return d } }
+const fechaLarga = (d) => { try { const ds = typeof d === 'string' && d.length === 10 ? d + 'T12:00:00' : d; return new Date(ds).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) } catch { return d } }
 
 const ESTADO_STYLE = {
   borrador:  'bg-gray-100 text-gray-700',
@@ -28,9 +28,9 @@ export default function CotizacionVista({ cotizacion }) {
         </div>
         <div className="text-right">
           <p className="text-lg font-bold">COTIZACIÓN #{String(cotizacion.numero).padStart(4, '0')}</p>
-          <p className="text-xs text-[#8aa0b8] mt-1">Fecha: {fechaLarga(cotizacion.created_at)}</p>
+          <p className="text-xs text-[#8aa0b8] mt-1">Fecha: {fechaLarga(cotizacion.fecha_emision || cotizacion.created_at)}</p>
           {cotizacion.valida_hasta && (
-            <p className="text-xs text-[#8aa0b8]">Válida hasta: {fechaLarga(cotizacion.valida_hasta + 'T00:00:00')}</p>
+            <p className="text-xs text-[#8aa0b8]">Válida hasta: {fechaLarga(cotizacion.valida_hasta)}</p>
           )}
           {cotizacion.estado && (
             <span className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_STYLE[cotizacion.estado]}`}>

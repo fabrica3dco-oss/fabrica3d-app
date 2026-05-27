@@ -113,7 +113,9 @@ async function buildDoc(cotizacion, cliente) {
   const total     = subtotal - descuento
   const anticipo  = total * 0.5
   const num       = String(cotizacion.numero).padStart(3, '0')
-  const año       = new Date(cotizacion.created_at).getFullYear()
+  const año       = cotizacion.fecha_emision
+    ? new Date(cotizacion.fecha_emision + 'T00:00:00').getFullYear()
+    : new Date(cotizacion.created_at).getFullYear()
 
   // ── HEADER: fondo brand navy uniforme ────────────────────────────────────────
   doc.setFillColor(...NAVY)

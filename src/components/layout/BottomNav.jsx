@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BarChart2, Plus, X, FileEdit, CreditCard, TrendingUp, Receipt } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BarChart2, Plus, X, FileEdit, CreditCard, TrendingUp } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 const tabs = [
@@ -12,10 +12,9 @@ const tabs = [
 ]
 
 const fabActions = [
-  { icon: FileEdit, label: 'Nueva cotización', to: '/cotizaciones?new=1' },
-  { icon: CreditCard, label: 'Nueva cuenta de cobro', to: '/cobros?new=1' },
-  { icon: TrendingUp, label: 'Nuevo lead', to: '/leads?new=1' },
-  { icon: Receipt, label: 'Registrar gasto', to: '/finanzas?gasto=1' },
+  { icon: FileEdit, label: 'Nueva cotización', to: '/cotizaciones', state: { _new: true } },
+  { icon: CreditCard, label: 'Nueva cuenta de cobro', to: '/cobros', state: { _new: true } },
+  { icon: TrendingUp, label: 'Nuevo lead', to: '/leads', state: { _new: true } },
 ]
 
 export default function BottomNav() {
@@ -33,7 +32,7 @@ export default function BottomNav() {
           {fabActions.map(action => (
             <button
               key={action.label}
-              onClick={() => { setFabOpen(false); navigate(action.to) }}
+              onClick={() => { setFabOpen(false); navigate(action.to, action.state ? { state: action.state } : {}) }}
               className="flex items-center gap-3 bg-white border border-[#e2e6ea] rounded-xl px-4 py-3 shadow-sm text-sm font-medium text-navy-600 hover:bg-[#f8f9fb] transition-colors min-w-[200px]"
             >
               <action.icon size={16} className="text-accent" />

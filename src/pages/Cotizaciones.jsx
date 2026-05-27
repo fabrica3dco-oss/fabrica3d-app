@@ -37,6 +37,7 @@ const FORM_EMPTY  = {
   cliente_id: '', cliente_nombre: '',
   lineas: [{ ...LINEA_EMPTY }],
   descuento: '', estado: 'borrador',
+  fecha_emision: '',
   valida_hasta: '', tiempo_entrega: '', notas: DEFAULT_NOTAS,
   receta_json: null,
 }
@@ -84,6 +85,11 @@ export default function Cotizaciones() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pre-abrir modal desde FAB móvil
+  useEffect(() => {
+    if (location.state?._new) { abrirCrear(); window.history.replaceState({}, document.title) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const refreshCotConCobros = useCallback(() => {
     supabase.from('cobros').select('notas').ilike('notas', '%Ref: COT-%').then(({ data }) => {
       const nums = new Set()
@@ -124,7 +130,12 @@ export default function Cotizaciones() {
   const totalCalc = subtotal - Number(form.descuento || 0)
 
   // ── Modales ────────────────────────────────────────────────────────────────
-  function abrirCrear() { setForm(FORM_EMPTY); setClienteObj(null); setModal({ mode: 'crear' }) }
+  function abrirCrear() {
+    const hoy = new Date().toISOString().split('T')[0]
+    setForm({ ...FORM_EMPTY, fecha_emision: hoy })
+    setClienteObj(null)
+    setModal({ mode: 'crear' })
+  }
 
   function abrirEditar(c) {
     setForm({
@@ -133,9 +144,11 @@ export default function Cotizaciones() {
       lineas:         c.lineas?.length ? c.lineas.map(l => ({ descripcion: l.descripcion||'', detalle: l.detalle||'', cantidad: l.cantidad||1, precio_unitario: l.precio_unitario||'' })) : [{ ...LINEA_EMPTY }],
       descuento:      c.descuento || '',
       estado:         c.estado || 'borrador',
+      fecha_emision:  c.fecha_emision || '',
       valida_hasta:   c.valida_hasta || '',
       tiempo_entrega: c.tiempo_entrega || '',
       notas:          c.notas || DEFAULT_NOTAS,
+      receta_json:    c.receta_json || null,
     })
     setClienteObj(clientes.find(cl => cl.id === c.cliente_id) || null)
     setModal({ mode: 'editar', id: c.id })
@@ -164,6 +177,7 @@ export default function Cotizaciones() {
       descuento:      Number(form.descuento) || 0,
       total:          totalCalc,
       estado:         form.estado,
+      fecha_emision:  form.fecha_emision || null,
       valida_hasta:   form.valida_hasta || null,
       tiempo_entrega: form.tiempo_entrega || null,
       notas:          form.notas || null,
@@ -552,10 +566,9 @@ export default function Cotizaciones() {
 
           {/* Fechas + Tiempo entrega */}
           <div className="grid grid-cols-3 gap-3">
+            <Input label="Fecha de emisión" type="date" value={form.fecha_emision} onChange={e => setForm(f => ({ ...f, fecha_emision: e.target.value }))} />
             <Input label="Válida hasta" type="date" value={form.valida_hasta} onChange={e => setForm(f => ({ ...f, valida_hasta: e.target.value }))} />
-            <div className="col-span-2">
-              <Input label="Tiempo de entrega" value={form.tiempo_entrega} onChange={e => setForm(f => ({ ...f, tiempo_entrega: e.target.value }))} placeholder="Ej: 5-7 días hábiles" />
-            </div>
+            <Input label="Tiempo de entrega" value={form.tiempo_entrega} onChange={e => setForm(f => ({ ...f, tiempo_entrega: e.target.value }))} placeholder="Ej: 5-7 días hábiles" />
           </div>
 
           {/* Condiciones / Notas */}

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Plus, Phone, Mail, DollarSign, Pencil, Trash2, GripVertical } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -29,6 +30,7 @@ const cop = (v) => v ? new Intl.NumberFormat('es-CO', { style: 'currency', curre
 
 export default function Leads() {
   const { leads, loading, crearLead, actualizarLead, moverEtapa, eliminarLead } = useLeads()
+  const location = useLocation()
   const [modal, setModal]       = useState(null)
   const [confirmId, setConfirmId] = useState(null)
   const [form, setForm]         = useState(EMPTY)
@@ -46,6 +48,11 @@ export default function Leads() {
     setForm({ ...EMPTY, etapa: etapaId })
     setModal({ mode: 'crear' })
   }
+
+  // Pre-abrir modal desde FAB móvil
+  useEffect(() => {
+    if (location.state?._new) { abrirCrear(); window.history.replaceState({}, document.title) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function abrirEditar(lead) {
     setForm({

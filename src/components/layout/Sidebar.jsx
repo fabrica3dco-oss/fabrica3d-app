@@ -1,22 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Users, TrendingUp, Package,
   FileText, CreditCard, Archive, BarChart2,
   ClipboardList, Calculator,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, LogOut
 } from 'lucide-react'
 import { supabase } from '../../services/supabase'
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh'
 
-// Badge de stock bajo
+// Badge de stock bajo con realtime
 function useStockBajoCount() {
   const [count, setCount] = useState(0)
-  useEffect(() => {
+  const fetch = useCallback(() => {
     supabase.from('inventario').select('id, stock_actual, stock_minimo')
       .then(({ data }) => {
         setCount((data || []).filter(i => Number(i.stock_actual) <= Number(i.stock_minimo)).length)
       })
   }, [])
+  useEffect(() => { fetch() }, [fetch])
+  useRealtimeRefresh('inventario', fetch)
   return count
 }
 
@@ -140,8 +143,15 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Botón colapsar / expandir */}
-      <div className={`mt-4 px-2 flex ${collapsed ? 'justify-center' : 'justify-end'}`}>
+      {/* Footer: cerrar sesión + colapsar */}
+      <div className={`mt-4 px-2 flex items-center ${collapsed ? 'flex-col gap-1' : 'justify-between'}`}>
+        <button
+          onClick={() => supabase.auth.signOut()}
+          title="Cerrar sesión"
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+        >
+          <LogOut size={15} />
+        </button>
         <button
           onClick={() => setCollapsed(c => !c)}
           title={collapsed ? 'Expandir menú' : 'Colapsar menú'}

@@ -108,7 +108,7 @@ export default function Produccion() {
         ...(pedido.receta_json?.accesorios_usados || []),
         ...(pedido.receta_json?.acabados_usados   || []),
       ].filter(i => i.cantidad_total > 0)
-      if (items.length > 0 || pedido.cobro_ref) setInvModal(pedido)
+      if (items.length > 0 || pedido.cobro_ref || pedido.receta_json?.precio_total > 0) setInvModal(pedido)
     }
   }
 
@@ -414,16 +414,21 @@ export default function Produccion() {
             </div>
 
             {/* Botones fijos al pie */}
-            <div className="px-5 pt-3 pb-5 border-t border-[#e2e6ea] shrink-0 flex gap-2">
+            <div className="px-5 pt-3 pb-5 border-t border-[#e2e6ea] shrink-0 flex flex-col gap-2">
               {invItems.length > 0 ? (
-                <>
+                <div className="flex gap-2">
                   <Button variant="secondary" className="flex-1" onClick={() => setInvModal(null)} disabled={deduciendo}>Omitir</Button>
                   <Button className="flex-1" onClick={deducirInventario} disabled={deduciendo}>
                     {deduciendo ? 'Descontando...' : 'Descontar inventario'}
                   </Button>
-                </>
+                </div>
               ) : (
-                <Button className="flex-1" onClick={() => setInvModal(null)}>Cerrar</Button>
+                <Button className="w-full" onClick={() => setInvModal(null)}>Cerrar</Button>
+              )}
+              {invModal?.receta_json?.precio_total > 0 && (
+                <Button variant="secondary" className="w-full" onClick={() => irACobrarSaldo(invModal)}>
+                  💰 Cobrar saldo al cliente
+                </Button>
               )}
             </div>
           </div>

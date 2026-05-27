@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { BarChart2, Loader2, ChevronDown, ChevronRight, Plus, Edit2, X } from 'lucide-react'
 import Card from '../components/ui/Card'
 import ClienteAutocomplete from '../components/ui/ClienteAutocomplete'
 import { useFinanzas } from '../hooks/useFinanzas'
+import { useClientes } from '../hooks/useClientes'
 import { supabase } from '../services/supabase'
 
 const EMPTY_COBRO = {
@@ -85,16 +86,11 @@ export default function Finanzas() {
   const curYear = new Date().getFullYear()
   const ANIOS   = [curYear - 2, curYear - 1, curYear, curYear + 1]
 
+  const { clientes } = useClientes()
   const [granul,     setGranul]     = useState('mes')
   const [modalV,     setModalV]     = useState(null)   // { mode: 'crear' | 'editar', id? }
   const [formV,      setFormV]      = useState(EMPTY_COBRO)
   const [savingV,    setSavingV]    = useState(false)
-  const [clientes,   setClientes]   = useState([])
-
-  useEffect(() => {
-    supabase.from('clientes').select('id, empresa').order('empresa')
-      .then(({ data }) => setClientes(data || []))
-  }, [])
 
   // ── Datos del periodo ────────────────────────────────────────────────────
   const periodoCobros   = granul === 'mes' ? cobrosMes : cobros
@@ -174,10 +170,7 @@ export default function Finanzas() {
       } else {
         const { data: nuevo } = await supabase
           .from('clientes').insert([{ empresa: nombreCliente }]).select('id').single()
-        if (nuevo) {
-          clienteId = nuevo.id
-          setClientes(prev => [...prev, { id: nuevo.id, empresa: nombreCliente }].sort((a, b) => a.empresa.localeCompare(b.empresa)))
-        }
+        if (nuevo) clienteId = nuevo.id
       }
     }
 
