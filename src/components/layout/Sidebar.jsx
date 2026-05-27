@@ -88,7 +88,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`hidden lg:flex flex-col min-h-screen bg-[#142236] py-4 shrink-0 transition-all duration-200 overflow-hidden ${collapsed ? 'w-16' : 'w-56'}`}
+      className={`hidden lg:flex flex-col h-screen bg-[#142236] py-4 shrink-0 transition-all duration-200 overflow-hidden ${collapsed ? 'w-16' : 'w-56'}`}
     >
       {/* Logo / cabecera */}
       <div className={`mb-6 flex items-center ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
