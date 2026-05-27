@@ -54,7 +54,7 @@ const groups = [
 // Solo el ícono geométrico (primeros 3 paths del logo)
 function LogoMark() {
   return (
-    <svg width="26" height="32" viewBox="0 0 261 326" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="30" height="37" viewBox="0 0 261 326" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M130.042 0L0.0370991 64.6518H0V260.175L65.0209 292.538V97.0151L65.058 96.9778L195.026 32.3259L130.042 0Z" fill="white"/>
       <path d="M130.568 259.916V325.594L196.616 292.774L261.136 260.665V195.026L130.568 259.916Z" fill="white"/>
       <path d="M130.568 129.367V195.026L196.616 162.178L261.136 130.116V64.4575L130.568 129.367Z" fill="white"/>
@@ -65,7 +65,7 @@ function LogoMark() {
 // Logo completo (ícono + texto)
 function LogoFull() {
   return (
-    <svg width="118" height="28" viewBox="0 0 1347 326" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="138" height="33" viewBox="0 0 1347 326" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M130.042 0L0.0370991 64.6518H0V260.175L65.0209 292.538V97.0151L65.058 96.9778L195.026 32.3259L130.042 0Z" fill="white"/>
       <path d="M130.568 259.916V325.594L196.616 292.774L261.136 260.665V195.026L130.568 259.916Z" fill="white"/>
       <path d="M130.568 129.367V195.026L196.616 162.178L261.136 130.116V64.4575L130.568 129.367Z" fill="white"/>
@@ -144,20 +144,22 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer: cerrar sesión + colapsar */}
-      <div className={`mt-4 px-2 flex items-center ${collapsed ? 'flex-col gap-1' : 'justify-between'}`}>
-        <button
-          onClick={() => supabase.auth.signOut()}
-          title="Cerrar sesión"
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-        >
-          <LogOut size={15} />
-        </button>
+      <div className="mt-2 px-2 pt-3 border-t border-white/[0.08] flex flex-col gap-0.5">
         <button
           onClick={() => setCollapsed(c => !c)}
           title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+          className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] transition-colors w-full ${collapsed ? 'justify-center' : ''}`}
         >
-          {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {!collapsed && <span className="text-sm font-medium">Colapsar</span>}
+        </button>
+        <button
+          onClick={() => supabase.auth.signOut()}
+          title="Cerrar sesión"
+          className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-white/50 hover:text-red-400 hover:bg-red-500/[0.10] transition-colors w-full ${collapsed ? 'justify-center' : ''}`}
+        >
+          <LogOut size={16} />
+          {!collapsed && <span className="text-sm font-medium">Salir</span>}
         </button>
       </div>
     </aside>
