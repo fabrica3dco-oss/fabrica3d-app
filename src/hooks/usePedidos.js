@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
+import { useRealtimeRefresh } from './useRealtimeRefresh'
 
 export function usePedidos() {
   const [pedidos, setPedidos] = useState([])
@@ -18,6 +19,9 @@ export function usePedidos() {
   }, [])
 
   useEffect(() => { fetchPedidos() }, [fetchPedidos])
+
+  // Cobros auto-crea pedidos; Producción los mueve de estado directo en Supabase
+  useRealtimeRefresh('pedidos', fetchPedidos)
 
   async function crearPedido(datos) {
     const { error } = await supabase.from('pedidos').insert([datos])

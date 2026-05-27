@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
+import { useRealtimeRefresh } from './useRealtimeRefresh'
 
 export function useInventario() {
   const [items,      setItems]      = useState([])
@@ -31,6 +32,9 @@ export function useInventario() {
     fetchCategorias()
     fetchItems()
   }, [fetchCategorias, fetchItems])
+
+  // Producción descuenta stock directo a Supabase sin pasar por este hook
+  useRealtimeRefresh('inventario', fetchItems)
 
   // ── Items CRUD ─────────────────────────────────────────────────────────────
   async function crearItem(datos) {

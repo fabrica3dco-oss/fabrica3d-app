@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
+import { useRealtimeRefresh } from './useRealtimeRefresh'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -50,6 +51,13 @@ export function useFinanzas() {
     setLoading(true)
     Promise.all([fetchGastos(), fetchCobros()]).finally(() => setLoading(false))
   }, [fetchGastos, fetchCobros])
+
+  // Cobros editados desde Cobros/Cotizaciones, gastos editados externamente
+  const refetchDetail = useCallback(() => {
+    setLoading(true)
+    Promise.all([fetchGastos(), fetchCobros()]).finally(() => setLoading(false))
+  }, [fetchGastos, fetchCobros])
+  useRealtimeRefresh(['cobros', 'gastos'], refetchDetail)
 
   // ── Resumen tab (rango personalizado) ─────────────────────────────────────
   const [gastosRes,  setGastosRes]  = useState([])
@@ -161,6 +169,18 @@ export function useFinanzas() {
   const totalIngresos = useMemo(() => cobrosMes.reduce((s, c) => s + Number(c.monto), 0),         [cobrosMes])
   const utilidad      = totalIngresos - totalGastos
 
+  // ── CRUD cobros ───────────────────────────────────────────────────────────
+  async function crearCobro(datos) {
+    const { error } = await supabase.from('cobros').insert([{ ...datos, estado: 'pagado' }])
+    if (error) { toast.error('Error al registrar venta'); return false }
+    toast.success('Venta registrada'); fetchCobros(); return true
+  }
+  async function actualizarCobro(id, datos) {
+    const { error } = await supabase.from('cobros').update(datos).eq('id', id)
+    if (error) { toast.error('Error al actualizar'); return false }
+    toast.success('Venta actualizada'); fetchCobros(); return true
+  }
+
   // ── CRUD gastos ───────────────────────────────────────────────────────────
   async function crearGasto(datos) {
     const { error } = await supabase.from('gastos').insert([datos])
@@ -187,6 +207,7 @@ export function useFinanzas() {
     resFiltro, aplicarFiltroResumen, aplicarFiltroDirecto,
     consolidado, totalPeriodo, splitData,
     saldos, loadingSald, guardarSaldo, eliminarSaldo,
+    crearCobro, actualizarCobro,
     crearGasto, actualizarGasto, eliminarGasto,
   }
 }

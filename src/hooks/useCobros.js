@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
+import { useRealtimeRefresh } from './useRealtimeRefresh'
 
 export function useCobros() {
   const [cobros, setCobros] = useState([])
@@ -18,6 +19,9 @@ export function useCobros() {
   }, [])
 
   useEffect(() => { fetchCobros() }, [fetchCobros])
+
+  // Cambios en cobros desde cualquier otra sección (Cotizaciones, Finanzas, Producción)
+  useRealtimeRefresh('cobros', fetchCobros)
 
   async function crearCobro(datos) {
     const { error } = await supabase.from('cobros').insert([datos])
@@ -54,5 +58,5 @@ export function useCobros() {
     return true
   }
 
-  return { cobros, loading, crearCobro, actualizarCobro, marcarPagado, eliminarCobro }
+  return { cobros, loading, crearCobro, actualizarCobro, marcarPagado, eliminarCobro, refetch: fetchCobros }
 }

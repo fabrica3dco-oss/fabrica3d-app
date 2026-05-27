@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
+import { useRealtimeRefresh } from './useRealtimeRefresh'
 
 export function useCotizaciones() {
   const [cotizaciones, setCotizaciones] = useState([])
@@ -18,6 +19,9 @@ export function useCotizaciones() {
   }, [])
 
   useEffect(() => { fetchCotizaciones() }, [fetchCotizaciones])
+
+  // Cambios desde cualquier otra sección
+  useRealtimeRefresh('cotizaciones', fetchCotizaciones)
 
   async function crearCotizacion(datos) {
     const { error } = await supabase.from('cotizaciones').insert([datos])
