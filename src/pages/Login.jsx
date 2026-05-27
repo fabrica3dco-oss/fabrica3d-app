@@ -4,7 +4,7 @@ import { supabase } from '../services/supabase'
 
 function LogoFull() {
   return (
-    <svg width="140" height="34" viewBox="0 0 1347 326" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="200" height="48" viewBox="0 0 1347 326" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M130.042 0L0.0370991 64.6518H0V260.175L65.0209 292.538V97.0151L65.058 96.9778L195.026 32.3259L130.042 0Z" fill="white"/>
       <path d="M130.568 259.916V325.594L196.616 292.774L261.136 260.665V195.026L130.568 259.916Z" fill="white"/>
       <path d="M130.568 129.367V195.026L196.616 162.178L261.136 130.116V64.4575L130.568 129.367Z" fill="white"/>
@@ -52,7 +52,6 @@ export default function Login() {
       >
         <div className="mb-1">
           <h1 className="text-white text-lg font-bold">Iniciar sesión</h1>
-          <p className="text-white/40 text-sm mt-0.5">Acceso privado · Fabrica3D</p>
         </div>
 
         {/* Email */}
