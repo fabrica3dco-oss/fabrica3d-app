@@ -65,6 +65,7 @@ export default function Cobros() {
   const [pagoModal,    setPagoModal]   = useState(null)
   const [metodoPago,   setMetodoPago]  = useState('')
   const [revertModal,  setRevertModal] = useState(null)
+  const [linkedPedido, setLinkedPedido] = useState(null)  // orden de producción vinculada al cobro
   const [form,         setForm]        = useState(EMPTY)
   const [saving,       setSaving]      = useState(false)
   const [previewUrl,   setPreviewUrl]  = useState(null)
@@ -118,6 +119,17 @@ export default function Cobros() {
   useEffect(() => {
     if (location.state?._new) { abrirCrear(); window.history.replaceState({}, document.title) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Al abrir el modal de reversión, buscar la orden de producción vinculada
+  useEffect(() => {
+    if (!revertModal) { setLinkedPedido(null); return }
+    const cobroRef = `COB-${String(revertModal.numero).padStart(3, '0')}`
+    supabase.from('pedidos')
+      .select('id, descripcion, estado, cliente_nombre')
+      .eq('cobro_ref', cobroRef)
+      .limit(1)
+      .then(({ data }) => setLinkedPedido(data?.[0] || null))
+  }, [revertModal])
 
   // Marcar vencidos visualmente
   const hoy = new Date().toISOString().split('T')[0]
@@ -255,6 +267,10 @@ export default function Cobros() {
 
   async function revertirAPendiente(c) {
     await actualizarCobro(c.id, { estado: 'pendiente', metodo_pago: null })
+    if (linkedPedido) {
+      const { error } = await supabase.from('pedidos').delete().eq('id', linkedPedido.id)
+      if (!error) toast.success('Orden eliminada de Producción ✓')
+    }
   }
 
   // ── PDF helpers ────────────────────────────────────────────────────────────
@@ -636,9 +652,45 @@ export default function Cobros() {
         <p className="text-sm text-navy-600 mb-1">
           ¿Seguro que quieres marcar esta cuenta como <strong>pendiente</strong> de nuevo?
         </p>
-        <p className="text-xs text-[#8a9ab0] mb-5">
+        <p className="text-xs text-[#8a9ab0] mb-3">
           {revertModal?.cliente_nombre} — {cop(revertModal?.monto)}
         </p>
+
+        {/* Aviso sobre la orden de producción vinculada */}
+        {linkedPedido ? (
+          (() => {
+            const enCola = linkedPedido.estado === 'en_cola'
+            const estadoLabels = {
+              en_cola: 'En cola', diseno_stl: 'Diseño STL', imprimiendo: 'Impresión',
+              acabado: 'Acabado final', terminado: 'Terminado', entregado: 'Entregado',
+            }
+            return (
+              <div className={`rounded-xl p-3 mb-4 text-xs border ${
+                enCola
+                  ? 'bg-amber-50 border-amber-200 text-amber-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}>
+                <p className="font-semibold mb-1">
+                  {enCola ? '⚠️' : '🚨'} También se eliminará la orden de Producción:
+                </p>
+                <p className="font-medium">{linkedPedido.descripcion}</p>
+                <p className="mt-0.5 opacity-80">
+                  Estado actual: <strong>{estadoLabels[linkedPedido.estado] || linkedPedido.estado}</strong>
+                </p>
+                {!enCola && (
+                  <p className="mt-1.5 font-semibold">
+                    Esta orden ya está en proceso. ¿Seguro que quieres eliminarla?
+                  </p>
+                )}
+              </div>
+            )
+          })()
+        ) : (
+          <div className="rounded-xl p-3 mb-4 bg-[#f8f9fb] border border-[#e2e6ea] text-xs text-[#8a9ab0]">
+            No se encontró ninguna orden de producción vinculada a este cobro.
+          </div>
+        )}
+
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setRevertModal(null)}>Cancelar</Button>
           <Button variant="danger" disabled={saving} onClick={async () => {
@@ -647,7 +699,7 @@ export default function Cobros() {
             setSaving(false)
             setRevertModal(null)
           }}>
-            {saving ? 'Revirtiendo...' : 'Sí, revertir'}
+            {saving ? 'Revirtiendo...' : linkedPedido ? 'Revertir y eliminar orden' : 'Sí, revertir'}
           </Button>
         </div>
       </Modal>
