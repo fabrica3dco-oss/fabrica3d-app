@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Users, Plus, Search, Pencil, Trash2, Phone, Mail, TrendingUp, DollarSign, FileText, X, Loader2 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -30,8 +30,8 @@ function HistorialModal({ cliente, onClose }) {
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useState(() => {
-    async function fetch() {
+  useEffect(() => {
+    async function fetchHistorial() {
       const nombre = cliente.empresa
       const [cotRes, cobRes] = await Promise.all([
         supabase.from('cotizaciones').select('numero, total, estado, fecha_emision').ilike('cliente_nombre', nombre).order('numero', { ascending: false }),
@@ -48,8 +48,8 @@ function HistorialModal({ cliente, onClose }) {
       setData({ cots, cobros, totalComprado, pagados, pendientes, convRate })
       setLoading(false)
     }
-    fetch()
-  })
+    fetchHistorial()
+  }, [cliente.empresa])
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"

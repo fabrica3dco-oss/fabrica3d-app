@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, Calendar, User, Hash, ClipboardList } from 'lucide-react'
+import { Search, Calendar, User, Hash, ClipboardList, Link2 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import { usePedidos } from '../hooks/usePedidos'
@@ -114,6 +114,7 @@ export default function Pedidos() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Descripción</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Cliente</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Estado</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Ref. Cobro</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Entrega</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[#8a9ab0] uppercase tracking-wide">Creado</th>
                   </tr>
@@ -133,6 +134,12 @@ export default function Pedidos() {
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={BADGE_COLOR[p.estado] || 'gray'}>{LABEL[p.estado] || p.estado}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {p.cobro_ref
+                          ? <span className="flex items-center gap-1 text-[#8a9ab0]"><Link2 size={11} />{p.cobro_ref}</span>
+                          : <span className="text-[#c0cad6]">—</span>
+                        }
                       </td>
                       <td className="px-4 py-3 text-[#8a9ab0]">
                         {p.fecha_entrega
@@ -158,6 +165,7 @@ export default function Pedidos() {
                     <Badge variant={BADGE_COLOR[p.estado] || 'gray'}>{LABEL[p.estado] || p.estado}</Badge>
                   </div>
                   {p.cliente_nombre && <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-0.5"><User size={10} />{p.cliente_nombre}</p>}
+                  {p.cobro_ref && <p className="text-xs text-[#8a9ab0] flex items-center gap-1 mb-0.5"><Link2 size={10} />{p.cobro_ref}</p>}
                   {p.fecha_entrega && <p className="text-xs text-[#8a9ab0] flex items-center gap-1"><Calendar size={10} />{new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</p>}
                 </div>
               ))}

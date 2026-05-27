@@ -23,7 +23,7 @@ const FUENTES = [
   { id: 'otro',       label: 'Otro' },
 ]
 
-const EMPTY = { empresa: '', contacto: '', whatsapp: '', email: '', valor_estimado: '', fuente: '', etapa: 'prospecto', notas: '' }
+const EMPTY = { empresa: '', contacto: '', cargo: '', whatsapp: '', email: '', valor_estimado: '', fuente: '', etapa: 'prospecto', notas: '' }
 
 const cop = (v) => v ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v) : null
 
@@ -51,6 +51,7 @@ export default function Leads() {
     setForm({
       empresa:        lead.empresa || '',
       contacto:       lead.contacto || '',
+      cargo:          lead.cargo || '',
       whatsapp:       lead.whatsapp || '',
       email:          lead.email || '',
       valor_estimado: lead.valor_estimado || '',
@@ -237,13 +238,19 @@ export default function Leads() {
               placeholder="Nombre del contacto"
             />
             <Input
+              label="Cargo"
+              value={form.cargo}
+              onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))}
+              placeholder="Gerente, Compras..."
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
               label="WhatsApp"
               value={form.whatsapp}
               onChange={e => setForm(f => ({ ...f, whatsapp: e.target.value }))}
               placeholder="+57 300 000 0000"
             />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <Input
               label="Email"
               type="email"
@@ -251,14 +258,14 @@ export default function Leads() {
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               placeholder="correo@ejemplo.com"
             />
-            <Input
-              label="Valor estimado (COP)"
-              type="number"
-              value={form.valor_estimado}
-              onChange={e => setForm(f => ({ ...f, valor_estimado: e.target.value }))}
-              placeholder="500000"
-            />
           </div>
+          <Input
+            label="Valor estimado (COP)"
+            type="number"
+            value={form.valor_estimado}
+            onChange={e => setForm(f => ({ ...f, valor_estimado: e.target.value }))}
+            placeholder="500000"
+          />
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Etapa</label>

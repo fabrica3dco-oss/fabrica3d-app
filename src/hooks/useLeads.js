@@ -19,6 +19,23 @@ export function useLeads() {
 
   useEffect(() => { fetchLeads() }, [fetchLeads])
 
+  async function autoCrearCliente(lead) {
+    const { data: existing } = await supabase
+      .from('clientes').select('id').ilike('empresa', lead.empresa).maybeSingle()
+    if (!existing) {
+      await supabase.from('clientes').insert([{
+        empresa:  lead.empresa,
+        contacto: lead.contacto || null,
+        cargo:    lead.cargo    || null,
+        whatsapp: lead.whatsapp || null,
+        email:    lead.email    || null,
+        estado:   'activo',
+        notas:    lead.notas ? `[Lead convertido] ${lead.notas}` : null,
+      }])
+      toast.success(`✓ ${lead.empresa} agregado a Clientes`)
+    }
+  }
+
   async function crearLead(datos) {
     const { error } = await supabase.from('leads').insert([datos])
     if (error) { toast.error('Error al crear lead'); return false }
@@ -30,6 +47,10 @@ export function useLeads() {
   async function actualizarLead(id, datos) {
     const { error } = await supabase.from('leads').update(datos).eq('id', id)
     if (error) { toast.error('Error al actualizar'); return false }
+    if (datos.etapa === 'cerrado_ganado') {
+      const lead = leads.find(l => l.id === id)
+      if (lead) await autoCrearCliente({ ...lead, ...datos })
+    }
     fetchLeads()
     return true
   }
@@ -37,7 +58,13 @@ export function useLeads() {
   async function moverEtapa(id, etapa) {
     const { error } = await supabase.from('leads').update({ etapa }).eq('id', id)
     if (error) toast.error('Error al mover lead')
-    else setLeads(prev => prev.map(l => l.id === id ? { ...l, etapa } : l))
+    else {
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, etapa } : l))
+      if (etapa === 'cerrado_ganado') {
+        const lead = leads.find(l => l.id === id)
+        if (lead) await autoCrearCliente(lead)
+      }
+    }
   }
 
   async function eliminarLead(id) {
