@@ -1,10 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { BarChart2, Loader2, ChevronDown, ChevronRight, Plus, Edit2, X } from 'lucide-react'
 import Card from '../components/ui/Card'
+import ClienteAutocomplete from '../components/ui/ClienteAutocomplete'
 import { useFinanzas } from '../hooks/useFinanzas'
+import { supabase } from '../services/supabase'
 
 const EMPTY_COBRO = {
   fecha_emision: new Date().toISOString().split('T')[0],
+  cliente_id: '',
   cliente_nombre: '',
   concepto: 'Pago total',
   producto: '',
@@ -86,6 +89,12 @@ export default function Finanzas() {
   const [modalV,     setModalV]     = useState(null)   // { mode: 'crear' | 'editar', id? }
   const [formV,      setFormV]      = useState(EMPTY_COBRO)
   const [savingV,    setSavingV]    = useState(false)
+  const [clientes,   setClientes]   = useState([])
+
+  useEffect(() => {
+    supabase.from('clientes').select('id, empresa').order('empresa')
+      .then(({ data }) => setClientes(data || []))
+  }, [])
 
   // ── Datos del periodo ────────────────────────────────────────────────────
   const periodoCobros   = granul === 'mes' ? cobrosMes : cobros
@@ -137,14 +146,15 @@ export default function Finanzas() {
   function abrirEditar(c) {
     const rj = c.receta_json || {}
     setFormV({
-      fecha_emision: c.fecha_emision || '',
+      fecha_emision:  c.fecha_emision || '',
+      cliente_id:     c.cliente_id || '',
       cliente_nombre: c.cliente_nombre || '',
-      concepto: c.concepto || 'Pago total',
-      producto: rj.producto || '',
-      cantidad: rj.cantidad ?? 1,
-      monto: c.monto ?? '',
-      costo_total: rj.costo_total != null ? rj.costo_total : '',
-      pct_mayor: rj.pct_mayor ?? 75,
+      concepto:       c.concepto || 'Pago total',
+      producto:       rj.producto || '',
+      cantidad:       rj.cantidad ?? 1,
+      monto:          c.monto ?? '',
+      costo_total:    rj.costo_total != null ? rj.costo_total : '',
+      pct_mayor:      rj.pct_mayor ?? 75,
     })
     setModalV({ mode: 'editar', id: c.id })
   }
@@ -152,27 +162,47 @@ export default function Finanzas() {
     e.preventDefault()
     if (!formV.monto || Number(formV.monto) <= 0) return
     setSavingV(true)
-    const monto   = Number(formV.monto)
-    const hasCost = formV.costo_total !== '' && formV.costo_total !== null
-    const costo   = hasCost ? Number(formV.costo_total) : null
-    const pctM    = Number(formV.pct_mayor)
-    const pctm    = 100 - pctM
+
+    // ── Auto-crear cliente si no existe ──────────────────────────────────────
+    let clienteId = formV.cliente_id || null
+    const nombreCliente = formV.cliente_nombre.trim()
+    if (nombreCliente && !clienteId) {
+      const { data: existe } = await supabase
+        .from('clientes').select('id').ilike('empresa', nombreCliente).limit(1)
+      if (existe?.length) {
+        clienteId = existe[0].id
+      } else {
+        const { data: nuevo } = await supabase
+          .from('clientes').insert([{ empresa: nombreCliente }]).select('id').single()
+        if (nuevo) {
+          clienteId = nuevo.id
+          setClientes(prev => [...prev, { id: nuevo.id, empresa: nombreCliente }].sort((a, b) => a.empresa.localeCompare(b.empresa)))
+        }
+      }
+    }
+
+    const monto    = Number(formV.monto)
+    const hasCost  = formV.costo_total !== '' && formV.costo_total !== null
+    const costo    = hasCost ? Number(formV.costo_total) : null
+    const pctM     = Number(formV.pct_mayor)
+    const pctm     = 100 - pctM
     const utilidad = costo !== null ? monto - costo : null
     const parteM   = utilidad !== null ? Math.round(utilidad * pctM / 100) : null
     const partem   = utilidad !== null ? Math.round(utilidad * pctm / 100) : null
     const receta_json = costo !== null ? {
-      producto:      formV.producto.trim() || null,
-      cantidad:      Number(formV.cantidad) || 1,
-      costo_total:   costo,
+      producto:       formV.producto.trim() || null,
+      cantidad:       Number(formV.cantidad) || 1,
+      costo_total:    costo,
       utilidad_total: utilidad,
-      pct_mayor:     pctM,
-      pct_menor:     pctm,
-      parte_mayor:   parteM,
-      parte_menor:   partem,
+      pct_mayor:      pctM,
+      pct_menor:      pctm,
+      parte_mayor:    parteM,
+      parte_menor:    partem,
     } : null
     const payload = {
       fecha_emision:  formV.fecha_emision,
-      cliente_nombre: formV.cliente_nombre.trim() || null,
+      cliente_id:     clienteId,
+      cliente_nombre: nombreCliente || null,
       concepto:       formV.concepto.trim() || 'Pago total',
       monto,
       receta_json,
@@ -404,12 +434,16 @@ export default function Finanzas() {
 
                 {/* Cliente + Concepto */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={LBL}>Cliente</label>
-                    <input type="text" placeholder="Nombre" value={formV.cliente_nombre}
-                      onChange={e => setFormV(v => ({ ...v, cliente_nombre: e.target.value }))}
-                      className={INP} />
-                  </div>
+                  <ClienteAutocomplete
+                    clientes={clientes}
+                    value={formV.cliente_nombre}
+                    clienteId={formV.cliente_id}
+                    label="Cliente"
+                    placeholder="Buscar o escribir..."
+                    onChange={({ id, nombre }) =>
+                      setFormV(v => ({ ...v, cliente_id: id || '', cliente_nombre: nombre }))
+                    }
+                  />
                   <div>
                     <label className={LBL}>Concepto</label>
                     <input type="text" placeholder="Pago total" value={formV.concepto}

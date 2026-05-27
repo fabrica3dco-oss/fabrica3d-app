@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, User, UserPlus, X, ChevronDown, Receipt } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, Eye, Share2, X, ChevronDown, Receipt } from 'lucide-react'
+import ClienteAutocomplete from '../components/ui/ClienteAutocomplete'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
@@ -36,52 +37,6 @@ const FORM_EMPTY  = {
   descuento: '', estado: 'borrador',
   valida_hasta: '', tiempo_entrega: '', notas: DEFAULT_NOTAS,
   receta_json: null,
-}
-
-// ── Cliente autocomplete ──────────────────────────────────────────────────────
-function ClienteAutocomplete({ clientes, value, clienteId, onChange }) {
-  const [open, setOpen]   = useState(false)
-  const [query, setQuery] = useState(value || '')
-  const ref = useRef(null)
-  useEffect(() => { setQuery(value || '') }, [value])
-  useEffect(() => {
-    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', fn)
-    return () => document.removeEventListener('mousedown', fn)
-  }, [])
-  const filtrados = query.trim() ? clientes.filter(c => c.empresa.toLowerCase().includes(query.toLowerCase())) : clientes.slice(0, 8)
-  const hayExacto = clientes.some(c => c.empresa.toLowerCase() === query.trim().toLowerCase())
-  return (
-    <div ref={ref} className="relative flex flex-col gap-1">
-      <label className="text-sm font-medium text-navy-600">Cliente</label>
-      <div className="relative">
-        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9ab0]" />
-        <input value={query}
-          onChange={e => { setQuery(e.target.value); onChange({ id: null, nombre: e.target.value }); setOpen(true) }}
-          onFocus={() => setOpen(true)}
-          placeholder="Buscar cliente..."
-          className="w-full pl-8 pr-3 py-2 text-sm border border-[#e2e6ea] rounded-lg bg-white text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
-      </div>
-      {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e2e6ea] rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto">
-          {filtrados.map(c => (
-            <button key={c.id} type="button"
-              onMouseDown={() => { onChange({ id: c.id, nombre: c.empresa, obj: c }); setQuery(c.empresa); setOpen(false) }}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-[#f8f9fb] flex items-center gap-2 ${clienteId === c.id ? 'bg-blue-50 text-accent font-medium' : 'text-navy-600'}`}>
-              <User size={12} className="text-[#8a9ab0] shrink-0" />{c.empresa}
-            </button>
-          ))}
-          {query.trim() && !hayExacto && (
-            <button type="button"
-              onMouseDown={() => { onChange({ id: null, nombre: query.trim(), obj: null }); setOpen(false) }}
-              className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-blue-50 flex items-center gap-2 border-t border-[#f0f2f5]">
-              <UserPlus size={12} className="shrink-0" />Usar "<span className="font-medium">{query.trim()}</span>"
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
 }
 
 function Skeleton() {
