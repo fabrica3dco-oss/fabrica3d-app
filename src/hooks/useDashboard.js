@@ -39,7 +39,7 @@ export function useDashboard() {
         supabase.from('cobros').select('monto').eq('estado', 'pendiente'),
         supabase.from('leads').select('id', { count: 'exact' }).not('etapa', 'in', '("cerrado_ganado","cerrado_perdido")'),
         supabase.from('pedidos').select('id', { count: 'exact' }).in('estado', ['en_cola', 'diseno_stl', 'imprimiendo', 'acabado']),
-        supabase.from('inventario').select('nombre, stock_actual, stock_minimo').filter('stock_actual', 'lte', 'stock_minimo'),
+        supabase.from('inventario').select('nombre, stock_actual, stock_minimo'),
         supabase.from('cobros').select('id, cliente_nombre, monto, fecha_vencimiento').eq('estado', 'pendiente').lt('fecha_vencimiento', hoy),
         supabase.from('cobros').select('id, cliente_nombre, monto, fecha_vencimiento').eq('estado', 'pendiente').gte('fecha_vencimiento', hoy).order('fecha_vencimiento').limit(5),
         supabase.from('cobros').select('cliente_nombre, concepto, monto, fecha_emision, created_at').eq('estado', 'pagado').order('created_at', { ascending: false }).limit(6),
@@ -51,6 +51,11 @@ export function useDashboard() {
       const cobradoMes    = (cobradoRes.data    || []).reduce((s, c) => s + Number(c.monto), 0)
       const cobradoMesAnt = (cobradoAntRes.data || []).reduce((s, c) => s + Number(c.monto), 0)
       const porCobrar     = (porCobrarRes.data  || []).reduce((s, c) => s + Number(c.monto), 0)
+
+      // Filtro stock bajo lado cliente (evita comparación columna-a-columna en PostgREST)
+      const stockBajoData = (stockRes.data || []).filter(
+        i => Number(i.stock_actual) <= Number(i.stock_minimo)
+      )
 
       const estadoCounts = {}
       ;(pedidosEstadoRes.data || []).forEach(p => {
@@ -76,7 +81,7 @@ export function useDashboard() {
         .slice(0, 5)
 
       setMetrics({ cobradoMes, cobradoMesAnterior: cobradoMesAnt, porCobrar, leadsActivos: leadsRes.count || 0, enProduccion: produccionRes.count || 0 })
-      setAlertas({ stockBajo: stockRes.data || [], cobrosVencidos: vencidosRes.data || [], cotizPendientes: cotizPendRes.data || [] })
+      setAlertas({ stockBajo: stockBajoData, cobrosVencidos: vencidosRes.data || [], cotizPendientes: cotizPendRes.data || [] })
       setCobrosProximos(proximosRes.data || [])
       setUltimosMovimientos(movimientos)
       setPedidosPorEstado(pedidosArr)

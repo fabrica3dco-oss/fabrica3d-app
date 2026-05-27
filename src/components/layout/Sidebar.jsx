@@ -151,7 +151,6 @@ export default function Sidebar() {
           className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] transition-colors w-full ${collapsed ? 'justify-center' : ''}`}
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-          {!collapsed && <span className="text-sm font-medium">Colapsar</span>}
         </button>
         <button
           onClick={() => supabase.auth.signOut()}
