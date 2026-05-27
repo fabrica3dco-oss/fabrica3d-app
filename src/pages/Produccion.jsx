@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Search, Package, Link2, Clock } from 'lucide-react'
+import { Plus, Calendar, User, Hash, Pencil, Trash2, ArrowRight, Package, Link2, Clock } from 'lucide-react'
 import ClienteAutocomplete from '../components/ui/ClienteAutocomplete'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -8,7 +8,6 @@ import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import { usePedidos } from '../hooks/usePedidos'
 import { useClientes } from '../hooks/useClientes'
-import { useInventario } from '../hooks/useInventario'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
 
@@ -36,11 +35,22 @@ const LABEL_SIGUIENTE = {
   terminado:   'Marcar entregado',
 }
 
+// Lee la configuración de accesorios y acabados de la Calculadora
+function getCalcConfig() {
+  try {
+    const raw = localStorage.getItem('f3d_calc_config_v2')
+    if (!raw) return { accesorios: [], acabados: [] }
+    const cfg = JSON.parse(raw)
+    return { accesorios: cfg.accesorios || [], acabados: cfg.acabados || [] }
+  } catch { return { accesorios: [], acabados: [] } }
+}
+
 const EMPTY = {
   descripcion: '', cliente_id: '', cliente_nombre: '', cantidad: '',
   estado: 'en_cola', fecha_entrega: '', cobro_ref: '',
-  materiales: [],    // [{ nombre, cantidad, unidad }]
-  _recetaBase: null, // campos no-material del receta_json original (precio_total, etc.)
+  accesorios:  [],  // [{ id, nombre, unidad, qty }] — qty es cantidad_por_unidad
+  acabados:    [],  // [{ id, nombre, unidad, qty }]
+  _recetaBase: null,
 }
 
 function diasRestantes(fecha) {
@@ -75,17 +85,15 @@ export default function Produccion() {
   const navigate = useNavigate()
   const { pedidos, loading, crearPedido, actualizarPedido, moverEstado, eliminarPedido } = usePedidos()
   const { clientes } = useClientes()
-  const { items: matItems } = useInventario()
   const [modal,       setModal]       = useState(null)
   const [confirmId,   setConfirmId]   = useState(null)
-  const [invModal,    setInvModal]    = useState(null) // pedido con receta_json al llegar a terminado
-  const [invItems,    setInvItems]    = useState([])  // lista editable de materiales a descontar
+  const [invModal,    setInvModal]    = useState(null)
+  const [invItems,    setInvItems]    = useState([])
   const [form,        setForm]        = useState(EMPTY)
   const [saving,      setSaving]      = useState(false)
   const [deduciendo,  setDeduciendo]  = useState(false)
   const [draggingId,  setDraggingId]  = useState(null)
   const [overCol,     setOverCol]     = useState(null)
-
 
   // Inicializar lista editable de materiales cuando se abre el modal de terminado
   useEffect(() => {
@@ -107,7 +115,6 @@ export default function Produccion() {
     if (!pedido) return
     await moverEstado(pedido.id, nuevoEstado)
     if (nuevoEstado === 'terminado') {
-      // Siempre mostrar modal de terminado (para ofrecer saldo + inventario)
       const items = [
         ...(pedido.receta_json?.accesorios_usados || []),
         ...(pedido.receta_json?.acabados_usados   || []),
@@ -151,22 +158,44 @@ export default function Produccion() {
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   function abrirCrear(estadoId = 'en_cola') {
-    setForm({ ...EMPTY, estado: estadoId })
+    const cfg = getCalcConfig()
+    setForm({
+      ...EMPTY,
+      estado:     estadoId,
+      accesorios: cfg.accesorios.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, qty: '' })),
+      acabados:   cfg.acabados.map(a => ({ id: a.id, nombre: a.nombre, unidad: a.unidad, qty: '' })),
+    })
     setModal({ mode: 'crear' })
   }
 
   function abrirEditar(p) {
-    // Extraer materiales del receta_json existente (de calculadora o manual previo)
+    const cfg = getCalcConfig()
     const rj = p.receta_json || {}
-    const { accesorios_usados, acabados_usados, ...recetaBase } = rj
-    const mats = [
-      ...(accesorios_usados || []),
-      ...(acabados_usados   || []),
-    ].filter(m => m.nombre).map(m => ({
-      nombre:   m.nombre,
-      cantidad: String(m.cantidad_total ?? ''),
-      unidad:   m.unidad || 'u',
-    }))
+    const { accesorios_usados = [], acabados_usados = [], ...recetaBase } = rj
+    const totalUnits = Number(p.cantidad) || 1
+
+    const accesorios = cfg.accesorios.map(a => {
+      const found = accesorios_usados.find(u => u.nombre === a.nombre)
+      let qty = ''
+      if (found) {
+        qty = found.cantidad_por_unidad != null
+          ? String(found.cantidad_por_unidad)
+          : String(Number(found.cantidad_total || 0) / totalUnits)
+      }
+      return { id: a.id, nombre: a.nombre, unidad: a.unidad, qty }
+    })
+
+    const acabados = cfg.acabados.map(a => {
+      const found = acabados_usados.find(u => u.nombre === a.nombre)
+      let qty = ''
+      if (found) {
+        qty = found.cantidad_por_unidad != null
+          ? String(found.cantidad_por_unidad)
+          : String(Number(found.cantidad_total || 0) / totalUnits)
+      }
+      return { id: a.id, nombre: a.nombre, unidad: a.unidad, qty }
+    })
+
     setForm({
       descripcion:    p.descripcion || '',
       cliente_id:     p.cliente_id || '',
@@ -175,7 +204,8 @@ export default function Produccion() {
       estado:         p.estado || 'en_cola',
       fecha_entrega:  p.fecha_entrega || '',
       cobro_ref:      p.cobro_ref || '',
-      materiales:     mats,
+      accesorios,
+      acabados,
       _recetaBase:    Object.keys(recetaBase).length > 0 ? recetaBase : null,
     })
     setModal({ mode: 'editar', id: p.id })
@@ -184,17 +214,32 @@ export default function Produccion() {
   async function guardar() {
     if (!form.descripcion.trim()) return
     setSaving(true)
+    const totalUnits = Number(form.cantidad) || 1
 
-    // Construir receta_json con los materiales del form
-    const matsValidos = (form.materiales || []).filter(m => m.nombre.trim() && Number(m.cantidad) > 0)
-    const receta_json = (matsValidos.length > 0 || form._recetaBase)
+    const accesoriosUsados = form.accesorios
+      .filter(a => Number(a.qty) > 0)
+      .map(a => ({
+        nombre:              a.nombre,
+        unidad:              a.unidad,
+        cantidad_por_unidad: Number(a.qty),
+        cantidad_total:      Number(a.qty) * totalUnits,
+      }))
+
+    const acabadosUsados = form.acabados
+      .filter(a => Number(a.qty) > 0)
+      .map(a => ({
+        nombre:              a.nombre,
+        unidad:              a.unidad,
+        cantidad_por_unidad: Number(a.qty),
+        cantidad_total:      Number(a.qty) * totalUnits,
+      }))
+
+    const hasItems = accesoriosUsados.length > 0 || acabadosUsados.length > 0
+    const receta_json = (hasItems || form._recetaBase)
       ? {
           ...(form._recetaBase || {}),
-          accesorios_usados: matsValidos.map(m => ({
-            nombre:          m.nombre.trim(),
-            unidad:          m.unidad,
-            cantidad_total:  Number(m.cantidad),
-          })),
+          accesorios_usados: accesoriosUsados,
+          acabados_usados:   acabadosUsados,
         }
       : null
 
@@ -212,11 +257,6 @@ export default function Produccion() {
     setSaving(false)
     if (ok) setModal(null)
   }
-
-  // ── Helpers materiales del form ────────────────────────────────────────────
-  const addMat    = () => setForm(f => ({ ...f, materiales: [...f.materiales, { nombre: '', cantidad: '', unidad: 'u' }] }))
-  const removeMat = (i) => setForm(f => ({ ...f, materiales: f.materiales.filter((_, idx) => idx !== i) }))
-  const setMat    = (i, campo, val) => setForm(f => ({ ...f, materiales: f.materiales.map((m, idx) => idx === i ? { ...m, [campo]: val } : m) }))
 
   async function confirmarEliminar() {
     setSaving(true)
@@ -314,7 +354,6 @@ export default function Produccion() {
                         {p.fecha_entrega && (
                           <span className="flex items-center gap-1.5"><Calendar size={10} className="text-[#8a9ab0]" /><BadgeFecha fecha={p.fecha_entrega} /></span>
                         )}
-                        {/* Indicador de materiales */}
                         {p.receta_json && (
                           <span className="flex items-center gap-1 text-[10px] text-[#8a9ab0] bg-[#f0f2f5] rounded px-1.5 py-0.5 w-fit mt-0.5">
                             <Package size={9} /> materiales vinculados
@@ -385,60 +424,64 @@ export default function Produccion() {
             onChange={e => setForm(f => ({ ...f, cobro_ref: e.target.value }))}
             placeholder="Ej: COB-0012, COT-005..." />
 
-          {/* ── Materiales a usar ──────────────────────────────────────── */}
-          <div className="border-t border-[#f0f2f5] pt-3 flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-navy-600">Materiales a usar</label>
-              <button type="button" onClick={addMat}
-                className="flex items-center gap-1 text-xs font-semibold text-accent hover:underline">
-                <Plus size={12} /> Agregar
-              </button>
-            </div>
-            {form.materiales.length === 0 ? (
-              <p className="text-xs text-[#8a9ab0] pb-1">
-                Sin materiales. Al marcar como terminado podrás descontarlos de la sección Materiales.
-              </p>
-            ) : (
+          {/* ── Accesorios ──────────────────────────────────────── */}
+          {form.accesorios.length > 0 && (
+            <div className="border-t border-[#f0f2f5] pt-3 flex flex-col gap-2">
+              <div>
+                <label className="text-sm font-semibold text-navy-600">Accesorios</label>
+                <p className="text-xs text-[#8a9ab0] mt-0.5">Cantidad por unidad producida (0 o vacío = no aplica)</p>
+              </div>
               <div className="flex flex-col gap-2">
-                {form.materiales.map((m, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input
-                      list="mat-names"
-                      value={m.nombre}
-                      onChange={e => setMat(i, 'nombre', e.target.value)}
-                      placeholder="Nombre del material"
-                      className="flex-1 min-w-0 border border-[#e2e6ea] rounded-lg px-2.5 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
+                {form.accesorios.map((a, i) => (
+                  <div key={a.id ?? i} className="flex items-center gap-2">
+                    <span className="flex-1 text-sm text-navy-600 truncate">{a.nombre}</span>
                     <input
                       type="number" min="0" step="0.5"
-                      value={m.cantidad}
-                      onChange={e => setMat(i, 'cantidad', e.target.value)}
-                      placeholder="Cant."
+                      value={a.qty}
+                      onChange={e => setForm(f => ({ ...f, accesorios: f.accesorios.map((x, j) => j === i ? { ...x, qty: e.target.value } : x) }))}
+                      placeholder="0"
                       className="w-20 border border-[#e2e6ea] rounded-lg px-2.5 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent"
                     />
-                    <select
-                      value={m.unidad}
-                      onChange={e => setMat(i, 'unidad', e.target.value)}
-                      className="border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
-                    >
-                      <option value="u">u</option>
-                      <option value="g">g</option>
-                      <option value="kg">kg</option>
-                      <option value="ml">ml</option>
-                    </select>
-                    <button type="button" onClick={() => removeMat(i)}
-                      className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 transition-colors shrink-0">
-                      <Trash2 size={13} />
-                    </button>
+                    <span className="text-xs text-[#8a9ab0] w-8 shrink-0 text-right">{a.unidad}</span>
                   </div>
                 ))}
               </div>
-            )}
-            {/* Autocomplete con nombres del inventario de materiales */}
-            <datalist id="mat-names">
-              {matItems.map(item => <option key={item.id} value={item.nombre} />)}
-            </datalist>
-          </div>
+            </div>
+          )}
+
+          {/* ── Acabados ──────────────────────────────────────── */}
+          {form.acabados.length > 0 && (
+            <div className="border-t border-[#f0f2f5] pt-3 flex flex-col gap-2">
+              <div>
+                <label className="text-sm font-semibold text-navy-600">Acabados</label>
+                <p className="text-xs text-[#8a9ab0] mt-0.5">Cantidad por unidad producida (0 o vacío = no aplica)</p>
+              </div>
+              <div className="flex flex-col gap-2">
+                {form.acabados.map((a, i) => (
+                  <div key={a.id ?? i} className="flex items-center gap-2">
+                    <span className="flex-1 text-sm text-navy-600 truncate">{a.nombre}</span>
+                    <input
+                      type="number" min="0" step="0.5"
+                      value={a.qty}
+                      onChange={e => setForm(f => ({ ...f, acabados: f.acabados.map((x, j) => j === i ? { ...x, qty: e.target.value } : x) }))}
+                      placeholder="0"
+                      className="w-20 border border-[#e2e6ea] rounded-lg px-2.5 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                    <span className="text-xs text-[#8a9ab0] w-8 shrink-0 text-right">{a.unidad}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Aviso si la Calculadora no tiene accesorios ni acabados configurados */}
+          {form.accesorios.length === 0 && form.acabados.length === 0 && (
+            <div className="border-t border-[#f0f2f5] pt-3">
+              <p className="text-xs text-[#8a9ab0]">
+                Sin accesorios ni acabados configurados. Agrégalos en la sección <strong>Calculadora</strong>.
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="secondary" onClick={() => setModal(null)}>Cancelar</Button>
