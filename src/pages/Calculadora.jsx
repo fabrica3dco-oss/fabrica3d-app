@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2, BookMarked, Save, Pencil, Check } from 'lucide-react'
 import Card from '../components/ui/Card'
+import Button from '../components/ui/Button'
 
 // ── Plantillas (localStorage) ─────────────────────────────────────────────────
 const PLANT_KEY = 'f3d_plantillas_v1'
@@ -287,21 +288,19 @@ export default function Calculadora() {
           <p className="text-sm text-[#8a9ab0] mt-0.5">Calcula el costo y precio sugerido de cualquier producto</p>
         </div>
         <div className="flex gap-2">
-          <button
+          <Button
+            variant={showPlant ? 'primary' : 'secondary'}
             onClick={() => setShowPlant(v => !v)}
-            className={`flex items-center gap-1.5 text-xs transition-colors border rounded-lg px-3 py-2 ${
-              showPlant ? 'bg-accent text-white border-accent' : 'text-[#8a9ab0] hover:text-navy-600 border-[#e2e6ea]'
-            }`}
           >
-            <BookMarked size={13} />
-            Plantillas {plantillas.length > 0 && `(${plantillas.length})`}
-          </button>
-          <button
+            <BookMarked size={15} />
+            Plantillas{plantillas.length > 0 ? ` (${plantillas.length})` : ''}
+          </Button>
+          <Button
+            variant="secondary"
             onClick={() => setRec(DEFAULT_RECETA)}
-            className="flex items-center gap-1.5 text-xs text-[#8a9ab0] hover:text-navy-600 transition-colors border border-[#e2e6ea] rounded-lg px-3 py-2"
           >
-            <RotateCcw size={13} /> Reiniciar
-          </button>
+            <RotateCcw size={15} /> Reiniciar
+          </Button>
         </div>
       </div>
 
