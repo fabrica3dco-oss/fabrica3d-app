@@ -147,10 +147,11 @@ export default function Sidebar() {
       <div className="mt-2 px-2 pt-3 border-t border-white/[0.08] flex flex-col gap-0.5">
         <button
           onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+          title={collapsed ? 'Expandir' : 'Minimizar'}
           className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/[0.08] transition-colors w-full ${collapsed ? 'justify-center' : ''}`}
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {!collapsed && <span className="text-sm font-medium">Minimizar</span>}
         </button>
         <button
           onClick={() => supabase.auth.signOut()}
