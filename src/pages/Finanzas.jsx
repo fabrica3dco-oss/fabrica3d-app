@@ -426,7 +426,7 @@ export default function Finanzas() {
                 </div>
 
                 {/* Cliente + Concepto */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <ClienteAutocomplete
                     clientes={clientes}
                     value={formV.cliente_nombre}
@@ -446,7 +446,7 @@ export default function Finanzas() {
                 </div>
 
                 {/* Producto + Cantidad */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="col-span-2">
                     <label className={LBL}>Producto</label>
                     <input type="text" placeholder="Nombre del producto" value={formV.producto}
@@ -484,7 +484,7 @@ export default function Finanzas() {
                 <div className="bg-[#f8f9fb] rounded-xl p-4 space-y-3">
                     <p className="text-xs font-bold text-[#8a9ab0] uppercase tracking-wide">% Reparto de utilidad</p>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-green-600 mb-1.5">Principal (%)</label>
                         <input type="number" min="1" max="99" value={formV.pct_mayor}

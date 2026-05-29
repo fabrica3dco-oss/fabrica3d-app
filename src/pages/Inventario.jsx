@@ -360,7 +360,7 @@ export default function Inventario() {
           </div>
 
           {/* Unidad + Cantidades */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Unidad</label>
               <select value={form.unidad} onChange={e => f('unidad', e.target.value)}
@@ -383,7 +383,7 @@ export default function Inventario() {
           </div>
 
           {/* Costo + Notas */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Costo unitario (COP)</label>
               <input type="number" min="0" value={form.costo_unitario}

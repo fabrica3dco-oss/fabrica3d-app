@@ -501,7 +501,7 @@ export default function Cotizaciones() {
       <Modal open={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'crear' ? 'Nueva cotización' : 'Editar cotización'} size="lg">
         <div className="flex flex-col gap-5">
           {/* Cliente + Estado */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <ClienteAutocomplete
               clientes={clientes}
               value={form.cliente_nombre}
@@ -533,22 +533,29 @@ export default function Cotizaciones() {
             </div>
             <div className="flex flex-col gap-3">
               {form.lineas.map((linea, i) => (
-                <div key={i} className="flex flex-col gap-1">
-                  <div className="grid grid-cols-[1fr_56px_110px_24px] gap-2 items-center">
+                <div key={i} className="flex flex-col gap-1 p-2 border border-[#e2e6ea] rounded-xl sm:border-0 sm:p-0">
+                  <div className="grid grid-cols-[1fr_24px] sm:grid-cols-[1fr_56px_110px_24px] gap-2 items-start">
                     <input value={linea.descripcion} onChange={e => setLinea(i,'descripcion',e.target.value)} placeholder="Nombre del producto"
                       className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
-                    <input type="number" min="1" value={linea.cantidad} onChange={e => setLinea(i,'cantidad',e.target.value)}
-                      className="border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-navy-600 text-center focus:outline-none focus:ring-2 focus:ring-accent" />
-                    <input type="number" min="0" value={linea.precio_unitario} onChange={e => setLinea(i,'precio_unitario',e.target.value)} placeholder="0"
-                      className="border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent" />
                     <button onClick={() => removeLinea(i)} disabled={form.lineas.length === 1}
-                      className="p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 disabled:opacity-30 transition-colors">
+                      className="sm:hidden p-1.5 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 disabled:opacity-30 transition-colors self-start mt-0.5">
                       <X size={14} />
                     </button>
+                    <div className="flex gap-2 sm:contents col-span-2 sm:col-span-1">
+                      <input type="number" min="1" value={linea.cantidad} onChange={e => setLinea(i,'cantidad',e.target.value)}
+                        placeholder="Cant."
+                        className="w-20 sm:w-auto border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-navy-600 text-center focus:outline-none focus:ring-2 focus:ring-accent" />
+                      <input type="number" min="0" value={linea.precio_unitario} onChange={e => setLinea(i,'precio_unitario',e.target.value)} placeholder="Precio"
+                        className="flex-1 sm:flex-none border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm text-navy-600 text-right focus:outline-none focus:ring-2 focus:ring-accent" />
+                      <button onClick={() => removeLinea(i)} disabled={form.lineas.length === 1}
+                        className="hidden sm:block p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 disabled:opacity-30 transition-colors">
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                   <input value={linea.detalle} onChange={e => setLinea(i,'detalle',e.target.value)}
                     placeholder="Detalle / especificaciones (opcional)"
-                    className="border border-[#e2e6ea] rounded-lg px-3 py-1.5 text-xs text-[#8a9ab0] placeholder:text-[#b0bec5] focus:outline-none focus:ring-2 focus:ring-accent ml-0" />
+                    className="border border-[#e2e6ea] rounded-lg px-3 py-1.5 text-xs text-[#8a9ab0] placeholder:text-[#b0bec5] focus:outline-none focus:ring-2 focus:ring-accent" />
                 </div>
               ))}
             </div>
@@ -565,7 +572,7 @@ export default function Cotizaciones() {
           </div>
 
           {/* Fechas + Tiempo entrega */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input label="Fecha de emisión" type="date" value={form.fecha_emision} onChange={e => setForm(f => ({ ...f, fecha_emision: e.target.value }))} />
             <Input label="Válida hasta" type="date" value={form.valida_hasta} onChange={e => setForm(f => ({ ...f, valida_hasta: e.target.value }))} />
             <Input label="Tiempo de entrega" value={form.tiempo_entrega} onChange={e => setForm(f => ({ ...f, tiempo_entrega: e.target.value }))} placeholder="Ej: 5-7 días hábiles" />

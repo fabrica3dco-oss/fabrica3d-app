@@ -9,6 +9,7 @@ import Input from '../components/ui/Input'
 import { usePedidos } from '../hooks/usePedidos'
 import { useClientes } from '../hooks/useClientes'
 import { useInventario } from '../hooks/useInventario'
+import { useCalculadoraConfig } from '../hooks/useCalculadoraStorage'
 import { supabase } from '../services/supabase'
 import toast from 'react-hot-toast'
 
@@ -38,14 +39,6 @@ const LABEL_SIGUIENTE = {
 
 const UNIDADES = ['u', 'g', 'kg', 'ml', 'm', 'cm']
 
-function getCalcConfig() {
-  try {
-    const raw = localStorage.getItem('f3d_calc_config_v2')
-    if (!raw) return { accesorios: [], acabados: [] }
-    const cfg = JSON.parse(raw)
-    return { accesorios: cfg.accesorios || [], acabados: cfg.acabados || [] }
-  } catch { return { accesorios: [], acabados: [] } }
-}
 
 const EMPTY_ROW = { nombre: '', qty: '', unidad: 'u', inventario_id: null }
 
@@ -89,20 +82,20 @@ export default function Produccion() {
   const { pedidos, loading, crearPedido, actualizarPedido, moverEstado, eliminarPedido } = usePedidos()
   const { clientes } = useClientes()
   const { items: matItems } = useInventario()
+  const calcConfig = useCalculadoraConfig()
 
   // Sugerencias para datalist: config Calculadora + inventario (sin duplicados)
   const sugerencias = useMemo(() => {
-    const cfg = getCalcConfig()
     const nombres = new Set()
     const lista = []
-    ;[...cfg.accesorios, ...cfg.acabados, ...matItems].forEach(x => {
+    ;[...calcConfig.accesorios, ...calcConfig.acabados, ...matItems].forEach(x => {
       if (x.nombre && !nombres.has(x.nombre)) {
         nombres.add(x.nombre)
         lista.push(x.nombre)
       }
     })
     return lista
-  }, [matItems])
+  }, [matItems, calcConfig])
 
   const [modal,       setModal]       = useState(null)
   const [confirmId,   setConfirmId]   = useState(null)
@@ -474,7 +467,7 @@ export default function Produccion() {
           <Input label="Descripción *" value={form.descripcion}
             onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
             placeholder="Ej: Llavero personalizado, soporte para drone..." />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <ClienteAutocomplete
               clientes={clientes}
               value={form.cliente_nombre}
@@ -486,7 +479,7 @@ export default function Produccion() {
               onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
               placeholder="1" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Fecha de entrega" type="date" value={form.fecha_entrega}
               onChange={e => setForm(f => ({ ...f, fecha_entrega: e.target.value }))} />
             <div className="flex flex-col gap-1">

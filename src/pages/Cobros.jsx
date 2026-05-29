@@ -351,7 +351,7 @@ export default function Cobros() {
       </div>
 
       {/* Métricas */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="bg-white border border-[#e2e6ea] rounded-xl p-4">
           <p className="text-xs font-medium text-[#8a9ab0] uppercase tracking-wide flex items-center gap-1"><Clock size={12} /> Por cobrar</p>
           <p className="text-xl font-bold text-navy-600 mt-1">{loading ? '—' : cop(totalPendiente)}</p>
@@ -555,7 +555,7 @@ export default function Cobros() {
             </div>
             <div className="flex flex-col gap-2">
               {(form.lineas || []).map((linea, i) => (
-                <div key={i} className="grid grid-cols-[1fr_80px_70px_24px] gap-1.5 items-start">
+                <div key={i} className="flex flex-col gap-1.5 p-2 border border-[#e2e6ea] rounded-lg sm:border-0 sm:p-0 sm:grid sm:grid-cols-[1fr_80px_70px_24px] sm:gap-1.5 sm:items-start">
                   <div className="flex flex-col gap-1">
                     <input value={linea.descripcion}
                       onChange={e => setLinea(i, 'descripcion', e.target.value)}
@@ -566,18 +566,20 @@ export default function Cobros() {
                       placeholder="Detalle (opcional)"
                       className="w-full px-2.5 py-1.5 text-xs border border-[#e2e6ea] rounded-lg text-[#8a9ab0] placeholder:text-[#c0cad6] focus:outline-none focus:ring-2 focus:ring-accent" />
                   </div>
-                  <input value={linea.precio_unitario} type="number" min="0"
-                    onChange={e => setLinea(i, 'precio_unitario', e.target.value)}
-                    placeholder="Precio"
-                    className="px-2.5 py-1.5 text-sm border border-[#e2e6ea] rounded-lg text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
-                  <input value={linea.cantidad} type="number" min="1"
-                    onChange={e => setLinea(i, 'cantidad', e.target.value)}
-                    placeholder="Cant."
-                    className="px-2.5 py-1.5 text-sm border border-[#e2e6ea] rounded-lg text-navy-600 text-center focus:outline-none focus:ring-2 focus:ring-accent" />
-                  <button onClick={() => removeLinea(i)} disabled={form.lineas.length === 1}
-                    className="mt-1.5 p-1 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed">
-                    <Minus size={12} />
-                  </button>
+                  <div className="flex gap-2 sm:contents">
+                    <input value={linea.precio_unitario} type="number" min="0"
+                      onChange={e => setLinea(i, 'precio_unitario', e.target.value)}
+                      placeholder="Precio"
+                      className="flex-1 sm:flex-none px-2.5 py-1.5 text-sm border border-[#e2e6ea] rounded-lg text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent" />
+                    <input value={linea.cantidad} type="number" min="1"
+                      onChange={e => setLinea(i, 'cantidad', e.target.value)}
+                      placeholder="Cant."
+                      className="w-20 sm:w-auto px-2.5 py-1.5 text-sm border border-[#e2e6ea] rounded-lg text-navy-600 text-center focus:outline-none focus:ring-2 focus:ring-accent" />
+                    <button onClick={() => removeLinea(i)} disabled={form.lineas.length === 1}
+                      className="p-1.5 rounded hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed shrink-0">
+                      <Minus size={12} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -588,7 +590,7 @@ export default function Cobros() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Fecha de emisión" type="date" value={form.fecha_emision}
               onChange={e => setForm(f => ({ ...f, fecha_emision: e.target.value }))} />
             <Input label="Fecha de vencimiento" type="date" value={form.fecha_vencimiento}

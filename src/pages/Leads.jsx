@@ -237,7 +237,7 @@ export default function Leads() {
             onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))}
             placeholder="Nombre de la empresa o persona"
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Contacto"
               value={form.contacto}
@@ -251,7 +251,7 @@ export default function Leads() {
               placeholder="Gerente, Compras..."
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="WhatsApp"
               value={form.whatsapp}
@@ -273,7 +273,7 @@ export default function Leads() {
             onChange={e => setForm(f => ({ ...f, valor_estimado: e.target.value }))}
             placeholder="500000"
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-navy-600">Etapa</label>
               <select

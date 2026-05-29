@@ -10,6 +10,7 @@ import ClienteAutocomplete from '../components/ui/ClienteAutocomplete'
 import { usePedidos } from '../hooks/usePedidos'
 import { useClientes } from '../hooks/useClientes'
 import { useInventario } from '../hooks/useInventario'
+import { useCalculadoraConfig } from '../hooks/useCalculadoraStorage'
 
 const ESTADOS = [
   { id: 'en_cola',     label: 'En cola',       color: 'gray'  },
@@ -24,14 +25,6 @@ const BADGE_COLOR = Object.fromEntries(ESTADOS.map(e => [e.id, e.color]))
 const LABEL       = Object.fromEntries(ESTADOS.map(e => [e.id, e.label]))
 const UNIDADES    = ['u', 'g', 'kg', 'ml', 'm', 'cm']
 
-function getCalcConfig() {
-  try {
-    const raw = localStorage.getItem('f3d_calc_config_v2')
-    if (!raw) return { accesorios: [], acabados: [] }
-    const cfg = JSON.parse(raw)
-    return { accesorios: cfg.accesorios || [], acabados: cfg.acabados || [] }
-  } catch { return { accesorios: [], acabados: [] } }
-}
 
 const EMPTY_ROW = { nombre: '', qty: '', unidad: 'u', inventario_id: null }
 
@@ -64,20 +57,20 @@ export default function Pedidos() {
   const { pedidos, loading, crearPedido, actualizarPedido, eliminarPedido } = usePedidos()
   const { clientes } = useClientes()
   const { items: matItems } = useInventario()
+  const calcConfig = useCalculadoraConfig()
   const location = useLocation()
 
   const sugerencias = useMemo(() => {
-    const cfg = getCalcConfig()
     const nombres = new Set()
     const lista = []
-    ;[...cfg.accesorios, ...cfg.acabados, ...matItems].forEach(x => {
+    ;[...calcConfig.accesorios, ...calcConfig.acabados, ...matItems].forEach(x => {
       if (x.nombre && !nombres.has(x.nombre)) {
         nombres.add(x.nombre)
         lista.push(x.nombre)
       }
     })
     return lista
-  }, [matItems])
+  }, [matItems, calcConfig])
 
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
@@ -280,7 +273,7 @@ export default function Pedidos() {
         <Button onClick={abrirCrear}><Plus size={16} /> Nuevo pedido</Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         {[
           { label: 'Total pedidos', value: pedidos.length },
           { label: 'Activos ahora', value: activos },
@@ -420,13 +413,13 @@ export default function Pedidos() {
           <Input label="Descripción *" value={form.descripcion}
             onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
             placeholder="Ej: Llavero personalizado, soporte para drone..." />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <ClienteAutocomplete clientes={clientes} value={form.cliente_nombre} clienteId={form.cliente_id}
               onChange={({ id, nombre }) => setForm(f => ({ ...f, cliente_id: id || '', cliente_nombre: nombre }))} />
             <Input label="Cantidad" type="number" min="1" value={form.cantidad}
               onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))} placeholder="1" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Fecha de entrega" type="date" value={form.fecha_entrega}
               onChange={e => setForm(f => ({ ...f, fecha_entrega: e.target.value }))} />
             <div className="flex flex-col gap-1">

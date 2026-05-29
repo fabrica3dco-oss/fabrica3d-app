@@ -1,17 +1,13 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2, BookMarked, Save, Pencil, Check } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import { useInventario } from '../hooks/useInventario'
-
-// ── Plantillas (localStorage) ─────────────────────────────────────────────────
-const PLANT_KEY = 'f3d_plantillas_v1'
-const getPlantillas = () => { try { return JSON.parse(localStorage.getItem(PLANT_KEY) || '[]') } catch { return [] } }
-const savePlantillas = (p) => localStorage.setItem(PLANT_KEY, JSON.stringify(p))
+import { useCalculadoraStorage } from '../hooks/useCalculadoraStorage'
 
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = n =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
 
@@ -20,20 +16,6 @@ const uid = () => Math.random().toString(36).slice(2, 8)
 // Convierte el valor de un <input type="number"> a número, permitiendo borrar
 const toNum = v => (v === '' || v === undefined ? 0 : Number(v))
 
-// ── Config por defecto ────────────────────────────────────────────────────────
-const DEFAULT_CONFIG = {
-  filamento_rollo_precio: 90000,
-  filamento_rollo_gramos: 1000,
-  tarifa_hora: 15000,
-  accesorios: [
-    { id: 'acc_1', nombre: 'Anillo 12 mm',        precio: 100, unidad: 'ud' },
-    { id: 'acc_2', nombre: 'Anillo 20 mm',        precio: 400, unidad: 'ud' },
-    { id: 'acc_3', nombre: 'Anillo con cadenita', precio: 500, unidad: 'ud' },
-  ],
-  acabados: [
-    { id: 'acb_1', nombre: 'Resina (A+B)', precio: 80, unidad: 'ml' },
-  ],
-}
 
 // ── Receta por defecto ────────────────────────────────────────────────────────
 const DEFAULT_RECETA = {
@@ -60,20 +42,10 @@ function FilaResultado({ label, valor, muted, bold, green, red, border }) {
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function Calculadora() {
 
-  // Config (persiste en localStorage)
-  const [config, setConfig] = useState(() => {
-    try {
-      const s = localStorage.getItem('f3d_calc_config_v2')
-      if (!s) return DEFAULT_CONFIG
-      const saved = JSON.parse(s)
-      return {
-        ...DEFAULT_CONFIG,
-        ...saved,
-        accesorios: saved.accesorios ?? DEFAULT_CONFIG.accesorios,
-        acabados:   saved.acabados   ?? DEFAULT_CONFIG.acabados,
-      }
-    } catch { return DEFAULT_CONFIG }
-  })
+  const { config, setConfig, plantillas, loading: loadingStorage,
+          guardarPlantilla: _guardarPlantilla,
+          eliminarPlantilla: _eliminarPlantilla,
+          renombrarPlantilla: _renombrarPlantilla } = useCalculadoraStorage()
 
   const navigate = useNavigate()
   const { items: matItems } = useInventario()
@@ -81,16 +53,10 @@ export default function Calculadora() {
   const [rec, setRec]                 = useState(DEFAULT_RECETA)
   const [showConfig, setShowConfig]   = useState(false)
   const [showPlant,  setShowPlant]    = useState(false)
-  const [plantillas, setPlantillas]   = useState(getPlantillas)
   const [plantNombre, setPlantNombre] = useState('')
-  const [saveModal,   setSaveModal]   = useState(false) // modal guardar plantilla
-  const [editPlant,   setEditPlant]   = useState(null)  // { id, nombre } renombrar inline
-  const [roundModal,  setRoundModal]  = useState(null)  // { precioExacto, precioCerrado, ctx }
-
-  // Auto-save config
-  useEffect(() => {
-    localStorage.setItem('f3d_calc_config_v2', JSON.stringify(config))
-  }, [config])
+  const [saveModal,   setSaveModal]   = useState(false)
+  const [editPlant,   setEditPlant]   = useState(null)
+  const [roundModal,  setRoundModal]  = useState(null)
 
   // ── Helpers de edicion ────────────────────────────────────────────────────
   const updRec = (key, val) => setRec(r => ({ ...r, [key]: val }))
@@ -135,12 +101,9 @@ export default function Calculadora() {
   }))
 
   // ── Plantillas ────────────────────────────────────────────────────────────
-  function guardarPlantilla() {
+  async function guardarPlantilla() {
     const nombre = plantNombre.trim() || rec.nombre || 'Plantilla'
-    const nueva  = { id: Date.now(), nombre, rec: { ...rec } }
-    const lista  = [...plantillas, nueva]
-    setPlantillas(lista)
-    savePlantillas(lista)
+    await _guardarPlantilla(nombre, { ...rec })
     setPlantNombre('')
     setSaveModal(false)
   }
@@ -150,18 +113,14 @@ export default function Calculadora() {
     setShowPlant(false)
   }
 
-  function eliminarPlantilla(id) {
-    const lista = plantillas.filter(p => p.id !== id)
-    setPlantillas(lista)
-    savePlantillas(lista)
+  async function eliminarPlantilla(id) {
+    await _eliminarPlantilla(id)
   }
 
-  function renombrarPlantilla(id) {
+  async function renombrarPlantilla(id) {
     const nombre = (editPlant?.nombre || '').trim()
     if (!nombre) { setEditPlant(null); return }
-    const lista = plantillas.map(p => p.id === id ? { ...p, nombre } : p)
-    setPlantillas(lista)
-    savePlantillas(lista)
+    await _renombrarPlantilla(id, nombre)
     setEditPlant(null)
   }
 
@@ -292,28 +251,32 @@ export default function Calculadora() {
   const cero = calc.costoXUnidad === 0
 
   // ── Render ────────────────────────────────────────────────────────────────
+  if (loadingStorage) return (
+    <div className="flex items-center justify-center h-64 text-[#8a9ab0] text-sm">Cargando calculadora…</div>
+  )
+
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between mb-4 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-navy-600">Calculadora de precios</h1>
+          <h1 className="text-xl lg:text-2xl font-bold text-navy-600">Calculadora de precios</h1>
           <p className="text-sm text-[#8a9ab0] mt-0.5">Calcula el costo y precio sugerido de cualquier producto</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <Button
             variant={showPlant ? 'primary' : 'secondary'}
             onClick={() => setShowPlant(v => !v)}
           >
             <BookMarked size={15} />
-            Plantillas{plantillas.length > 0 ? ` (${plantillas.length})` : ''}
+            <span className="hidden sm:inline">Plantillas</span>{plantillas.length > 0 ? ` (${plantillas.length})` : ''}
           </Button>
           <Button
             variant="secondary"
             onClick={() => setRec(DEFAULT_RECETA)}
           >
-            <RotateCcw size={15} /> Reiniciar
+            <RotateCcw size={15} /> <span className="hidden sm:inline">Reiniciar</span>
           </Button>
         </div>
       </div>
@@ -880,7 +843,7 @@ export default function Calculadora() {
 
             {/* Materiales base */}
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8a9ab0] mb-3">Materiales base</p>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               {[
                 ['filamento_rollo_precio', 'Rollo filamento 1 kg'],
                 ['tarifa_hora',            'Costo maquina · hora'],

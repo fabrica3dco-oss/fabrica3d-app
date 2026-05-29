@@ -322,19 +322,19 @@ export default function Clientes() {
         <div className="flex flex-col gap-4">
           <Input label="Empresa *" value={form.empresa}
             onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))} placeholder="Nombre de la empresa o persona" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Contacto" value={form.contacto}
               onChange={e => setForm(f => ({ ...f, contacto: e.target.value }))} placeholder="Nombre del contacto" />
             <Input label="Cargo" value={form.cargo}
               onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} placeholder="Gerente, Compras..." />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Email" type="email" value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="correo@ejemplo.com" />
             <Input label="WhatsApp" value={form.whatsapp}
               onChange={e => setForm(f => ({ ...f, whatsapp: e.target.value }))} placeholder="+57 300 000 0000" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Sector" value={form.sector}
               onChange={e => setForm(f => ({ ...f, sector: e.target.value }))} placeholder="Construcción, Salud..." />
             <div className="flex flex-col gap-1">
