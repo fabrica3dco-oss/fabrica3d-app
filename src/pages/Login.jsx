@@ -41,14 +41,14 @@ export default function Login() {
     <div className="min-h-screen bg-[#0d1b2a] flex flex-col items-center justify-center p-4">
 
       {/* Logo */}
-      <div className="mb-10">
+      <div className="mb-8 px-4">
         <LogoFull />
       </div>
 
       {/* Card */}
       <form
         onSubmit={handleLogin}
-        className="w-full max-w-sm bg-white/[0.05] border border-white/[0.10] rounded-2xl p-8 flex flex-col gap-5 shadow-xl"
+        className="w-full max-w-sm bg-white/[0.05] border border-white/[0.10] rounded-2xl p-5 sm:p-8 flex flex-col gap-5 shadow-xl"
       >
         <div className="mb-1">
           <h1 className="text-white text-lg font-bold">Iniciar sesión</h1>

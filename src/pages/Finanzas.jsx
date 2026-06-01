@@ -400,10 +400,10 @@ export default function Finanzas() {
       {modalV && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-6 bg-black/40 backdrop-blur-sm"
           onClick={e => { if (e.target === e.currentTarget) setModalV(null) }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col">
+          <div className="bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#e2e6ea] shrink-0">
+            <div className="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-5 pb-4 border-b border-[#e2e6ea] shrink-0">
               <h2 className="text-base font-bold text-navy-600">
                 {modalV.mode === 'crear' ? 'Registrar venta' : 'Editar venta'}
               </h2>
@@ -415,7 +415,7 @@ export default function Finanzas() {
 
             <form onSubmit={guardarV} className="flex flex-col flex-1 overflow-hidden">
               {/* Scrollable body */}
-              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+              <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-4 sm:py-5 space-y-4">
 
                 {/* Fecha */}
                 <div>

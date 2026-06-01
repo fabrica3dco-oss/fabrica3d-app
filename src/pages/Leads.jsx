@@ -133,7 +133,7 @@ export default function Leads() {
           return (
             <div
               key={etapa.id}
-              className={`flex flex-col shrink-0 w-64 lg:w-72 rounded-xl transition-colors ${isOver ? 'bg-blue-50 ring-2 ring-accent' : 'bg-[#f8f9fb]'}`}
+              className={`flex flex-col shrink-0 w-[78vw] sm:w-64 lg:w-72 rounded-xl transition-colors ${isOver ? 'bg-blue-50 ring-2 ring-accent' : 'bg-[#f8f9fb]'}`}
               onDragOver={e => onDragOver(e, etapa.id)}
               onDrop={e => onDrop(e, etapa.id)}
               onDragLeave={() => setOverCol(null)}

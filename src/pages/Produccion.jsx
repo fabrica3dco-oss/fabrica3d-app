@@ -314,35 +314,35 @@ export default function Produccion() {
                     value={a.nombre}
                     onChange={e => onSet(i, 'nombre', e.target.value)}
                     placeholder="Nombre del material..."
-                    className="flex-1 min-w-0 border border-[#e2e6ea] rounded-lg px-2.5 py-1.5 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                    className="flex-1 min-w-0 border border-[#e2e6ea] rounded-lg px-2.5 py-2 text-sm text-navy-600 placeholder:text-[#8a9ab0] focus:outline-none focus:ring-2 focus:ring-accent bg-white"
                   />
                   <input
                     type="number" min="0" step="0.5"
                     value={a.qty}
                     onChange={e => onSet(i, 'qty', e.target.value)}
                     placeholder="0"
-                    className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-sm text-right text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                    className="w-14 shrink-0 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-right text-navy-600 focus:outline-none focus:ring-2 focus:ring-accent bg-white"
                   />
                   <select
                     value={a.unidad}
                     onChange={e => onSet(i, 'unidad', e.target.value)}
-                    className="w-14 border border-[#e2e6ea] rounded-lg px-1 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="w-14 shrink-0 border border-[#e2e6ea] rounded-lg px-1 py-2 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     {UNIDADES.map(u => <option key={u}>{u}</option>)}
                   </select>
                   <button type="button" onClick={() => onRemove(i)}
-                    className="p-1.5 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 shrink-0">
+                    className="p-2 rounded-lg hover:bg-red-50 text-[#8a9ab0] hover:text-red-500 shrink-0">
                     <Trash2 size={13} />
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#8a9ab0] shrink-0">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] text-[#8a9ab0]">
                     {a.inventario_id ? '✅' : '○'} Descontar de inventario:
                   </span>
                   <select
                     value={a.inventario_id || ''}
                     onChange={e => onLink(i, e.target.value)}
-                    className="flex-1 border border-[#e2e6ea] rounded-lg px-2 py-1 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="w-full border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     <option value="">Sin vincular</option>
                     {matItems.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
@@ -380,7 +380,7 @@ export default function Produccion() {
           return (
             <div
               key={estado.id}
-              className={`flex flex-col shrink-0 w-60 lg:w-64 rounded-xl transition-colors ${isOver ? 'bg-blue-50 ring-2 ring-accent' : 'bg-[#f8f9fb]'}`}
+              className={`flex flex-col shrink-0 w-[82vw] sm:w-60 lg:w-64 rounded-xl transition-colors ${isOver ? 'bg-blue-50 ring-2 ring-accent' : 'bg-[#f8f9fb]'}`}
               onDragOver={e => onDragOver(e, estado.id)}
               onDrop={e => onDrop(e, estado.id)}
               onDragLeave={() => setOverCol(null)}
@@ -542,7 +542,7 @@ export default function Produccion() {
       {invModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-navy-900/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) setInvModal(null) }}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl flex flex-col max-h-[90vh]">
+          <div className="bg-white sm:rounded-2xl rounded-t-2xl w-full max-w-sm shadow-xl flex flex-col max-h-[92vh]">
             <div className="px-5 pt-5 pb-4 border-b border-[#e2e6ea] shrink-0">
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="text-lg">✅</span>

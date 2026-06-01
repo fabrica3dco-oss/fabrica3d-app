@@ -597,13 +597,12 @@ export default function Cotizaciones() {
 
       {/* ── Vista previa PDF ────────────────────────────────────────────────── */}
       {previewUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4"
           onClick={() => setPreviewUrl(null)}>
-          <div className="relative bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-3xl"
-            style={{ height: 'min(90vh, 900px)' }}
+          <div className="relative bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col w-full max-w-3xl h-[92vh] sm:h-[90vh]"
             onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#e2e6ea]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#e2e6ea] shrink-0">
               <span className="font-semibold text-navy-600 text-sm">Vista previa</span>
               <button onClick={() => setPreviewUrl(null)}
                 className="p-1.5 rounded-lg hover:bg-[#f0f2f5] text-[#8a9ab0] hover:text-navy-600 transition-colors">

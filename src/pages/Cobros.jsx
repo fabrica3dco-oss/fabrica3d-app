@@ -368,7 +368,7 @@ export default function Cobros() {
 
       {/* Filtros */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative flex-1 min-w-[140px] sm:min-w-[220px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8a9ab0]" />
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por #, cliente, COT, monto..."
@@ -613,12 +613,11 @@ export default function Cobros() {
 
       {/* ── Vista previa PDF (igual que Cotizaciones) ───────────────────────── */}
       {previewUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4"
           onClick={() => setPreviewUrl(null)}>
-          <div className="relative bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-3xl"
-            style={{ height: 'min(90vh, 900px)' }}
+          <div className="relative bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col w-full max-w-3xl h-[92vh] sm:h-[90vh]"
             onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#e2e6ea]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#e2e6ea] shrink-0">
               <span className="font-semibold text-navy-600 text-sm">Vista previa</span>
               <button onClick={() => setPreviewUrl(null)}
                 className="p-1.5 rounded-lg hover:bg-[#f0f2f5] text-[#8a9ab0] hover:text-navy-600 transition-colors">

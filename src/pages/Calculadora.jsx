@@ -728,12 +728,12 @@ export default function Calculadora() {
       {/* ── Modal: guardar plantilla ─────────────────────────────────────────── */}
       {saveModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
           style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
           onClick={() => setSaveModal(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            className="bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl w-full max-w-sm p-5 sm:p-6 max-h-[92vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             <p className="text-base font-bold text-navy-600 mb-1">Guardar como plantilla</p>
@@ -773,7 +773,7 @@ export default function Calculadora() {
           onClick={() => setRoundModal(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            className="bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl w-full max-w-sm p-5 sm:p-6 max-h-[92vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             {/* Título */}
