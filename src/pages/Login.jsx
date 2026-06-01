@@ -88,9 +88,9 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setShowPw(v => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition-colors p-1"
             >
-              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
         </div>
