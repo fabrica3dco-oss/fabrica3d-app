@@ -9,8 +9,8 @@ import {
 import { supabase } from '../../services/supabase'
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh'
 
-// Badge de stock bajo con realtime
-function useStockBajoCount() {
+// Badge de stock bajo con realtime (exportado para uso en móvil)
+export function useStockBajoCount() {
   const [count, setCount] = useState(0)
   const fetch = useCallback(() => {
     supabase.from('inventario').select('id, stock_actual, stock_minimo')
