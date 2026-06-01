@@ -32,9 +32,9 @@ const DEFAULT_RECETA = {
 // ── Fila de resultado ─────────────────────────────────────────────────────────
 function FilaResultado({ label, valor, muted, bold, green, red, border }) {
   return (
-    <div className={`flex items-center justify-between py-1.5 ${border ? 'border-t border-[#e2e6ea] mt-1 pt-2.5' : ''}`}>
-      <span className={`text-xs ${muted ? 'text-[#8a9ab0]' : 'text-navy-600'} ${bold ? 'font-semibold' : ''}`}>{label}</span>
-      <span className={`text-sm font-semibold tabular-nums ${green ? 'text-green-600' : red ? 'text-red-500' : 'text-navy-600'}`}>{valor}</span>
+    <div className={`flex items-start justify-between gap-2 py-1.5 ${border ? 'border-t border-[#e2e6ea] mt-1 pt-2.5' : ''}`}>
+      <span className={`text-xs leading-snug flex-1 min-w-0 ${muted ? 'text-[#8a9ab0]' : 'text-navy-600'} ${bold ? 'font-semibold' : ''}`}>{label}</span>
+      <span className={`text-sm font-semibold tabular-nums shrink-0 ${green ? 'text-green-600' : red ? 'text-red-500' : 'text-navy-600'}`}>{valor}</span>
     </div>
   )
 }
@@ -328,30 +328,30 @@ export default function Calculadora() {
                     </div>
                   ) : (
                     /* ── Vista normal ── */
-                    <div className="flex items-center justify-between gap-2 p-2.5">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-navy-600 truncate">{p.nombre}</p>
-                        <p className="text-xs text-[#8a9ab0]">
+                    <div className="flex flex-col gap-2 p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-navy-600">{p.nombre}</p>
+                        <p className="text-xs text-[#8a9ab0] mt-0.5">
                           {p.rec.filamento_g > 0 && `${p.rec.filamento_g}g · `}
                           {p.rec.tiempo_min > 0 && `${p.rec.tiempo_min}min · `}
                           {p.rec.accesorios?.length > 0 && `${p.rec.accesorios.length} acc · `}
                           Margen {p.rec.margen}%
                         </p>
                       </div>
-                      <div className="flex gap-1 shrink-0">
+                      <div className="flex gap-2">
                         <button onClick={() => cargarPlantilla(p)}
-                          className="text-xs px-2.5 py-1.5 rounded-lg bg-accent/10 text-accent font-medium hover:bg-accent/20 transition-colors">
-                          Cargar
+                          className="flex-1 text-xs px-3 py-2 rounded-lg bg-accent text-white font-medium hover:opacity-90 transition-opacity">
+                          Cargar plantilla
                         </button>
                         <button onClick={() => setEditPlant({ id: p.id, nombre: p.nombre })}
-                          className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-navy-600 hover:bg-[#f0f2f5] transition-colors"
+                          className="p-2 rounded-lg text-[#8a9ab0] hover:text-navy-600 hover:bg-[#f0f2f5] transition-colors border border-[#e2e6ea]"
                           title="Renombrar">
-                          <Pencil size={13} />
+                          <Pencil size={14} />
                         </button>
                         <button onClick={() => eliminarPlantilla(p.id)}
-                          className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors"
+                          className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors border border-[#e2e6ea]"
                           title="Eliminar">
-                          <Trash2 size={13} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
@@ -500,11 +500,11 @@ export default function Calculadora() {
                 )}
                 <div className="flex flex-col gap-2">
                   {rec.accesorios.map((a, i) => (
-                    <div key={i} className="flex items-center gap-2">
+                    <div key={i} className="p-2.5 rounded-lg bg-[#f8f9fb] border border-[#e2e6ea] flex flex-col gap-2">
                       <select
                         value={a.id}
                         onChange={e => updAccRec(i, 'id', e.target.value)}
-                        className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                       >
                         {config.accesorios.map(o => (
                           <option key={o.id} value={o.id}>
@@ -512,20 +512,23 @@ export default function Calculadora() {
                           </option>
                         ))}
                       </select>
-                      <div className="relative w-20 shrink-0">
-                        <input
-                          type="number" min={0}
-                          value={a.cantidad || ''}
-                          onChange={e => updAccRec(i, 'cantidad', toNum(e.target.value))}
-                          placeholder="0"
-                          className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">ud</span>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[#8a9ab0] shrink-0">Cantidad:</label>
+                        <div className="relative flex-1">
+                          <input
+                            type="number" min={0}
+                            value={a.cantidad || ''}
+                            onChange={e => updAccRec(i, 'cantidad', toNum(e.target.value))}
+                            placeholder="0"
+                            className="w-full border border-[#e2e6ea] rounded-lg px-3 py-1.5 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">ud</span>
+                        </div>
+                        <button
+                          onClick={() => removeAccRec(i)}
+                          className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                        ><Trash2 size={13} /></button>
                       </div>
-                      <button
-                        onClick={() => removeAccRec(i)}
-                        className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                      >✕</button>
                     </div>
                   ))}
                 </div>
@@ -565,11 +568,11 @@ export default function Calculadora() {
                   {rec.acabados.map((a, i) => {
                     const cfgItem = config.acabados.find(x => x.id === a.id)
                     return (
-                      <div key={i} className="flex items-center gap-2">
+                      <div key={i} className="p-2.5 rounded-lg bg-[#f8f9fb] border border-[#e2e6ea] flex flex-col gap-2">
                         <select
                           value={a.id}
                           onChange={e => updAcbRec(i, 'id', e.target.value)}
-                          className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                          className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                         >
                           {config.acabados.map(o => (
                             <option key={o.id} value={o.id}>
@@ -577,22 +580,25 @@ export default function Calculadora() {
                             </option>
                           ))}
                         </select>
-                        <div className="relative w-24 shrink-0">
-                          <input
-                            type="number" min={0} step={0.5}
-                            value={a.cantidad || ''}
-                            onChange={e => updAcbRec(i, 'cantidad', toNum(e.target.value))}
-                            placeholder="0"
-                            className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">
-                            {cfgItem?.unidad || ''}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-[#8a9ab0] shrink-0">Cantidad:</label>
+                          <div className="relative flex-1">
+                            <input
+                              type="number" min={0} step={0.5}
+                              value={a.cantidad || ''}
+                              onChange={e => updAcbRec(i, 'cantidad', toNum(e.target.value))}
+                              placeholder="0"
+                              className="w-full border border-[#e2e6ea] rounded-lg px-3 py-1.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">
+                              {cfgItem?.unidad || ''}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => removeAcbRec(i)}
+                            className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                          ><Trash2 size={13} /></button>
                         </div>
-                        <button
-                          onClick={() => removeAcbRec(i)}
-                          className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                        >✕</button>
                       </div>
                     )
                   })}
@@ -879,15 +885,17 @@ export default function Calculadora() {
                 <p className="text-xs text-[#8a9ab0]">Sin accesorios</p>
               )}
               {config.accesorios.map(a => (
-                <div key={a.id} className="flex flex-col gap-1.5 p-2 rounded-lg border border-[#e2e6ea] bg-[#fafbfc]">
+                <div key={a.id} className="flex flex-col gap-2 p-3 rounded-lg border border-[#e2e6ea] bg-[#fafbfc]">
+                  {/* Nombre */}
+                  <input
+                    type="text" value={a.nombre}
+                    onChange={e => updAccCfg(a.id, 'nombre', e.target.value)}
+                    placeholder="Nombre del accesorio"
+                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                  />
+                  {/* Precio + Unidad + Eliminar */}
                   <div className="flex items-center gap-2">
-                    <input
-                      type="text" value={a.nombre}
-                      onChange={e => updAccCfg(a.id, 'nombre', e.target.value)}
-                      placeholder="Nombre del accesorio"
-                      className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
-                    />
-                    <div className="relative w-28 shrink-0">
+                    <div className="relative flex-1">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
                       <input
                         type="number" min={0}
@@ -901,26 +909,24 @@ export default function Calculadora() {
                       type="text" value={a.unidad}
                       onChange={e => updAccCfg(a.id, 'unidad', e.target.value)}
                       placeholder="ud"
-                      className="w-14 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                      className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
                     />
                     <button
                       onClick={() => removeAccCfg(a.id)}
-                      className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                      className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                    ><Trash2 size={13} /></button>
                   </div>
-                  {/* Vincular a ítem del inventario (para descuento automático) */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-[#8a9ab0] shrink-0">
-                      {a.inventario_id ? '✅' : '○'} Material en inventario:
+                  {/* Vincular inventario */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-[#8a9ab0]">
+                      {a.inventario_id ? '✅' : '○'} Vincular a inventario:
                     </span>
                     <select
                       value={a.inventario_id || ''}
                       onChange={e => updAccCfg(a.id, 'inventario_id', e.target.value || null)}
-                      className="flex-1 border border-[#e2e6ea] rounded-lg px-2 py-1 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      className="w-full border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
-                      <option value="">Sin vincular (no descuenta inventario)</option>
+                      <option value="">Sin vincular</option>
                       {matItems.map(m => (
                         <option key={m.id} value={m.id}>{m.nombre}</option>
                       ))}
@@ -945,15 +951,17 @@ export default function Calculadora() {
                 <p className="text-xs text-[#8a9ab0]">Sin acabados</p>
               )}
               {config.acabados.map(a => (
-                <div key={a.id} className="flex flex-col gap-1.5 p-2 rounded-lg border border-[#e2e6ea] bg-[#fafbfc]">
+                <div key={a.id} className="flex flex-col gap-2 p-3 rounded-lg border border-[#e2e6ea] bg-[#fafbfc]">
+                  {/* Nombre */}
+                  <input
+                    type="text" value={a.nombre}
+                    onChange={e => updAcbCfg(a.id, 'nombre', e.target.value)}
+                    placeholder="Nombre del acabado"
+                    className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                  />
+                  {/* Precio + Unidad + Eliminar */}
                   <div className="flex items-center gap-2">
-                    <input
-                      type="text" value={a.nombre}
-                      onChange={e => updAcbCfg(a.id, 'nombre', e.target.value)}
-                      placeholder="Nombre del acabado"
-                      className="flex-1 border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
-                    />
-                    <div className="relative w-28 shrink-0">
+                    <div className="relative flex-1">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
                       <input
                         type="number" min={0}
@@ -967,26 +975,24 @@ export default function Calculadora() {
                       type="text" value={a.unidad}
                       onChange={e => updAcbCfg(a.id, 'unidad', e.target.value)}
                       placeholder="ml"
-                      className="w-14 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                      className="w-16 border border-[#e2e6ea] rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
                     />
                     <button
                       onClick={() => removeAcbCfg(a.id)}
-                      className="p-1.5 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                      className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                    ><Trash2 size={13} /></button>
                   </div>
-                  {/* Vincular a ítem del inventario (para descuento automático) */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-[#8a9ab0] shrink-0">
-                      {a.inventario_id ? '✅' : '○'} Material en inventario:
+                  {/* Vincular inventario */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-[#8a9ab0]">
+                      {a.inventario_id ? '✅' : '○'} Vincular a inventario:
                     </span>
                     <select
                       value={a.inventario_id || ''}
                       onChange={e => updAcbCfg(a.id, 'inventario_id', e.target.value || null)}
-                      className="flex-1 border border-[#e2e6ea] rounded-lg px-2 py-1 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      className="w-full border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
-                      <option value="">Sin vincular (no descuenta inventario)</option>
+                      <option value="">Sin vincular</option>
                       {matItems.map(m => (
                         <option key={m.id} value={m.id}>{m.nombre}</option>
                       ))}
