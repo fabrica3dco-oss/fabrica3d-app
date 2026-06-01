@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BarChart2, Plus, X, FileEdit, CreditCard, TrendingUp, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BarChart2, Plus, X, FileEdit, CreditCard, TrendingUp, ClipboardList, LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../../services/supabase'
 
 const tabs = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Inicio' },
@@ -44,6 +45,14 @@ export default function BottomNav() {
       )}
 
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-[#e2e6ea] flex items-center justify-around px-2 h-16 safe-area-bottom">
+        {/* Botón cerrar sesión — esquina derecha oculto hasta long-press */}
+        <button
+          onClick={() => { if (window.confirm('¿Cerrar sesión?')) supabase.auth.signOut() }}
+          className="absolute top-1 right-1 p-1.5 rounded-lg text-[#c8d0da] hover:text-red-400 hover:bg-red-50 transition-colors"
+          title="Cerrar sesión"
+        >
+          <LogOut size={14} />
+        </button>
         {tabs.map((tab, i) => {
           if (!tab) {
             return (
