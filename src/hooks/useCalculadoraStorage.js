@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase'
 export const DEFAULT_CONFIG = {
   filamento_rollo_precio: 90000,
   filamento_rollo_gramos: 1000,
+  filamento_inventario_id: null, // color de filamento vinculado al inventario
   tarifa_hora: 15000,
   accesorios: [
     { id: 'acc_1', nombre: 'Anillo 12 mm',        precio: 100, unidad: 'ud' },
@@ -24,6 +25,7 @@ function mergeConfig(saved) {
     ...saved,
     accesorios: saved.accesorios ?? DEFAULT_CONFIG.accesorios,
     acabados:   saved.acabados   ?? DEFAULT_CONFIG.acabados,
+    filamento_inventario_id: saved.filamento_inventario_id ?? null,
   }
 }
 

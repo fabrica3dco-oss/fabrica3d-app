@@ -142,6 +142,8 @@ export default function Calculadora() {
         precio_unitario: precio,
         accesorios_usados: accesoriosUsados,
         acabados_usados: acabadosUsados,
+        filamento_g_por_unidad: ctx.filamento_g || 0,
+        filamento_inventario_id: ctx.filamento_inventario_id || null,
         costo_unitario:    Math.round(costoXUd),
         costo_total:       Math.round(costoXUd * cantidad),
         precio_total:      Math.round(precio * cantidad),
@@ -191,6 +193,8 @@ export default function Calculadora() {
     const ctx = {
       nombre:           rec.nombre || 'Producto 3D',
       cantidad,
+      filamento_g:      rec.filamento_g || 0,
+      filamento_inventario_id: config.filamento_inventario_id || null,
       accesoriosUsados,
       acabadosUsados,
       costoXUd:         _costoXUd,
@@ -867,25 +871,58 @@ export default function Calculadora() {
 
             {/* Materiales base */}
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8a9ab0] mb-3">Materiales base</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              {[
-                ['filamento_rollo_precio', 'Rollo filamento 1 kg'],
-                ['tarifa_hora',            'Costo maquina · hora'],
-              ].map(([key, label]) => (
-                <div key={key}>
-                  <label className="block text-xs font-medium text-navy-600 mb-1">{label}</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
-                    <input
-                      type="number" min={0}
-                      value={config[key] || ''}
-                      onChange={e => updCfg(key, toNum(e.target.value))}
-                      placeholder="0"
-                      className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                    />
+            <div className="flex flex-col gap-4 mb-6">
+              {/* Rollo de filamento */}
+              <div className="p-3 rounded-lg border border-[#e2e6ea] bg-[#fafbfc] flex flex-col gap-3">
+                <p className="text-xs font-semibold text-navy-600">Rollo filamento 1 kg</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-navy-600 mb-1">Precio del rollo</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                      <input
+                        type="number" min={0}
+                        value={config.filamento_rollo_precio || ''}
+                        onChange={e => updCfg('filamento_rollo_precio', toNum(e.target.value))}
+                        placeholder="0"
+                        className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-navy-600 mb-1">Color de filamento en uso</label>
+                    <select
+                      value={config.filamento_inventario_id || ''}
+                      onChange={e => updCfg('filamento_inventario_id', e.target.value || null)}
+                      className="w-full border border-[#e2e6ea] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    >
+                      <option value="">— Sin vincular —</option>
+                      {matItems.filter(m => m.categoria === 'filamento').map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.nombre} · {m.stock_actual} {m.unidad} disponibles
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-[#8a9ab0] mt-1">
+                      {config.filamento_inventario_id ? '✅ Al completar un pedido se descontarán los gramos usados' : '○ Vincular para descontar inventario automáticamente'}
+                    </p>
                   </div>
                 </div>
-              ))}
+              </div>
+              {/* Costo máquina */}
+              <div>
+                <label className="block text-xs font-medium text-navy-600 mb-1">Costo máquina · hora</label>
+                <div className="relative max-w-xs">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8a9ab0]">$</span>
+                  <input
+                    type="number" min={0}
+                    value={config.tarifa_hora || ''}
+                    onChange={e => updCfg('tarifa_hora', toNum(e.target.value))}
+                    placeholder="0"
+                    className="w-full border border-[#e2e6ea] rounded-lg pl-6 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Accesorios */}
@@ -934,7 +971,7 @@ export default function Calculadora() {
                       className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                     ><Trash2 size={13} /></button>
                   </div>
-                  {/* Vincular inventario */}
+                  {/* Vincular inventario — solo anillos e insumos, NO filamentos */}
                   <div className="flex flex-col gap-1">
                     <span className="text-[11px] text-[#8a9ab0]">
                       {a.inventario_id ? '✅' : '○'} Vincular a inventario:
@@ -945,8 +982,8 @@ export default function Calculadora() {
                       className="w-full border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
                       <option value="">Sin vincular</option>
-                      {matItems.map(m => (
-                        <option key={m.id} value={m.id}>{m.nombre}</option>
+                      {matItems.filter(m => m.categoria !== 'filamento').map(m => (
+                        <option key={m.id} value={m.id}>{m.nombre} ({m.categoria})</option>
                       ))}
                     </select>
                   </div>
@@ -1000,7 +1037,7 @@ export default function Calculadora() {
                       className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                     ><Trash2 size={13} /></button>
                   </div>
-                  {/* Vincular inventario */}
+                  {/* Vincular inventario — solo anillos e insumos, NO filamentos */}
                   <div className="flex flex-col gap-1">
                     <span className="text-[11px] text-[#8a9ab0]">
                       {a.inventario_id ? '✅' : '○'} Vincular a inventario:
@@ -1011,8 +1048,8 @@ export default function Calculadora() {
                       className="w-full border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
                       <option value="">Sin vincular</option>
-                      {matItems.map(m => (
-                        <option key={m.id} value={m.id}>{m.nombre}</option>
+                      {matItems.filter(m => m.categoria !== 'filamento').map(m => (
+                        <option key={m.id} value={m.id}>{m.nombre} ({m.categoria})</option>
                       ))}
                     </select>
                   </div>

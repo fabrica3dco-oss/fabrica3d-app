@@ -109,19 +109,36 @@ export default function Produccion() {
 
   useEffect(() => {
     if (!invModal) { setInvItems([]); return }
+    const rj = invModal.receta_json || {}
+    const cantidad = Number(invModal.cantidad) || 1
+
+    // Accesorios y acabados
     const items = [
-      ...(invModal.receta_json?.accesorios_usados || []),
-      ...(invModal.receta_json?.acabados_usados   || []),
+      ...(rj.accesorios_usados || []),
+      ...(rj.acabados_usados   || []),
     ]
       .filter(i => i.cantidad_total > 0)
       .map(i => ({
-        nombre:       i.nombre,
-        unidad:       i.unidad || '',
-        cantidad:     i.cantidad_total,
+        nombre:        i.nombre,
+        unidad:        i.unidad || '',
+        cantidad:      i.cantidad_total,
         inventario_id: i.inventario_id || null,
       }))
+
+    // Filamento — si tiene gramos y está vinculado al inventario
+    const filGramos = (rj.filamento_g_por_unidad || 0) * cantidad
+    if (filGramos > 0 && rj.filamento_inventario_id) {
+      const filItem = matItems.find(m => m.id === rj.filamento_inventario_id)
+      items.unshift({
+        nombre:        filItem ? `Filamento ${filItem.nombre}` : 'Filamento',
+        unidad:        'g',
+        cantidad:      filGramos,
+        inventario_id: rj.filamento_inventario_id,
+      })
+    }
+
     setInvItems(items)
-  }, [invModal])
+  }, [invModal, matItems])
 
   const porEstado = (estadoId) => pedidos.filter(p => (p.estado || 'en_cola') === estadoId)
   const activos   = pedidos.filter(p => p.estado !== 'entregado').length
@@ -134,7 +151,8 @@ export default function Produccion() {
         ...(pedido.receta_json?.accesorios_usados || []),
         ...(pedido.receta_json?.acabados_usados   || []),
       ].filter(i => i.cantidad_total > 0)
-      if (items.length > 0 || pedido.cobro_ref || pedido.receta_json?.precio_total > 0) setInvModal(pedido)
+      const tieneFilamento = (pedido.receta_json?.filamento_g_por_unidad || 0) > 0 && pedido.receta_json?.filamento_inventario_id
+      if (items.length > 0 || tieneFilamento || pedido.cobro_ref || pedido.receta_json?.precio_total > 0) setInvModal(pedido)
     }
   }
 
