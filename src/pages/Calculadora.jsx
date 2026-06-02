@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2, BookMarked, Save, Pencil, Check } from 'lucide-react'
+import { ChevronDown, ChevronUp, Settings, RotateCcw, Plus, Trash2, BookMarked, Save, Pencil, Check, X } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import { useInventario } from '../hooks/useInventario'
@@ -85,20 +85,40 @@ export default function Calculadora() {
 
   // Accesorios en config
   const addAccCfg    = () => setConfig(c => ({
-    ...c, accesorios: [...c.accesorios, { id: uid(), nombre: 'Nuevo accesorio', precio: 0, unidad: 'ud' }]
+    ...c, accesorios: [...c.accesorios, { id: uid(), nombre: 'Nuevo accesorio', precio: 0, unidad: 'ud', inventario_ids: [] }]
   }))
-  const removeAccCfg = id => setConfig(c => ({ ...c, accesorios: c.accesorios.filter(a => a.id !== id) }))
-  const updAccCfg    = (id, key, val) => setConfig(c => ({
+  const removeAccCfg       = id => setConfig(c => ({ ...c, accesorios: c.accesorios.filter(a => a.id !== id) }))
+  const updAccCfg          = (id, key, val) => setConfig(c => ({
     ...c, accesorios: c.accesorios.map(a => a.id === id ? { ...a, [key]: val } : a)
+  }))
+  const addAccInvLink      = (id, invId) => setConfig(c => ({
+    ...c, accesorios: c.accesorios.map(a => a.id === id
+      ? { ...a, inventario_ids: [...(a.inventario_ids || []).filter(x => x !== invId), invId] }
+      : a)
+  }))
+  const removeAccInvLink   = (id, invId) => setConfig(c => ({
+    ...c, accesorios: c.accesorios.map(a => a.id === id
+      ? { ...a, inventario_ids: (a.inventario_ids || []).filter(x => x !== invId) }
+      : a)
   }))
 
   // Acabados en config
   const addAcbCfg    = () => setConfig(c => ({
-    ...c, acabados: [...c.acabados, { id: uid(), nombre: 'Nuevo acabado', precio: 0, unidad: 'ud' }]
+    ...c, acabados: [...c.acabados, { id: uid(), nombre: 'Nuevo acabado', precio: 0, unidad: 'ud', inventario_ids: [] }]
   }))
-  const removeAcbCfg = id => setConfig(c => ({ ...c, acabados: c.acabados.filter(a => a.id !== id) }))
-  const updAcbCfg    = (id, key, val) => setConfig(c => ({
+  const removeAcbCfg     = id => setConfig(c => ({ ...c, acabados: c.acabados.filter(a => a.id !== id) }))
+  const updAcbCfg        = (id, key, val) => setConfig(c => ({
     ...c, acabados: c.acabados.map(a => a.id === id ? { ...a, [key]: val } : a)
+  }))
+  const addAcbInvLink    = (id, invId) => setConfig(c => ({
+    ...c, acabados: c.acabados.map(a => a.id === id
+      ? { ...a, inventario_ids: [...(a.inventario_ids || []).filter(x => x !== invId), invId] }
+      : a)
+  }))
+  const removeAcbInvLink = (id, invId) => setConfig(c => ({
+    ...c, acabados: c.acabados.map(a => a.id === id
+      ? { ...a, inventario_ids: (a.inventario_ids || []).filter(x => x !== invId) }
+      : a)
   }))
 
   // ── Plantillas ────────────────────────────────────────────────────────────
@@ -167,7 +187,8 @@ export default function Calculadora() {
       return {
         nombre:              item.nombre,
         unidad:              item.unidad,
-        inventario_id:       item.inventario_id || null,
+        inventario_ids:      item.inventario_ids || [],
+        inventario_id:       (item.inventario_ids || [])[0] || null,
         cantidad_por_unidad: a.cantidad,
         cantidad_total:      a.cantidad * cantidad,
       }
@@ -178,7 +199,8 @@ export default function Calculadora() {
       return {
         nombre:              item.nombre,
         unidad:              item.unidad,
-        inventario_id:       item.inventario_id || null,
+        inventario_ids:      item.inventario_ids || [],
+        inventario_id:       (item.inventario_ids || [])[0] || null,
         cantidad_por_unidad: a.cantidad,
         cantidad_total:      a.cantidad * cantidad,
       }
@@ -971,20 +993,33 @@ export default function Calculadora() {
                       className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                     ><Trash2 size={13} /></button>
                   </div>
-                  {/* Vincular inventario — solo anillos e insumos, NO filamentos */}
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] text-[#8a9ab0]">
-                      {a.inventario_id ? '✅' : '○'} Vincular a inventario:
+                  {/* Vincular materiales del inventario (múltiple) */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[11px] font-medium text-[#8a9ab0]">
+                      Materiales en inventario a descontar:
                     </span>
+                    {(a.inventario_ids || []).map(invId => {
+                      const inv = matItems.find(m => m.id === invId)
+                      return inv ? (
+                        <div key={invId} className="flex items-center gap-2 bg-accent/5 border border-accent/20 rounded-lg px-2.5 py-1.5">
+                          <span className="text-xs text-navy-600 flex-1">✅ {inv.nombre}</span>
+                          <button onClick={() => removeAccInvLink(a.id, invId)}
+                            className="text-[#8a9ab0] hover:text-red-500 transition-colors shrink-0">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : null
+                    })}
                     <select
-                      value={a.inventario_id || ''}
-                      onChange={e => updAccCfg(a.id, 'inventario_id', e.target.value || null)}
-                      className="w-full border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      value=""
+                      onChange={e => { if (e.target.value) addAccInvLink(a.id, e.target.value) }}
+                      className="w-full border border-dashed border-[#c8d0da] rounded-lg px-2 py-1.5 text-xs text-[#8a9ab0] bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
-                      <option value="">Sin vincular</option>
-                      {matItems.filter(m => m.categoria !== 'filamento').map(m => (
-                        <option key={m.id} value={m.id}>{m.nombre} ({m.categoria})</option>
-                      ))}
+                      <option value="">+ Vincular material del inventario...</option>
+                      {matItems
+                        .filter(m => m.categoria !== 'filamento' && !(a.inventario_ids || []).includes(m.id))
+                        .map(m => <option key={m.id} value={m.id}>{m.nombre} ({m.categoria})</option>)
+                      }
                     </select>
                   </div>
                 </div>
@@ -1037,20 +1072,33 @@ export default function Calculadora() {
                       className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                     ><Trash2 size={13} /></button>
                   </div>
-                  {/* Vincular inventario — solo anillos e insumos, NO filamentos */}
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] text-[#8a9ab0]">
-                      {a.inventario_id ? '✅' : '○'} Vincular a inventario:
+                  {/* Vincular materiales del inventario (múltiple) */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[11px] font-medium text-[#8a9ab0]">
+                      Materiales en inventario a descontar:
                     </span>
+                    {(a.inventario_ids || []).map(invId => {
+                      const inv = matItems.find(m => m.id === invId)
+                      return inv ? (
+                        <div key={invId} className="flex items-center gap-2 bg-accent/5 border border-accent/20 rounded-lg px-2.5 py-1.5">
+                          <span className="text-xs text-navy-600 flex-1">✅ {inv.nombre}</span>
+                          <button onClick={() => removeAcbInvLink(a.id, invId)}
+                            className="text-[#8a9ab0] hover:text-red-500 transition-colors shrink-0">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : null
+                    })}
                     <select
-                      value={a.inventario_id || ''}
-                      onChange={e => updAcbCfg(a.id, 'inventario_id', e.target.value || null)}
-                      className="w-full border border-[#e2e6ea] rounded-lg px-2 py-1.5 text-xs text-navy-600 bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      value=""
+                      onChange={e => { if (e.target.value) addAcbInvLink(a.id, e.target.value) }}
+                      className="w-full border border-dashed border-[#c8d0da] rounded-lg px-2 py-1.5 text-xs text-[#8a9ab0] bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
-                      <option value="">Sin vincular</option>
-                      {matItems.filter(m => m.categoria !== 'filamento').map(m => (
-                        <option key={m.id} value={m.id}>{m.nombre} ({m.categoria})</option>
-                      ))}
+                      <option value="">+ Vincular material del inventario...</option>
+                      {matItems
+                        .filter(m => m.categoria !== 'filamento' && !(a.inventario_ids || []).includes(m.id))
+                        .map(m => <option key={m.id} value={m.id}>{m.nombre} ({m.categoria})</option>)
+                      }
                     </select>
                   </div>
                 </div>

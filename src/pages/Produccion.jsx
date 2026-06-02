@@ -112,18 +112,23 @@ export default function Produccion() {
     const rj = invModal.receta_json || {}
     const cantidad = Number(invModal.cantidad) || 1
 
-    // Accesorios y acabados
+    // Accesorios y acabados — expande múltiples vínculos de inventario
     const items = [
       ...(rj.accesorios_usados || []),
       ...(rj.acabados_usados   || []),
     ]
       .filter(i => i.cantidad_total > 0)
-      .map(i => ({
-        nombre:        i.nombre,
-        unidad:        i.unidad || '',
-        cantidad:      i.cantidad_total,
-        inventario_id: i.inventario_id || null,
-      }))
+      .flatMap(i => {
+        const ids = i.inventario_ids?.length > 0
+          ? i.inventario_ids
+          : (i.inventario_id ? [i.inventario_id] : [null])
+        return ids.map(invId => ({
+          nombre:        i.nombre,
+          unidad:        i.unidad || '',
+          cantidad:      i.cantidad_total,
+          inventario_id: invId,
+        }))
+      })
 
     // Filamento — si tiene gramos y está vinculado al inventario
     const filGramos = (rj.filamento_g_por_unidad || 0) * cantidad

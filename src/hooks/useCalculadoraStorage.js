@@ -4,27 +4,35 @@ import { supabase } from '../services/supabase'
 export const DEFAULT_CONFIG = {
   filamento_rollo_precio: 90000,
   filamento_rollo_gramos: 1000,
-  filamento_inventario_id: null, // color de filamento vinculado al inventario
+  filamento_inventario_id: null,
   tarifa_hora: 15000,
   accesorios: [
-    { id: 'acc_1', nombre: 'Anillo 12 mm',        precio: 100, unidad: 'ud' },
-    { id: 'acc_2', nombre: 'Anillo 20 mm',        precio: 400, unidad: 'ud' },
-    { id: 'acc_3', nombre: 'Anillo con cadenita', precio: 500, unidad: 'ud' },
+    { id: 'acc_1', nombre: 'Anillo 12 mm',        precio: 100, unidad: 'ud', inventario_ids: [] },
+    { id: 'acc_2', nombre: 'Anillo 20 mm',        precio: 400, unidad: 'ud', inventario_ids: [] },
+    { id: 'acc_3', nombre: 'Anillo con cadenita', precio: 500, unidad: 'ud', inventario_ids: [] },
   ],
   acabados: [
-    { id: 'acb_1', nombre: 'Resina (A+B)', precio: 80, unidad: 'ml' },
+    { id: 'acb_1', nombre: 'Resina (A+B)', precio: 80, unidad: 'ml', inventario_ids: [] },
   ],
 }
 
 // ID fijo para la fila de config compartida entre todos los usuarios
 const CONFIG_ROW_ID = '00000000-0000-0000-0000-000000000001'
 
+function normalizeLinks(arr) {
+  return (arr || []).map(a => ({
+    ...a,
+    // migrar inventario_id (legacy) → inventario_ids (nuevo)
+    inventario_ids: a.inventario_ids ?? (a.inventario_id ? [a.inventario_id] : []),
+  }))
+}
+
 function mergeConfig(saved) {
   return {
     ...DEFAULT_CONFIG,
     ...saved,
-    accesorios: saved.accesorios ?? DEFAULT_CONFIG.accesorios,
-    acabados:   saved.acabados   ?? DEFAULT_CONFIG.acabados,
+    accesorios: normalizeLinks(saved.accesorios ?? DEFAULT_CONFIG.accesorios),
+    acabados:   normalizeLinks(saved.acabados   ?? DEFAULT_CONFIG.acabados),
     filamento_inventario_id: saved.filamento_inventario_id ?? null,
   }
 }
