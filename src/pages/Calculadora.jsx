@@ -42,7 +42,8 @@ function FilaResultado({ label, valor, muted, bold, green, red, border }) {
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function Calculadora() {
 
-  const { config, setConfig, plantillas, loading: loadingStorage,
+  const { config, setConfig, saveConfig, saving: savingConfig, saveStatus,
+          plantillas, loading: loadingStorage,
           guardarPlantilla: _guardarPlantilla,
           eliminarPlantilla: _eliminarPlantilla,
           renombrarPlantilla: _renombrarPlantilla } = useCalculadoraStorage()
@@ -842,10 +843,27 @@ export default function Calculadora() {
 
         {showConfig && (
           <Card className="mt-3">
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
               <p className="text-xs text-[#8a9ab0]">Actualiza cuando cambien los precios de tu proveedor.</p>
-              <span className="text-xs text-green-600 font-medium">✓ Guardado automaticamente</span>
+              <button
+                onClick={() => saveConfig(config)}
+                disabled={savingConfig}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 transition-all shrink-0"
+              >
+                <Save size={13} />
+                {savingConfig ? 'Guardando...' : 'Guardar cambios'}
+              </button>
             </div>
+            {saveStatus === 'ok' && (
+              <div className="mb-4 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-medium">
+                ✓ Configuración guardada correctamente
+              </div>
+            )}
+            {saveStatus === 'error' && (
+              <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-medium">
+                ✗ Error al guardar. Verifica que las tablas estén creadas en Supabase.
+              </div>
+            )}
 
             {/* Materiales base */}
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#8a9ab0] mb-3">Materiales base</p>

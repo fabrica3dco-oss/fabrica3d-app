@@ -28,7 +28,8 @@ export function useCalculadoraStorage() {
   const [config, setConfigState]   = useState(DEFAULT_CONFIG)
   const [plantillas, setPlantillas] = useState([])
   const [loading, setLoading]       = useState(true)
-  const saveTimer = useRef(null)
+  const [saving, setSaving]         = useState(false)
+  const [saveStatus, setSaveStatus] = useState(null) // 'ok' | 'error' | null
   const userIdRef = useRef(null)
 
   useEffect(() => {
@@ -49,19 +50,31 @@ export function useCalculadoraStorage() {
     load()
   }, [])
 
+  // Solo actualiza el estado local — el guardado es manual con saveConfig
   const setConfig = useCallback((updater) => {
     setConfigState(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater
-      clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(async () => {
-        const uid = userIdRef.current
-        if (!uid) return
-        await supabase
-          .from('calculadora_config')
-          .upsert({ user_id: uid, config: next, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
-      }, 800)
       return next
     })
+    setSaveStatus(null) // marcar como pendiente
+  }, [])
+
+  // Guardado explícito — llamado desde el botón
+  const saveConfig = useCallback(async (configToSave) => {
+    const uid = userIdRef.current
+    if (!uid) return false
+    setSaving(true)
+    setSaveStatus(null)
+    const { error } = await supabase
+      .from('calculadora_config')
+      .upsert(
+        { user_id: uid, config: configToSave, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      )
+    setSaving(false)
+    setSaveStatus(error ? 'error' : 'ok')
+    if (error) console.error('Error guardando config calculadora:', error)
+    return !error
   }, [])
 
   async function guardarPlantilla(nombre, rec) {
@@ -75,6 +88,7 @@ export function useCalculadoraStorage() {
     if (!error && data) {
       setPlantillas(prev => [...prev, { id: data.id, nombre: data.nombre, rec: data.rec }])
     }
+    return !error
   }
 
   async function eliminarPlantilla(id) {
@@ -87,7 +101,11 @@ export function useCalculadoraStorage() {
     setPlantillas(prev => prev.map(p => p.id === id ? { ...p, nombre } : p))
   }
 
-  return { config, setConfig, plantillas, loading, guardarPlantilla, eliminarPlantilla, renombrarPlantilla }
+  return {
+    config, setConfig, saveConfig, saving, saveStatus,
+    plantillas, loading,
+    guardarPlantilla, eliminarPlantilla, renombrarPlantilla,
+  }
 }
 
 // Lightweight hook for pages that only need to read accesorios/acabados
