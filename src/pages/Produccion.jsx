@@ -112,21 +112,24 @@ export default function Produccion() {
     const rj = invModal.receta_json || {}
     const cantidad = Number(invModal.cantidad) || 1
 
-    // Accesorios y acabados — expande múltiples vínculos de inventario
+    // Accesorios y acabados — expande vínculos con proporciones
     const items = [
       ...(rj.accesorios_usados || []),
       ...(rj.acabados_usados   || []),
     ]
       .filter(i => i.cantidad_total > 0)
       .flatMap(i => {
-        const ids = i.inventario_ids?.length > 0
-          ? i.inventario_ids
-          : (i.inventario_id ? [i.inventario_id] : [null])
-        return ids.map(invId => ({
-          nombre:        i.nombre,
+        const links = i.inventario_links?.length > 0
+          ? i.inventario_links
+          : (i.inventario_id ? [{ inventario_id: i.inventario_id, proporcion: 100 }] : [])
+        if (links.length === 0) {
+          return [{ nombre: i.nombre, unidad: i.unidad || '', cantidad: i.cantidad_total, inventario_id: null }]
+        }
+        return links.map(link => ({
+          nombre:        i.nombre + (links.length > 1 ? ` (${link.proporcion}%)` : ''),
           unidad:        i.unidad || '',
-          cantidad:      i.cantidad_total,
-          inventario_id: invId,
+          cantidad:      Math.round(i.cantidad_total * (link.proporcion / 100) * 10) / 10,
+          inventario_id: link.inventario_id,
         }))
       })
 

@@ -7,12 +7,12 @@ export const DEFAULT_CONFIG = {
   filamento_inventario_id: null,
   tarifa_hora: 15000,
   accesorios: [
-    { id: 'acc_1', nombre: 'Anillo 12 mm',        precio: 100, unidad: 'ud', inventario_ids: [] },
-    { id: 'acc_2', nombre: 'Anillo 20 mm',        precio: 400, unidad: 'ud', inventario_ids: [] },
-    { id: 'acc_3', nombre: 'Anillo con cadenita', precio: 500, unidad: 'ud', inventario_ids: [] },
+    { id: 'acc_1', nombre: 'Anillo 12 mm',        precio: 100, unidad: 'ud', inventario_links: [] },
+    { id: 'acc_2', nombre: 'Anillo 20 mm',        precio: 400, unidad: 'ud', inventario_links: [] },
+    { id: 'acc_3', nombre: 'Anillo con cadenita', precio: 500, unidad: 'ud', inventario_links: [] },
   ],
   acabados: [
-    { id: 'acb_1', nombre: 'Resina (A+B)', precio: 80, unidad: 'ml', inventario_ids: [] },
+    { id: 'acb_1', nombre: 'Resina (A+B)', precio: 80, unidad: 'ml', inventario_links: [] },
   ],
 }
 
@@ -20,11 +20,22 @@ export const DEFAULT_CONFIG = {
 const CONFIG_ROW_ID = '00000000-0000-0000-0000-000000000001'
 
 function normalizeLinks(arr) {
-  return (arr || []).map(a => ({
-    ...a,
-    // migrar inventario_id (legacy) → inventario_ids (nuevo)
-    inventario_ids: a.inventario_ids ?? (a.inventario_id ? [a.inventario_id] : []),
-  }))
+  return (arr || []).map(a => {
+    // migrar inventario_id (legacy string) → inventario_links
+    if (!a.inventario_links) {
+      const ids = a.inventario_ids?.length > 0
+        ? a.inventario_ids
+        : (a.inventario_id ? [a.inventario_id] : [])
+      return {
+        ...a,
+        inventario_links: ids.map((id, i) => ({
+          inventario_id: id,
+          proporcion: ids.length === 1 ? 100 : Math.round(100 / ids.length),
+        })),
+      }
+    }
+    return a
+  })
 }
 
 function mergeConfig(saved) {

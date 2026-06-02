@@ -95,39 +95,73 @@ export default function Calculadora() {
 
   // Accesorios en config
   const addAccCfg    = () => setConfig(c => ({
-    ...c, accesorios: [...c.accesorios, { id: uid(), nombre: 'Nuevo accesorio', precio: 0, unidad: 'ud', inventario_ids: [] }]
+    ...c, accesorios: [...c.accesorios, { id: uid(), nombre: 'Nuevo accesorio', precio: 0, unidad: 'ud', inventario_links: [] }]
   }))
-  const removeAccCfg       = id => setConfig(c => ({ ...c, accesorios: c.accesorios.filter(a => a.id !== id) }))
-  const updAccCfg          = (id, key, val) => setConfig(c => ({
+  const removeAccCfg     = id => setConfig(c => ({ ...c, accesorios: c.accesorios.filter(a => a.id !== id) }))
+  const updAccCfg        = (id, key, val) => setConfig(c => ({
     ...c, accesorios: c.accesorios.map(a => a.id === id ? { ...a, [key]: val } : a)
   }))
-  const addAccInvLink      = (id, invId) => setConfig(c => ({
-    ...c, accesorios: c.accesorios.map(a => a.id === id
-      ? { ...a, inventario_ids: [...(a.inventario_ids || []).filter(x => x !== invId), invId] }
-      : a)
+  const addAccInvLink    = (id, invId) => setConfig(c => ({
+    ...c, accesorios: c.accesorios.map(a => {
+      if (a.id !== id) return a
+      const links = a.inventario_links || []
+      if (links.find(l => l.inventario_id === invId)) return a
+      const n = links.length + 1
+      const prop = Math.floor(100 / n)
+      const resto = 100 - prop * (n - 1)
+      return { ...a, inventario_links: [
+        ...links.map((l, i) => ({ ...l, proporcion: i === 0 ? resto : prop })),
+        { inventario_id: invId, proporcion: prop },
+      ]}
+    })
   }))
-  const removeAccInvLink   = (id, invId) => setConfig(c => ({
+  const removeAccInvLink = (id, invId) => setConfig(c => ({
+    ...c, accesorios: c.accesorios.map(a => {
+      if (a.id !== id) return a
+      const links = (a.inventario_links || []).filter(l => l.inventario_id !== invId)
+      if (links.length === 1) links[0] = { ...links[0], proporcion: 100 }
+      return { ...a, inventario_links: links }
+    })
+  }))
+  const updAccInvProp    = (id, invId, proporcion) => setConfig(c => ({
     ...c, accesorios: c.accesorios.map(a => a.id === id
-      ? { ...a, inventario_ids: (a.inventario_ids || []).filter(x => x !== invId) }
+      ? { ...a, inventario_links: (a.inventario_links || []).map(l => l.inventario_id === invId ? { ...l, proporcion } : l) }
       : a)
   }))
 
   // Acabados en config
   const addAcbCfg    = () => setConfig(c => ({
-    ...c, acabados: [...c.acabados, { id: uid(), nombre: 'Nuevo acabado', precio: 0, unidad: 'ud', inventario_ids: [] }]
+    ...c, acabados: [...c.acabados, { id: uid(), nombre: 'Nuevo acabado', precio: 0, unidad: 'ud', inventario_links: [] }]
   }))
   const removeAcbCfg     = id => setConfig(c => ({ ...c, acabados: c.acabados.filter(a => a.id !== id) }))
   const updAcbCfg        = (id, key, val) => setConfig(c => ({
     ...c, acabados: c.acabados.map(a => a.id === id ? { ...a, [key]: val } : a)
   }))
   const addAcbInvLink    = (id, invId) => setConfig(c => ({
-    ...c, acabados: c.acabados.map(a => a.id === id
-      ? { ...a, inventario_ids: [...(a.inventario_ids || []).filter(x => x !== invId), invId] }
-      : a)
+    ...c, acabados: c.acabados.map(a => {
+      if (a.id !== id) return a
+      const links = a.inventario_links || []
+      if (links.find(l => l.inventario_id === invId)) return a
+      const n = links.length + 1
+      const prop = Math.floor(100 / n)
+      const resto = 100 - prop * (n - 1)
+      return { ...a, inventario_links: [
+        ...links.map((l, i) => ({ ...l, proporcion: i === 0 ? resto : prop })),
+        { inventario_id: invId, proporcion: prop },
+      ]}
+    })
   }))
   const removeAcbInvLink = (id, invId) => setConfig(c => ({
+    ...c, acabados: c.acabados.map(a => {
+      if (a.id !== id) return a
+      const links = (a.inventario_links || []).filter(l => l.inventario_id !== invId)
+      if (links.length === 1) links[0] = { ...links[0], proporcion: 100 }
+      return { ...a, inventario_links: links }
+    })
+  }))
+  const updAcbInvProp    = (id, invId, proporcion) => setConfig(c => ({
     ...c, acabados: c.acabados.map(a => a.id === id
-      ? { ...a, inventario_ids: (a.inventario_ids || []).filter(x => x !== invId) }
+      ? { ...a, inventario_links: (a.inventario_links || []).map(l => l.inventario_id === invId ? { ...l, proporcion } : l) }
       : a)
   }))
 
@@ -197,8 +231,8 @@ export default function Calculadora() {
       return {
         nombre:              item.nombre,
         unidad:              item.unidad,
-        inventario_ids:      item.inventario_ids || [],
-        inventario_id:       (item.inventario_ids || [])[0] || null,
+        inventario_links:    item.inventario_links || [],
+        inventario_id:       (item.inventario_links || [])[0]?.inventario_id || null,
         cantidad_por_unidad: a.cantidad,
         cantidad_total:      a.cantidad * cantidad,
       }
@@ -209,8 +243,8 @@ export default function Calculadora() {
       return {
         nombre:              item.nombre,
         unidad:              item.unidad,
-        inventario_ids:      item.inventario_ids || [],
-        inventario_id:       (item.inventario_ids || [])[0] || null,
+        inventario_links:    item.inventario_links || [],
+        inventario_id:       (item.inventario_links || [])[0]?.inventario_id || null,
         cantidad_por_unidad: a.cantidad,
         cantidad_total:      a.cantidad * cantidad,
       }
@@ -1003,18 +1037,35 @@ export default function Calculadora() {
                       className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                     ><Trash2 size={13} /></button>
                   </div>
-                  {/* Vincular materiales del inventario (múltiple) */}
+                  {/* Vincular materiales del inventario con proporción */}
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-medium text-[#8a9ab0]">
-                      Materiales en inventario a descontar:
-                    </span>
-                    {(a.inventario_ids || []).map(invId => {
-                      const inv = matItems.find(m => m.id === invId)
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-[#8a9ab0]">Materiales a descontar del inventario:</span>
+                      {(a.inventario_links || []).length > 1 && (
+                        <span className={`text-[11px] font-semibold ${
+                          (a.inventario_links || []).reduce((s, l) => s + (l.proporcion || 0), 0) === 100
+                            ? 'text-green-600' : 'text-red-500'
+                        }`}>
+                          Total: {(a.inventario_links || []).reduce((s, l) => s + (l.proporcion || 0), 0)}%
+                        </span>
+                      )}
+                    </div>
+                    {(a.inventario_links || []).map(link => {
+                      const inv = matItems.find(m => m.id === link.inventario_id)
                       return inv ? (
-                        <div key={invId} className="flex items-center gap-2 bg-accent/5 border border-accent/20 rounded-lg px-2.5 py-1.5">
-                          <span className="text-xs text-navy-600 flex-1">✅ {inv.nombre}</span>
-                          <button onClick={() => removeAccInvLink(a.id, invId)}
-                            className="text-[#8a9ab0] hover:text-red-500 transition-colors shrink-0">
+                        <div key={link.inventario_id} className="flex items-center gap-2 bg-accent/5 border border-accent/20 rounded-lg px-2.5 py-1.5">
+                          <span className="text-xs text-navy-600 flex-1 min-w-0 truncate">✅ {inv.nombre}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <input
+                              type="number" min={1} max={100}
+                              value={link.proporcion || ''}
+                              onChange={e => updAccInvProp(a.id, link.inventario_id, Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                              className="w-12 border border-accent/30 rounded px-1.5 py-0.5 text-xs text-center text-navy-600 bg-white focus:outline-none focus:ring-1 focus:ring-accent/40"
+                            />
+                            <span className="text-[11px] text-[#8a9ab0]">%</span>
+                          </div>
+                          <button onClick={() => removeAccInvLink(a.id, link.inventario_id)}
+                            className="text-[#8a9ab0] hover:text-red-500 transition-colors shrink-0 ml-1">
                             <X size={12} />
                           </button>
                         </div>
@@ -1029,7 +1080,7 @@ export default function Calculadora() {
                       {Object.entries(invPorCategoria).map(([cat, items]) => (
                         <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
                           {items
-                            .filter(m => !(a.inventario_ids || []).includes(m.id))
+                            .filter(m => !(a.inventario_links || []).find(l => l.inventario_id === m.id))
                             .map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)
                           }
                         </optgroup>
@@ -1086,18 +1137,35 @@ export default function Calculadora() {
                       className="p-2 rounded-lg text-[#8a9ab0] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                     ><Trash2 size={13} /></button>
                   </div>
-                  {/* Vincular materiales del inventario (múltiple) */}
+                  {/* Vincular materiales del inventario con proporción */}
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-medium text-[#8a9ab0]">
-                      Materiales en inventario a descontar:
-                    </span>
-                    {(a.inventario_ids || []).map(invId => {
-                      const inv = matItems.find(m => m.id === invId)
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-[#8a9ab0]">Materiales a descontar del inventario:</span>
+                      {(a.inventario_links || []).length > 1 && (
+                        <span className={`text-[11px] font-semibold ${
+                          (a.inventario_links || []).reduce((s, l) => s + (l.proporcion || 0), 0) === 100
+                            ? 'text-green-600' : 'text-red-500'
+                        }`}>
+                          Total: {(a.inventario_links || []).reduce((s, l) => s + (l.proporcion || 0), 0)}%
+                        </span>
+                      )}
+                    </div>
+                    {(a.inventario_links || []).map(link => {
+                      const inv = matItems.find(m => m.id === link.inventario_id)
                       return inv ? (
-                        <div key={invId} className="flex items-center gap-2 bg-accent/5 border border-accent/20 rounded-lg px-2.5 py-1.5">
-                          <span className="text-xs text-navy-600 flex-1">✅ {inv.nombre}</span>
-                          <button onClick={() => removeAcbInvLink(a.id, invId)}
-                            className="text-[#8a9ab0] hover:text-red-500 transition-colors shrink-0">
+                        <div key={link.inventario_id} className="flex items-center gap-2 bg-accent/5 border border-accent/20 rounded-lg px-2.5 py-1.5">
+                          <span className="text-xs text-navy-600 flex-1 min-w-0 truncate">✅ {inv.nombre}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <input
+                              type="number" min={1} max={100}
+                              value={link.proporcion || ''}
+                              onChange={e => updAcbInvProp(a.id, link.inventario_id, Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                              className="w-12 border border-accent/30 rounded px-1.5 py-0.5 text-xs text-center text-navy-600 bg-white focus:outline-none focus:ring-1 focus:ring-accent/40"
+                            />
+                            <span className="text-[11px] text-[#8a9ab0]">%</span>
+                          </div>
+                          <button onClick={() => removeAcbInvLink(a.id, link.inventario_id)}
+                            className="text-[#8a9ab0] hover:text-red-500 transition-colors shrink-0 ml-1">
                             <X size={12} />
                           </button>
                         </div>
@@ -1112,7 +1180,7 @@ export default function Calculadora() {
                       {Object.entries(invPorCategoria).map(([cat, items]) => (
                         <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
                           {items
-                            .filter(m => !(a.inventario_ids || []).includes(m.id))
+                            .filter(m => !(a.inventario_links || []).find(l => l.inventario_id === m.id))
                             .map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)
                           }
                         </optgroup>
