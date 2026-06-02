@@ -59,6 +59,16 @@ export default function Calculadora() {
   const [editPlant,   setEditPlant]   = useState(null)
   const [roundModal,  setRoundModal]  = useState(null)
 
+  // Agrupa ítems de inventario por categoría (excluye filamentos)
+  const invPorCategoria = matItems
+    .filter(m => m.categoria !== 'filamento')
+    .reduce((acc, m) => {
+      const cat = m.categoria || 'otros'
+      if (!acc[cat]) acc[cat] = []
+      acc[cat].push(m)
+      return acc
+    }, {})
+
   // ── Helpers de edicion ────────────────────────────────────────────────────
   const updRec = (key, val) => setRec(r => ({ ...r, [key]: val }))
   const updCfg = (key, val) => setConfig(c => ({ ...c, [key]: val }))
@@ -1016,10 +1026,14 @@ export default function Calculadora() {
                       className="w-full border border-dashed border-[#c8d0da] rounded-lg px-2 py-1.5 text-xs text-[#8a9ab0] bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
                       <option value="">+ Vincular material del inventario...</option>
-                      {matItems
-                        .filter(m => m.categoria !== 'filamento' && !(a.inventario_ids || []).includes(m.id))
-                        .map(m => <option key={m.id} value={m.id}>{m.nombre} ({m.categoria})</option>)
-                      }
+                      {Object.entries(invPorCategoria).map(([cat, items]) => (
+                        <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                          {items
+                            .filter(m => !(a.inventario_ids || []).includes(m.id))
+                            .map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)
+                          }
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1095,10 +1109,14 @@ export default function Calculadora() {
                       className="w-full border border-dashed border-[#c8d0da] rounded-lg px-2 py-1.5 text-xs text-[#8a9ab0] bg-white focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
                       <option value="">+ Vincular material del inventario...</option>
-                      {matItems
-                        .filter(m => m.categoria !== 'filamento' && !(a.inventario_ids || []).includes(m.id))
-                        .map(m => <option key={m.id} value={m.id}>{m.nombre} ({m.categoria})</option>)
-                      }
+                      {Object.entries(invPorCategoria).map(([cat, items]) => (
+                        <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                          {items
+                            .filter(m => !(a.inventario_ids || []).includes(m.id))
+                            .map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)
+                          }
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
                 </div>
