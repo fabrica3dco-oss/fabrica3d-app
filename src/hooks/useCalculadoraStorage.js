@@ -32,34 +32,50 @@ export function useCalculadoraStorage() {
   const [saveStatus, setSaveStatus] = useState(null) // 'ok' | 'error' | null
   const userIdRef = useRef(null)
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-      userIdRef.current = user.id
+  // ── Carga inicial ─────────────────────────────────────────────────────────
+  const loadData = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setLoading(false); return }
+    userIdRef.current = user.id
 
-      const [{ data: cfgData }, { data: plantData }] = await Promise.all([
-        supabase.from('calculadora_config').select('config').eq('user_id', user.id).maybeSingle(),
-        supabase.from('calculadora_plantillas').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
-      ])
+    const [{ data: cfgData, error: cfgErr }, { data: plantData }] = await Promise.all([
+      supabase.from('calculadora_config').select('config').eq('user_id', user.id).maybeSingle(),
+      supabase.from('calculadora_plantillas').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
+    ])
 
-      if (cfgData?.config) setConfigState(mergeConfig(cfgData.config))
-      if (plantData) setPlantillas(plantData.map(p => ({ id: p.id, nombre: p.nombre, rec: p.rec })))
-      setLoading(false)
-    }
-    load()
+    if (cfgErr) console.error('Error cargando config calculadora:', cfgErr)
+    if (cfgData?.config) setConfigState(mergeConfig(cfgData.config))
+    if (plantData) setPlantillas(plantData.map(p => ({ id: p.id, nombre: p.nombre, rec: p.rec })))
+    setLoading(false)
   }, [])
 
-  // Solo actualiza el estado local — el guardado es manual con saveConfig
+  useEffect(() => { loadData() }, [loadData])
+
+  // ── Realtime: sincroniza cambios desde otros dispositivos ─────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('calculadora-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calculadora_config' },
+        () => { loadData() }
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calculadora_plantillas' },
+        () => { loadData() }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [loadData])
+
+  // ── Solo actualiza estado local (sin guardar) ─────────────────────────────
   const setConfig = useCallback((updater) => {
     setConfigState(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater
       return next
     })
-    setSaveStatus(null) // marcar como pendiente
+    setSaveStatus(null)
   }, [])
 
-  // Guardado explícito — llamado desde el botón
+  // ── Guardado explícito a Supabase ─────────────────────────────────────────
   const saveConfig = useCallback(async (configToSave) => {
     const uid = userIdRef.current
     if (!uid) return false
@@ -74,20 +90,21 @@ export function useCalculadoraStorage() {
     setSaving(false)
     setSaveStatus(error ? 'error' : 'ok')
     if (error) console.error('Error guardando config calculadora:', error)
+    // Oculta el mensaje de éxito después de 3 segundos
+    if (!error) setTimeout(() => setSaveStatus(null), 3000)
     return !error
   }, [])
 
+  // ── Plantillas CRUD ───────────────────────────────────────────────────────
   async function guardarPlantilla(nombre, rec) {
     const uid = userIdRef.current
-    if (!uid) return
+    if (!uid) return false
     const { data, error } = await supabase
       .from('calculadora_plantillas')
       .insert({ user_id: uid, nombre, rec })
-      .select()
-      .single()
-    if (!error && data) {
+      .select().single()
+    if (!error && data)
       setPlantillas(prev => [...prev, { id: data.id, nombre: data.nombre, rec: data.rec }])
-    }
     return !error
   }
 
@@ -108,7 +125,7 @@ export function useCalculadoraStorage() {
   }
 }
 
-// Lightweight hook for pages that only need to read accesorios/acabados
+// ── Hook ligero para Pedidos y Producción ─────────────────────────────────
 export function useCalculadoraConfig() {
   const [calcConfig, setCalcConfig] = useState({ accesorios: [], acabados: [] })
 
@@ -129,6 +146,16 @@ export function useCalculadoraConfig() {
       }
     }
     load()
+
+    // Escucha cambios en tiempo real
+    const channel = supabase
+      .channel('calc-config-light')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calculadora_config' },
+        () => load()
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
   return calcConfig
