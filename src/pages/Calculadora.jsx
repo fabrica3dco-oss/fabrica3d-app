@@ -1055,15 +1055,17 @@ export default function Calculadora() {
                       return inv ? (
                         <div key={link.inventario_id} className="flex items-center gap-2 bg-accent/5 border border-accent/20 rounded-lg px-2.5 py-1.5">
                           <span className="text-xs text-navy-600 flex-1 min-w-0 truncate">✅ {inv.nombre}</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <input
-                              type="number" min={1} max={100}
-                              value={link.proporcion || ''}
-                              onChange={e => updAccInvProp(a.id, link.inventario_id, Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
-                              className="w-12 border border-accent/30 rounded px-1.5 py-0.5 text-xs text-center text-navy-600 bg-white focus:outline-none focus:ring-1 focus:ring-accent/40"
-                            />
-                            <span className="text-[11px] text-[#8a9ab0]">%</span>
-                          </div>
+                          {(a.inventario_links || []).length > 1 && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <input
+                                type="number" min={1} max={100}
+                                value={link.proporcion || ''}
+                                onChange={e => updAccInvProp(a.id, link.inventario_id, Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                                className="w-12 border border-accent/30 rounded px-1.5 py-0.5 text-xs text-center text-navy-600 bg-white focus:outline-none focus:ring-1 focus:ring-accent/40"
+                              />
+                              <span className="text-[11px] text-[#8a9ab0]">%</span>
+                            </div>
+                          )}
                           <button onClick={() => removeAccInvLink(a.id, link.inventario_id)}
                             className="text-[#8a9ab0] hover:text-red-500 transition-colors shrink-0 ml-1">
                             <X size={12} />
@@ -1155,15 +1157,17 @@ export default function Calculadora() {
                       return inv ? (
                         <div key={link.inventario_id} className="flex items-center gap-2 bg-accent/5 border border-accent/20 rounded-lg px-2.5 py-1.5">
                           <span className="text-xs text-navy-600 flex-1 min-w-0 truncate">✅ {inv.nombre}</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <input
-                              type="number" min={1} max={100}
-                              value={link.proporcion || ''}
-                              onChange={e => updAcbInvProp(a.id, link.inventario_id, Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
-                              className="w-12 border border-accent/30 rounded px-1.5 py-0.5 text-xs text-center text-navy-600 bg-white focus:outline-none focus:ring-1 focus:ring-accent/40"
-                            />
-                            <span className="text-[11px] text-[#8a9ab0]">%</span>
-                          </div>
+                          {(a.inventario_links || []).length > 1 && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <input
+                                type="number" min={1} max={100}
+                                value={link.proporcion || ''}
+                                onChange={e => updAcbInvProp(a.id, link.inventario_id, Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                                className="w-12 border border-accent/30 rounded px-1.5 py-0.5 text-xs text-center text-navy-600 bg-white focus:outline-none focus:ring-1 focus:ring-accent/40"
+                              />
+                              <span className="text-[11px] text-[#8a9ab0]">%</span>
+                            </div>
+                          )}
                           <button onClick={() => removeAcbInvLink(a.id, link.inventario_id)}
                             className="text-[#8a9ab0] hover:text-red-500 transition-colors shrink-0 ml-1">
                             <X size={12} />
