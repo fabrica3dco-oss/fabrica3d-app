@@ -15,6 +15,9 @@ export const DEFAULT_CONFIG = {
   ],
 }
 
+// ID fijo para la fila de config compartida entre todos los usuarios
+const CONFIG_ROW_ID = '00000000-0000-0000-0000-000000000001'
+
 function mergeConfig(saved) {
   return {
     ...DEFAULT_CONFIG,
@@ -29,7 +32,7 @@ export function useCalculadoraStorage() {
   const [plantillas, setPlantillas] = useState([])
   const [loading, setLoading]       = useState(true)
   const [saving, setSaving]         = useState(false)
-  const [saveStatus, setSaveStatus] = useState(null) // 'ok' | 'error' | null
+  const [saveStatus, setSaveStatus] = useState(null)
   const userIdRef = useRef(null)
 
   // ── Carga inicial ─────────────────────────────────────────────────────────
@@ -38,12 +41,13 @@ export function useCalculadoraStorage() {
     if (!user) { setLoading(false); return }
     userIdRef.current = user.id
 
+    // Config compartida — no filtra por user_id, toma la primera fila
     const [{ data: cfgData, error: cfgErr }, { data: plantData }] = await Promise.all([
-      supabase.from('calculadora_config').select('config').eq('user_id', user.id).maybeSingle(),
-      supabase.from('calculadora_plantillas').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
+      supabase.from('calculadora_config').select('config').limit(1).maybeSingle(),
+      supabase.from('calculadora_plantillas').select('*').order('created_at', { ascending: true }),
     ])
 
-    if (cfgErr) console.error('Error cargando config calculadora:', cfgErr)
+    if (cfgErr) console.error('Error cargando config:', cfgErr)
     if (cfgData?.config) setConfigState(mergeConfig(cfgData.config))
     if (plantData) setPlantillas(plantData.map(p => ({ id: p.id, nombre: p.nombre, rec: p.rec })))
     setLoading(false)
@@ -51,54 +55,51 @@ export function useCalculadoraStorage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  // ── Realtime: sincroniza cambios desde otros dispositivos ─────────────────
+  // ── Realtime: sync entre dispositivos ────────────────────────────────────
   useEffect(() => {
     const channel = supabase
       .channel('calculadora-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calculadora_config' },
-        () => { loadData() }
+        () => loadData()
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calculadora_plantillas' },
-        () => { loadData() }
+        () => loadData()
       )
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [loadData])
 
-  // ── Solo actualiza estado local (sin guardar) ─────────────────────────────
+  // ── Solo actualiza estado local ───────────────────────────────────────────
   const setConfig = useCallback((updater) => {
-    setConfigState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      return next
-    })
+    setConfigState(prev => typeof updater === 'function' ? updater(prev) : updater)
     setSaveStatus(null)
   }, [])
 
-  // ── Guardado explícito a Supabase ─────────────────────────────────────────
+  // ── Guardado explícito con ID fijo (upsert compartido) ───────────────────
   const saveConfig = useCallback(async (configToSave) => {
-    const uid = userIdRef.current
-    if (!uid) return false
     setSaving(true)
     setSaveStatus(null)
     const { error } = await supabase
       .from('calculadora_config')
       .upsert(
-        { user_id: uid, config: configToSave, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' }
+        { id: CONFIG_ROW_ID, user_id: userIdRef.current, config: configToSave, updated_at: new Date().toISOString() },
+        { onConflict: 'id' }
       )
     setSaving(false)
-    setSaveStatus(error ? 'error' : 'ok')
-    if (error) console.error('Error guardando config calculadora:', error)
-    // Oculta el mensaje de éxito después de 3 segundos
-    if (!error) setTimeout(() => setSaveStatus(null), 3000)
+    if (error) {
+      console.error('Error guardando config:', error)
+      setSaveStatus('error')
+    } else {
+      setSaveStatus('ok')
+      setTimeout(() => setSaveStatus(null), 3000)
+    }
     return !error
   }, [])
 
-  // ── Plantillas CRUD ───────────────────────────────────────────────────────
+  // ── Plantillas ────────────────────────────────────────────────────────────
   async function guardarPlantilla(nombre, rec) {
     const uid = userIdRef.current
-    if (!uid) return false
     const { data, error } = await supabase
       .from('calculadora_plantillas')
       .insert({ user_id: uid, nombre, rec })
@@ -131,12 +132,10 @@ export function useCalculadoraConfig() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
       const { data } = await supabase
         .from('calculadora_config')
         .select('config')
-        .eq('user_id', user.id)
+        .limit(1)
         .maybeSingle()
       if (data?.config) {
         setCalcConfig({
@@ -147,7 +146,6 @@ export function useCalculadoraConfig() {
     }
     load()
 
-    // Escucha cambios en tiempo real
     const channel = supabase
       .channel('calc-config-light')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calculadora_config' },
